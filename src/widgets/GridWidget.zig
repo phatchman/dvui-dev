@@ -32,7 +32,7 @@ pub const SortDirection = enum {
 pub const SelectionState = enum { select_all, select_none, unchanged };
 
 pub const InitOpts = struct {
-    sortFn: ?*const fn (sort_key: []const u8, direction: SortDirection) void,
+    sortFn: ?*const fn (sort_key: []const u8, direction: SortDirection) void = null,
 };
 
 vbox: BoxWidget = undefined,
