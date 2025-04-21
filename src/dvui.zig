@@ -75,7 +75,7 @@ pub const TabsWidget = widgets.TabsWidget;
 pub const TextEntryWidget = widgets.TextEntryWidget;
 pub const TextLayoutWidget = widgets.TextLayoutWidget;
 pub const VirtualParentWidget = widgets.VirtualParentWidget;
-
+pub const GridWidget = widgets.GridWidget;
 const se = @import("structEntry.zig");
 pub const structEntry = se.structEntry;
 pub const structEntryEx = se.structEntryEx;
@@ -3720,6 +3720,13 @@ pub fn reorder(src: std.builtin.SourceLocation, opts: Options) !*ReorderWidget {
 pub fn scrollArea(src: std.builtin.SourceLocation, init_opts: ScrollAreaWidget.InitOpts, opts: Options) !*ScrollAreaWidget {
     var ret = try currentWindow().arena().create(ScrollAreaWidget);
     ret.* = ScrollAreaWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridWidget(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opts: Options) !*GridWidget {
+    const ret = try currentWindow().arena().create(GridWidget);
+    ret.* = GridWidget.init(src, init_opts, opts);
     try ret.install();
     return ret;
 }
