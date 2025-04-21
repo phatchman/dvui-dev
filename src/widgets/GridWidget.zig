@@ -175,7 +175,7 @@ pub const GridBodyWidget = struct {
     pub fn init(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
         var self = GridBodyWidget{};
         const options = defaults.override(opts);
-        self.scroll = ScrollAreaWidget.init(src, .{ .horizontal = .none }, .{ .expand = .both });
+        self.scroll = ScrollAreaWidget.init(src, .{ .horizontal = .auto }, .{ .expand = .both });
         // TODO: Somehow check that our parent is the Grid header.
         // TODO: options
         _ = init_opts;
