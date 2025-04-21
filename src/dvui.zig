@@ -75,7 +75,9 @@ pub const TabsWidget = widgets.TabsWidget;
 pub const TextEntryWidget = widgets.TextEntryWidget;
 pub const TextLayoutWidget = widgets.TextLayoutWidget;
 pub const VirtualParentWidget = widgets.VirtualParentWidget;
-
+pub const GridWidget = widgets.GridWidget;
+pub const GridHeaderWidget = GridWidget.GridHeaderWidget;
+pub const GridBodyWidget = GridWidget.GridBodyWidget;
 const se = @import("structEntry.zig");
 pub const structEntry = se.structEntry;
 pub const structEntryEx = se.structEntryEx;
@@ -3722,6 +3724,54 @@ pub fn scrollArea(src: std.builtin.SourceLocation, init_opts: ScrollAreaWidget.I
     ret.* = ScrollAreaWidget.init(src, init_opts, opts);
     try ret.install();
     return ret;
+}
+
+pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opts: Options) !*GridWidget {
+    const ret = try currentWindow().arena().create(GridWidget);
+    ret.* = try GridWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridHeader(src: std.builtin.SourceLocation, init_opts: GridHeaderWidget.InitOpts, opts: Options) !*GridHeaderWidget {
+    const ret = try currentWindow().arena().create(GridHeaderWidget);
+    ret.* = GridHeaderWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridBody(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) !*GridBodyWidget {
+    const ret = try currentWindow().arena().create(GridBodyWidget);
+    ret.* = GridBodyWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, opts: dvui.Options) !void {
+    //_ = try dvui.button(src, heading, .{}, opts);
+    // TODO: opts
+    _ = opts;
+    //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = col_widths[current_col] } });
+    var hbox = try box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
+    defer hbox.deinit();
+    if (try button(@src(), heading, .{ .draw_focus = false }, .{
+        .expand = .horizontal,
+        .corner_radius = dvui.Rect.all(0),
+    })) {
+        g.sort(heading);
+    }
+    try separator(@src(), .{ .expand = .vertical });
+}
+
+pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
+    _ = opts;
+    var vbox = try box(src, .vertical, .{ .expand = .vertical });
+    defer vbox.deinit();
+
+    for (data, 0..) |item, i| {
+        try label(src, fmt, .{@field(item, field)}, .{ .id_extra = i });
+    }
+    try g.colWidthSet(vbox.wd.contentRect().w);
 }
 
 pub fn separator(src: std.builtin.SourceLocation, opts: Options) !void {
