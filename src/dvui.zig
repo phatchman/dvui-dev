@@ -3769,7 +3769,12 @@ pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: t
     defer vbox.deinit();
 
     for (data, 0..) |item, i| {
-        try label(@src(), fmt, .{@field(item, field)}, .{ .id_extra = i });
+        try label(
+            @src(),
+            fmt,
+            .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
+            .{ .id_extra = i },
+        );
     }
     try g.colWidthSet(vbox.wd.contentRect().w);
 }
@@ -3792,12 +3797,12 @@ pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
 
 pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
     _ = opts;
-    // TODO: MAke suire field is a bool.
+    // TODO: Make sure field is a bool or struct with a a bool field
     var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
     defer vbox.deinit();
     var selection_changed = false;
     for (data, 0..) |*item, i| {
-        const is_selected: *bool = &@field(item, field_name);
+        const is_selected: *bool = if (T == bool) item else &@field(item, field_name);
         const was_selected = is_selected.*;
         switch (g.selection_state) {
             .select_all => is_selected.* = true,

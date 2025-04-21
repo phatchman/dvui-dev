@@ -134,15 +134,20 @@ fn gui_frame() !void {
         try dvui.gridHeading(@src(), grid, "Make", .{});
         try dvui.gridHeading(@src(), grid, "Model", .{});
         try dvui.gridHeading(@src(), grid, "Year", .{});
+        try dvui.gridHeading(@src(), grid, "Condition", .{});
+        try dvui.gridHeading(@src(), grid, "Description", .{});
     }
     {
         var body = try dvui.gridBody(@src(), .{}, .{});
         defer body.deinit();
         const changed = try dvui.gridCheckboxColumn(@src(), grid, Car, cars[0..], "selected", .{});
+        //        const changed = try dvui.gridCheckboxColumn(@src(), grid, bool, selections[0..], "0", .{});
         if (changed) std.debug.print("selection changed\n", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "make", "{s}", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "model", "{s}", .{});
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "year", "{d:>20}", .{});
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "year", "{d}", .{});
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "condition", "{s}", .{});
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "description", "{s}", .{});
     }
     // Sorting / Filtering
     // Pass an optional SortFn and FilterFn
@@ -152,6 +157,9 @@ fn gui_frame() !void {
     // 1) So we know how many entries in the list so we can set the scroll window appropraitely
     // 2) So that we know which checkbox rows to clear (e.g. if they are not in the currrent filter)
     //
+
+    // HMMM?
+    // What about derived values e.g. if it is supplied via a function??
 
 }
 
@@ -177,10 +185,15 @@ fn sortDesc(key: []const u8, lhs: Car, rhs: Car) bool {
     return std.mem.lessThan(u8, rhs.make, lhs.make);
 }
 
-// I don't think there is any way around making selection part of the same struct.
-// Because with selection needs ot be kept in sync with the data when sorting.
-// Otherwise you'd have to sort the sort the selections in the same order as the
-// underlying data. This methos is way simpler.
+// I don't think there is any way around making the selection bool part of the same struct as the data.
+// Because selection needs to be kept in sync with the data when sorting.
+// Otherwise you'd have to sort the selections in the same order as the
+// underlying data. This method is way simpler.
+
+// But in theory you could make the checkbox column on a different datastructure to the rest of the data.
+// This might be useful if you aren't sorting. But if someone just wants an array of bool, how would that work as ther eif no name to pass to @field?
+// Maybe we can special-case for bools?
+
 const Car = struct {
     selected: bool = false,
     model: []const u8,
@@ -191,6 +204,8 @@ const Car = struct {
 
     const Condition = enum { New, Excellent, Good, Fair, Poor };
 };
+
+var selections: [cars.len]bool = @splat(false);
 
 var cars = [_]Car{
     .{ .model = "Civic", .make = "Honda", .year = 2022, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
