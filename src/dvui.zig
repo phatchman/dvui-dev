@@ -3772,7 +3772,6 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
 }
 
 pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
-    _ = opts;
     g.beginBodyCol();
     defer g.endBodyCol();
     const min_width = g.colWidthGet();
@@ -3785,7 +3784,7 @@ pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: t
             @src(),
             fmt,
             .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
-            .{ .id_extra = i },
+            opts.override(.{ .id_extra = i }),
         );
     }
     const current_width = vbox.data().contentRect().w;

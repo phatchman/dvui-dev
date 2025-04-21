@@ -134,6 +134,7 @@ fn gui_frame() !void {
         try dvui.gridHeading(@src(), grid, "Make", .{});
         try dvui.gridHeading(@src(), grid, "Model", .{});
         try dvui.gridHeading(@src(), grid, "Year", .{});
+        try dvui.gridHeading(@src(), grid, "Mileage", .{});
         try dvui.gridHeading(@src(), grid, "Condition", .{});
         try dvui.gridHeading(@src(), grid, "Description", .{});
     }
@@ -146,7 +147,8 @@ fn gui_frame() !void {
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "make", "{s}", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "model", "{s}", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "year", "{d}", .{});
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "condition", "{s}", .{});
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "description", "{s}", .{});
     }
     // Sorting / Filtering
@@ -176,6 +178,7 @@ fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
 fn sortAsc(key: []const u8, lhs: Car, rhs: Car) bool {
     if (std.mem.eql(u8, key, "Model")) return std.mem.lessThan(u8, lhs.model, rhs.model);
     if (std.mem.eql(u8, key, "Year")) return lhs.year < rhs.year;
+    if (std.mem.eql(u8, key, "Mileage")) return lhs.mileage < rhs.mileage;
     if (std.mem.eql(u8, key, "Condition")) return @intFromEnum(lhs.condition) < @intFromEnum(rhs.condition);
     if (std.mem.eql(u8, key, "Description")) return std.mem.lessThan(u8, lhs.description, rhs.description);
 
@@ -185,6 +188,7 @@ fn sortAsc(key: []const u8, lhs: Car, rhs: Car) bool {
 fn sortDesc(key: []const u8, lhs: Car, rhs: Car) bool {
     if (std.mem.eql(u8, key, "Model")) return std.mem.lessThan(u8, rhs.model, lhs.model);
     if (std.mem.eql(u8, key, "Year")) return rhs.year < lhs.year;
+    if (std.mem.eql(u8, key, "Mileage")) return rhs.mileage < lhs.mileage;
     if (std.mem.eql(u8, key, "Condition")) return @intFromEnum(rhs.condition) < @intFromEnum(lhs.condition);
     if (std.mem.eql(u8, key, "Description")) return std.mem.lessThan(u8, rhs.description, lhs.description);
 
@@ -208,6 +212,7 @@ const Car = struct {
     model: []const u8,
     make: []const u8,
     year: u32,
+    mileage: u32,
     condition: Condition,
     description: []const u8,
 
@@ -217,26 +222,30 @@ const Car = struct {
 var selections: [cars.len]bool = @splat(false);
 
 var cars = [_]Car{
-    .{ .model = "Civic", .make = "Honda", .year = 2022, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
-    .{ .model = "Model 3", .make = "Tesla", .year = 2021, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
-    .{ .model = "Camry", .make = "Toyota", .year = 2018, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
-    .{ .model = "F-150", .make = "Ford", .year = 2015, .condition = .Fair, .description = "Hauls stuff, occasionally emotions." },
-    .{ .model = "Altima", .make = "Nissan", .year = 2010, .condition = .Poor, .description = "Drives like it’s got beef with the road." },
-    .{ .model = "Accord", .make = "Honda", .year = 2019, .condition = .Excellent, .description = "Sensible and smooth, like your friend with a Costco card." },
-    .{ .model = "Impreza", .make = "Subaru", .year = 2016, .condition = .Good, .description = "All-wheel drive and all-weather vibes." },
-    .{ .model = "Charger", .make = "Dodge", .year = 2014, .condition = .Fair, .description = "Goes fast, stops… usually." },
-    .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
-    .{ .model = "Mustang", .make = "Ford", .year = 2020, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
-    .{ .model = "Civic", .make = "Honda", .year = 2022, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
-    .{ .model = "Model 3", .make = "Tesla", .year = 2021, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
-    .{ .model = "Camry", .make = "Toyota", .year = 2018, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
-    .{ .model = "F-150", .make = "Ford", .year = 2015, .condition = .Fair, .description = "Hauls stuff, occasionally emotions." },
-    .{ .model = "Altima", .make = "Nissan", .year = 2010, .condition = .Poor, .description = "Drives like it’s got beef with the road." },
-    .{ .model = "Accord", .make = "Honda", .year = 2019, .condition = .Excellent, .description = "Sensible and smooth, like your friend with a Costco card." },
-    .{ .model = "Impreza", .make = "Subaru", .year = 2016, .condition = .Good, .description = "All-wheel drive and all-weather vibes." },
-    .{ .model = "Charger", .make = "Dodge", .year = 2014, .condition = .Fair, .description = "Goes fast, stops… usually." },
-    .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
-    .{ .model = "Mustang", .make = "Ford", .year = 2020, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
+    .{ .model = "Civic", .make = "Honda", .year = 2022, .mileage = 8500, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
+    .{ .model = "Model 3", .make = "Tesla", .year = 2021, .mileage = 15000, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
+    .{ .model = "Camry", .make = "Toyota", .year = 2018, .mileage = 43000, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
+    .{ .model = "F-150", .make = "Ford", .year = 2015, .mileage = 78000, .condition = .Fair, .description = "Hauls stuff, occasionally emotions." },
+    .{ .model = "Altima", .make = "Nissan", .year = 2010, .mileage = 129000, .condition = .Poor, .description = "Drives like it’s got beef with the road." },
+    .{ .model = "Accord", .make = "Honda", .year = 2019, .mileage = 78000, .condition = .Excellent, .description = "Sensible and smooth, like your friend with a Costco card." },
+    .{ .model = "Impreza", .make = "Subaru", .year = 2016, .mileage = 78000, .condition = .Good, .description = "All-wheel drive and all-weather vibes." },
+    .{ .model = "Charger", .make = "Dodge", .year = 2014, .mileage = 97000, .condition = .Fair, .description = "Goes fast, stops… usually." },
+    .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .mileage = 142000, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
+    .{ .model = "Mustang", .make = "Ford", .year = 2020, .mileage = 24000, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
+
+    .{ .model = "CX-5", .make = "Mazda", .year = 2019, .mileage = 32000, .condition = .Excellent, .description = "Zoom zoom, but responsibly." },
+    .{ .model = "Outback", .make = "Subaru", .year = 2017, .mileage = 61000, .condition = .Good, .description = "Always looks ready for a camping trip, even when it's not." },
+
+    .{ .model = "Civic", .make = "Honda", .year = 2022, .mileage = 8500, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
+    .{ .model = "Model 3", .make = "Tesla", .year = 2021, .mileage = 15000, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
+    .{ .model = "Camry", .make = "Toyota", .year = 2018, .mileage = 43000, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
+    .{ .model = "F-150", .make = "Ford", .year = 2015, .mileage = 78000, .condition = .Fair, .description = "Hauls stuff, occasionally emotions." },
+    .{ .model = "Altima", .make = "Nissan", .year = 2010, .mileage = 129000, .condition = .Poor, .description = "Drives like it’s got beef with the road." },
+    .{ .model = "Accord", .make = "Honda", .year = 2019, .mileage = 78000, .condition = .Excellent, .description = "Sensible and smooth, like your friend with a Costco card." },
+    .{ .model = "Impreza", .make = "Subaru", .year = 2016, .mileage = 78000, .condition = .Good, .description = "All-wheel drive and all-weather vibes." },
+    .{ .model = "Charger", .make = "Dodge", .year = 2014, .mileage = 97000, .condition = .Fair, .description = "Goes fast, stops… usually." },
+    .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .mileage = 142000, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
+    .{ .model = "Mustang", .make = "Ford", .year = 2020, .mileage = 24000, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
 };
 
 // Optional: windows os only
