@@ -3790,22 +3790,25 @@ pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
     }
 }
 
-pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !void {
+pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
     _ = opts;
     // TODO: MAke suire field is a bool.
     var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
     defer vbox.deinit();
-
+    var selection_changed = false;
     for (data, 0..) |*item, i| {
         const is_selected: *bool = &@field(item, field_name);
+        const was_selected = is_selected.*;
         switch (g.selection_state) {
             .select_all => is_selected.* = true,
             .select_none => is_selected.* = false,
             else => {},
         }
         _ = try dvui.checkbox(@src(), is_selected, null, .{ .id_extra = i });
+        selection_changed = selection_changed or was_selected != is_selected.*;
     }
     //    try g.colWidthSet(vbox.wd.contentRect().w);
+    return selection_changed;
 }
 
 pub fn separator(src: std.builtin.SourceLocation, opts: Options) !void {
