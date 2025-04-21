@@ -125,7 +125,7 @@ pub const GridHeaderWidget = struct {
         var self = GridHeaderWidget{};
         const options = defaults.override(opts);
         self.hbox = BoxWidget.init(src, .horizontal, false, options);
-
+        // TODO: Validate that ourt parent is a GridWidget.
         _ = init_opts;
         // _ = options;
         return self;
@@ -138,11 +138,6 @@ pub const GridHeaderWidget = struct {
 
     pub fn deinit(self: *GridHeaderWidget) void {
         self.hbox.deinit();
-    }
-
-    pub fn data(self: *GridHeaderWidget) *WidgetData {
-        // Our data is the scroll widget's
-        return &self.hbox.data().parent.data();
     }
 };
 
@@ -174,14 +169,4 @@ pub const GridBodyWidget = struct {
         self.hbox.deinit();
         self.scroll.deinit();
     }
-
-    pub fn data(self: *GridBodyWidget) *WidgetData {
-        // Our data is the scroll windget's data.
-        return &self.scroll.data().parent.data();
-    }
 };
-
-// TODO:
-//test {
-//    @import("std").testing.refAllDecls(@This());
-//}
