@@ -189,10 +189,13 @@ fn sortDesc(key: []const u8, lhs: Car, rhs: Car) bool {
 // Because selection needs to be kept in sync with the data when sorting.
 // Otherwise you'd have to sort the selections in the same order as the
 // underlying data. This method is way simpler.
-
+//
 // But in theory you could make the checkbox column on a different datastructure to the rest of the data.
 // This might be useful if you aren't sorting. But if someone just wants an array of bool, how would that work as ther eif no name to pass to @field?
 // Maybe we can special-case for bools?
+// !!!!!
+// Yes all of the above works now in the PoC. Can either use a separate array of bools or have the bools as a field in the struct.
+// But need better syntax.
 
 const Car = struct {
     selected: bool = false,
