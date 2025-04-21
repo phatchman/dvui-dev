@@ -100,12 +100,12 @@ pub fn colWidthSet(self: *GridWidget, w: f32) !void {
 
 pub fn colWidthGet(self: *GridWidget) f32 {
     if (self.num_cols_get < self.col_widths.items.len) {
-        return self.col_widths.items[self.num_cols_get];
+        self.num_cols_get += 1;
+        return self.col_widths.items[self.num_cols_get - 1];
     } else {
         // TODO: This should log a debug message. mark in red etc.
         return 0;
     }
-    self.num_cols_get += 1;
 }
 
 pub fn sort(self: *GridWidget, sort_key: []const u8) void {
