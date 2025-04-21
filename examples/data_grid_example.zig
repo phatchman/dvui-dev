@@ -130,6 +130,7 @@ fn gui_frame() !void {
     {
         var header = try dvui.gridHeader(@src(), .{}, .{});
         defer header.deinit();
+        try dvui.gridCheckboxHeader(@src(), grid, .{});
         try dvui.gridHeading(@src(), grid, "Make", .{});
         try dvui.gridHeading(@src(), grid, "Model", .{});
         try dvui.gridHeading(@src(), grid, "Year", .{});
@@ -137,6 +138,7 @@ fn gui_frame() !void {
     {
         var body = try dvui.gridBody(@src(), .{}, .{});
         defer body.deinit();
+        try dvui.gridCheckboxColumn(@src(), grid, Car, cars[0..], "selected", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "make", "{s}", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "model", "{s}", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "year", "{d:>20}", .{});
@@ -152,9 +154,10 @@ fn gui_frame() !void {
 
 }
 
-//
-
 fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
+    if (std.mem.eql(u8, key, "X")) {
+        return;
+    }
     switch (direction) {
         .descending => std.mem.sort(Car, &cars, key, sortDesc),
         else => std.mem.sort(Car, &cars, key, sortAsc),
@@ -173,7 +176,12 @@ fn sortDesc(key: []const u8, lhs: Car, rhs: Car) bool {
     return std.mem.lessThan(u8, rhs.make, lhs.make);
 }
 
+// I don't think there is any way around making selection part of the same struct.
+// Because with selection needs ot be kept in sync with the data when sorting.
+// Otherwise you'd have to sort the sort the selections in the same order as the
+// underlying data. This methos is way simpler.
 const Car = struct {
+    selected: bool = false,
     model: []const u8,
     make: []const u8,
     year: u32,

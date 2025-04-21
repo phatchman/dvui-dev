@@ -29,6 +29,8 @@ pub const SortDirection = enum {
     descending,
 };
 
+pub const SelectionState = enum { select_all, select_none, unchanged };
+
 pub const InitOpts = struct {
     sortFn: ?*const fn (sort_key: []const u8, direction: SortDirection) void,
 };
@@ -41,6 +43,7 @@ num_cols_set: usize = 0,
 num_cols_get: usize = 0,
 sort_direction: SortDirection = .unsorted,
 sort_key: []const u8 = "",
+selection_state: SelectionState = .unchanged,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};

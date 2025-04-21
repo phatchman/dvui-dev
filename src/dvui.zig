@@ -3769,9 +3769,43 @@ pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: t
     defer vbox.deinit();
 
     for (data, 0..) |item, i| {
-        try label(src, fmt, .{@field(item, field)}, .{ .id_extra = i });
+        try label(@src(), fmt, .{@field(item, field)}, .{ .id_extra = i });
     }
     try g.colWidthSet(vbox.wd.contentRect().w);
+}
+
+// TODO: Prob some init options about sorting etc?
+pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, opts: dvui.Options) !void {
+    _ = opts;
+    //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
+    var hbox = try dvui.box(src, .horizontal, .{});
+    defer hbox.deinit();
+    var selected: bool = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
+    const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5 });
+    try dvui.separator(@src(), .{ .expand = .vertical });
+
+    dvui.dataSet(null, hbox.data().id, "_selected", selected);
+    if (clicked) {
+        g.selection_state = if (selected) .select_all else .select_none;
+    }
+}
+
+pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !void {
+    _ = opts;
+    // TODO: MAke suire field is a bool.
+    var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
+    defer vbox.deinit();
+
+    for (data, 0..) |*item, i| {
+        const is_selected: *bool = &@field(item, field_name);
+        switch (g.selection_state) {
+            .select_all => is_selected.* = true,
+            .select_none => is_selected.* = false,
+            else => {},
+        }
+        _ = try dvui.checkbox(@src(), is_selected, null, .{ .id_extra = i });
+    }
+    //    try g.colWidthSet(vbox.wd.contentRect().w);
 }
 
 pub fn separator(src: std.builtin.SourceLocation, opts: Options) !void {
