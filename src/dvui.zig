@@ -75,7 +75,9 @@ pub const TabsWidget = widgets.TabsWidget;
 pub const TextEntryWidget = widgets.TextEntryWidget;
 pub const TextLayoutWidget = widgets.TextLayoutWidget;
 pub const VirtualParentWidget = widgets.VirtualParentWidget;
-
+pub const GridWidget = widgets.GridWidget;
+pub const GridHeaderWidget = GridWidget.GridHeaderWidget;
+pub const GridBodyWidget = GridWidget.GridBodyWidget;
 const se = @import("structEntry.zig");
 pub const structEntry = se.structEntry;
 pub const structEntryEx = se.structEntryEx;
@@ -3722,6 +3724,115 @@ pub fn scrollArea(src: std.builtin.SourceLocation, init_opts: ScrollAreaWidget.I
     ret.* = ScrollAreaWidget.init(src, init_opts, opts);
     try ret.install();
     return ret;
+}
+
+pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opts: Options) !*GridWidget {
+    const ret = try currentWindow().arena().create(GridWidget);
+    ret.* = try GridWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridHeader(src: std.builtin.SourceLocation, init_opts: GridHeaderWidget.InitOpts, opts: Options) !*GridHeaderWidget {
+    const ret = try currentWindow().arena().create(GridHeaderWidget);
+    ret.* = GridHeaderWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridBody(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) !*GridBodyWidget {
+    const ret = try currentWindow().arena().create(GridBodyWidget);
+    ret.* = GridBodyWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, opts: dvui.Options) !void {
+    //_ = try dvui.button(src, heading, .{}, opts);
+    // TODO: opts
+    _ = opts;
+    //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = col_widths[current_col] } });
+    try g.beginHeaderCol(src);
+    defer g.endHeaderCol();
+    const min_width = g.colWidthGet();
+    var hbox = try box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
+    defer hbox.deinit();
+    if (try button(@src(), heading, .{ .draw_focus = false }, .{
+        .expand = .horizontal,
+        .corner_radius = dvui.Rect.all(0),
+    })) {
+        g.sort(heading);
+    }
+    try separator(@src(), .{ .expand = .vertical });
+    const header_width = hbox.widget().data().contentRect().w;
+
+    if (header_width > min_width) {
+        try g.colWidthSet(header_width);
+    }
+}
+
+pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
+    try g.beginBodyCol(src);
+    defer g.endBodyCol();
+    const min_width = g.colWidthGet();
+
+    var vbox = try box(src, .vertical, .{ .expand = .vertical, .min_size_content = .{ .w = min_width } });
+    defer vbox.deinit();
+
+    for (data, 0..) |item, i| {
+        try label(
+            @src(),
+            fmt,
+            .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
+            opts.override(.{ .id_extra = i }),
+        );
+    }
+    const current_width = vbox.data().contentRect().w;
+    // TODO: So the issue is we can never shrink because we don't know the header vs body width.
+    // Is there a better way that just storing them separately?
+    if (current_width > min_width) {
+        try g.colWidthSet(current_width);
+    }
+}
+
+// TODO: Prob some init options about sorting etc?
+pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, opts: dvui.Options) !void {
+    try g.beginHeaderCol(src);
+    defer g.endHeaderCol();
+    _ = opts;
+    //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
+    const parent_id = dvui.parentGet().data().id;
+    var selected: bool = dvui.dataGet(null, parent_id, "_selected", bool) orelse false;
+    const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5 });
+    try dvui.separator(@src(), .{ .expand = .vertical });
+
+    dvui.dataSet(null, parent_id, "_selected", selected);
+    if (clicked) {
+        g.selection_state = if (selected) .select_all else .select_none;
+    }
+}
+
+pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
+    try g.beginBodyCol(src);
+    defer g.endBodyCol();
+    _ = opts;
+    // TODO: Make sure field is a bool or struct with a a bool field
+    //    var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
+    //    defer vbox.deinit();
+    var selection_changed = false;
+    for (data, 0..) |*item, i| {
+        const is_selected: *bool = if (T == bool) item else &@field(item, field_name);
+        const was_selected = is_selected.*;
+        switch (g.selection_state) {
+            .select_all => is_selected.* = true,
+            .select_none => is_selected.* = false,
+            else => {},
+        }
+        _ = try dvui.checkbox(@src(), is_selected, null, .{ .id_extra = i });
+        selection_changed = selection_changed or was_selected != is_selected.*;
+    }
+    //    try g.colWidthSet(vbox.wd.contentRect().w);
+    return selection_changed;
 }
 
 pub fn separator(src: std.builtin.SourceLocation, opts: Options) !void {
