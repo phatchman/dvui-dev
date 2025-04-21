@@ -3752,7 +3752,7 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
     // TODO: opts
     _ = opts;
     //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = col_widths[current_col] } });
-    g.beginHeaderCol();
+    try g.beginHeaderCol(src);
     defer g.endHeaderCol();
     const min_width = g.colWidthGet();
     var hbox = try box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
@@ -3772,7 +3772,7 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
 }
 
 pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
-    g.beginBodyCol();
+    try g.beginBodyCol(src);
     defer g.endBodyCol();
     const min_width = g.colWidthGet();
 
@@ -3797,25 +3797,28 @@ pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: t
 
 // TODO: Prob some init options about sorting etc?
 pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, opts: dvui.Options) !void {
+    try g.beginHeaderCol(src);
+    defer g.endHeaderCol();
     _ = opts;
     //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
-    var hbox = try dvui.box(src, .horizontal, .{});
-    defer hbox.deinit();
-    var selected: bool = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
+    const parent_id = dvui.parentGet().data().id;
+    var selected: bool = dvui.dataGet(null, parent_id, "_selected", bool) orelse false;
     const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5 });
     try dvui.separator(@src(), .{ .expand = .vertical });
 
-    dvui.dataSet(null, hbox.data().id, "_selected", selected);
+    dvui.dataSet(null, parent_id, "_selected", selected);
     if (clicked) {
         g.selection_state = if (selected) .select_all else .select_none;
     }
 }
 
 pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
+    try g.beginBodyCol(src);
+    defer g.endBodyCol();
     _ = opts;
     // TODO: Make sure field is a bool or struct with a a bool field
-    var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
-    defer vbox.deinit();
+    //    var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
+    //    defer vbox.deinit();
     var selection_changed = false;
     for (data, 0..) |*item, i| {
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name);

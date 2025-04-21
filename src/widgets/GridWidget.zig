@@ -41,6 +41,7 @@ options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(f32) = undefined,
 col_number: usize = 0,
 num_cols_get: usize = 0,
+col_hvbox: ?dvui.BoxWidget = null,
 sort_direction: SortDirection = .unsorted,
 sort_key: []const u8 = "",
 selection_state: SelectionState = .unchanged,
@@ -98,26 +99,40 @@ pub fn colWidthSet(self: *GridWidget, w: f32) !void {
     }
 }
 
-pub fn beginHeaderCol(self: *GridWidget) void {
-    _ = self;
-    // TODO: Nothing so far
-    // But we cound make the hbox here!
+pub fn beginHeaderCol(self: *GridWidget, src: std.builtin.SourceLocation) !void {
+    self.col_hvbox = BoxWidget.init(src, .horizontal, false, .{});
+    try self.col_hvbox.?.install();
+    try self.col_hvbox.?.drawBackground();
 }
 
 pub fn endHeaderCol(self: *GridWidget) void {
+    if (self.col_hvbox) |*vbox| {
+        vbox.deinit();
+        self.col_hvbox = null;
+    }
+
     self.col_number += 1;
 }
 
-pub fn beginBodyCol(self: *GridWidget) void {
+pub fn beginBodyCol(self: *GridWidget, src: std.builtin.SourceLocation) !void {
     // TODO: This is where the vbox can go
     // and be de-initted end endBodyCol!
     if (!self.in_body) {
         self.col_number = 0;
         self.in_body = true;
     }
+    self.col_hvbox = BoxWidget.init(src, .vertical, false, .{ .expand = .vertical });
+    try self.col_hvbox.?.install();
+    try self.col_hvbox.?.drawBackground();
+    //    var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
+    //    defer vbox.deinit();
 }
 
 pub fn endBodyCol(self: *GridWidget) void {
+    if (self.col_hvbox) |*vbox| {
+        vbox.deinit();
+        self.col_hvbox = null;
+    }
     self.col_number += 1;
 }
 
