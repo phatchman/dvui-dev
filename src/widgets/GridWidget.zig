@@ -39,11 +39,12 @@ vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(f32) = undefined,
-num_cols_set: usize = 0,
+col_number: usize = 0,
 num_cols_get: usize = 0,
 sort_direction: SortDirection = .unsorted,
 sort_key: []const u8 = "",
 selection_state: SelectionState = .unchanged,
+in_body: bool = false,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -90,18 +91,39 @@ pub fn deinit(self: *GridWidget) void {
 }
 
 pub fn colWidthSet(self: *GridWidget, w: f32) !void {
-    if (self.num_cols_set < self.col_widths.items.len) {
-        self.col_widths.items[self.num_cols_set] = w;
+    if (self.col_number < self.col_widths.items.len) {
+        self.col_widths.items[self.col_number] = w;
     } else {
         try self.col_widths.append(dvui.currentWindow().arena(), w);
     }
-    self.num_cols_set += 1;
+}
+
+pub fn beginHeaderCol(self: *GridWidget) void {
+    _ = self;
+    // TODO: Nothing so far
+    // But we cound make the hbox here!
+}
+
+pub fn endHeaderCol(self: *GridWidget) void {
+    self.col_number += 1;
+}
+
+pub fn beginBodyCol(self: *GridWidget) void {
+    // TODO: This is where the vbox can go
+    // and be de-initted end endBodyCol!
+    if (!self.in_body) {
+        self.col_number = 0;
+        self.in_body = true;
+    }
+}
+
+pub fn endBodyCol(self: *GridWidget) void {
+    self.col_number += 1;
 }
 
 pub fn colWidthGet(self: *GridWidget) f32 {
-    if (self.num_cols_get < self.col_widths.items.len) {
-        self.num_cols_get += 1;
-        return self.col_widths.items[self.num_cols_get - 1];
+    if (self.col_number < self.col_widths.items.len) {
+        return self.col_widths.items[self.col_number];
     } else {
         // TODO: This should log a debug message. mark in red etc.
         return 0;

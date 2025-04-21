@@ -3752,6 +3752,9 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
     // TODO: opts
     _ = opts;
     //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = col_widths[current_col] } });
+    g.beginHeaderCol();
+    defer g.endHeaderCol();
+    const min_width = g.colWidthGet();
     var hbox = try box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
     defer hbox.deinit();
     if (try button(@src(), heading, .{ .draw_focus = false }, .{
@@ -3761,11 +3764,20 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
         g.sort(heading);
     }
     try separator(@src(), .{ .expand = .vertical });
+    const header_width = hbox.widget().data().contentRect().w;
+
+    if (header_width > min_width) {
+        try g.colWidthSet(header_width);
+    }
 }
 
 pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
     _ = opts;
-    var vbox = try box(src, .vertical, .{ .expand = .vertical });
+    g.beginBodyCol();
+    defer g.endBodyCol();
+    const min_width = g.colWidthGet();
+
+    var vbox = try box(src, .vertical, .{ .expand = .vertical, .min_size_content = .{ .w = min_width } });
     defer vbox.deinit();
 
     for (data, 0..) |item, i| {
@@ -3776,7 +3788,12 @@ pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: t
             .{ .id_extra = i },
         );
     }
-    try g.colWidthSet(vbox.wd.contentRect().w);
+    const current_width = vbox.data().contentRect().w;
+    // TODO: So the issue is we can never shrink because we don't know the header vs body width.
+    // Is there a better way that just storing them separately?
+    if (current_width > min_width) {
+        try g.colWidthSet(current_width);
+    }
 }
 
 // TODO: Prob some init options about sorting etc?
