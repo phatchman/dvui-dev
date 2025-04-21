@@ -176,12 +176,18 @@ fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
 fn sortAsc(key: []const u8, lhs: Car, rhs: Car) bool {
     if (std.mem.eql(u8, key, "Model")) return std.mem.lessThan(u8, lhs.model, rhs.model);
     if (std.mem.eql(u8, key, "Year")) return lhs.year < rhs.year;
+    if (std.mem.eql(u8, key, "Condition")) return @intFromEnum(lhs.condition) < @intFromEnum(rhs.condition);
+    if (std.mem.eql(u8, key, "Description")) return std.mem.lessThan(u8, lhs.description, rhs.description);
+
     return std.mem.lessThan(u8, lhs.make, rhs.make);
 }
 
 fn sortDesc(key: []const u8, lhs: Car, rhs: Car) bool {
     if (std.mem.eql(u8, key, "Model")) return std.mem.lessThan(u8, rhs.model, lhs.model);
     if (std.mem.eql(u8, key, "Year")) return rhs.year < lhs.year;
+    if (std.mem.eql(u8, key, "Condition")) return @intFromEnum(rhs.condition) < @intFromEnum(lhs.condition);
+    if (std.mem.eql(u8, key, "Description")) return std.mem.lessThan(u8, rhs.description, lhs.description);
+
     return std.mem.lessThan(u8, rhs.make, lhs.make);
 }
 
@@ -205,7 +211,7 @@ const Car = struct {
     condition: Condition,
     description: []const u8,
 
-    const Condition = enum { New, Excellent, Good, Fair, Poor };
+    const Condition = enum(u32) { New, Excellent, Good, Fair, Poor };
 };
 
 var selections: [cars.len]bool = @splat(false);
