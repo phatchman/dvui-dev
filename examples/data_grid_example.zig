@@ -138,7 +138,8 @@ fn gui_frame() !void {
     {
         var body = try dvui.gridBody(@src(), .{}, .{});
         defer body.deinit();
-        try dvui.gridCheckboxColumn(@src(), grid, Car, cars[0..], "selected", .{});
+        const changed = try dvui.gridCheckboxColumn(@src(), grid, Car, cars[0..], "selected", .{});
+        if (changed) std.debug.print("selection changed\n", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "make", "{s}", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "model", "{s}", .{});
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "year", "{d:>20}", .{});
