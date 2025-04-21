@@ -130,9 +130,9 @@ pub fn build(b: *std.Build) !void {
         }
 
         linkBackend(dvui_sdl, sdl_mod);
-        addExample("sdl2-standalone", b.path("examples/sdl-standalone.zig"), dvui_sdl, true, dvui_opts);
-        addExample("sdl2-ontop", b.path("examples/sdl-ontop.zig"), dvui_sdl, true, dvui_opts);
-        addExample("sdl2-app", b.path("examples/app.zig"), dvui_sdl, test_dvui_and_app, dvui_opts);
+        addExample(dvui_opts, "sdl2-standalone", b.path("examples/sdl-standalone.zig"), dvui_sdl);
+        addExample(dvui_opts, "sdl2-ontop", b.path("examples/sdl-ontop.zig"), dvui_sdl);
+        addExample(dvui_opts, "sdl2-app", b.path("examples/app.zig"), dvui_sdl);
     }
 
     // SDL3
@@ -172,9 +172,9 @@ pub fn build(b: *std.Build) !void {
         }
 
         linkBackend(dvui_sdl, sdl_mod);
-        addExample("sdl3-standalone", b.path("examples/sdl-standalone.zig"), dvui_sdl, true, dvui_opts);
-        addExample("sdl3-ontop", b.path("examples/sdl-ontop.zig"), dvui_sdl, true, dvui_opts);
-        addExample("sdl3-app", b.path("examples/app.zig"), dvui_sdl, test_dvui_and_app, dvui_opts);
+        addExample(dvui_opts, "sdl3-standalone", b.path("examples/sdl-standalone.zig"), dvui_sdl);
+        addExample(dvui_opts, "sdl3-ontop", b.path("examples/sdl-ontop.zig"), dvui_sdl);
+        addExample(dvui_opts, "sdl3-app", b.path("examples/app.zig"), dvui_sdl);
     }
 
     // Raylib
