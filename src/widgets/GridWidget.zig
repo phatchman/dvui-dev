@@ -26,9 +26,9 @@ pub var defaults: Options = .{
 pub const InitOpts = struct {};
 
 vbox: BoxWidget = undefined,
-header: BoxWidget = undefined,
-body: BoxWidget = undefined,
-scroll: ScrollAreaWidget = undefined,
+//header: BoxWidget = undefined,
+//body: BoxWidget = undefined,
+//scroll: ScrollAreaWidget = undefined,
 init_opts: InitOpts = undefined,
 options: Options = undefined,
 
@@ -46,42 +46,6 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
 pub fn install(self: *GridWidget) !void {
     try self.vbox.install();
     try self.vbox.drawBackground();
-
-    self.header = BoxWidget.init(
-        @src(),
-        .horizontal,
-        false,
-        self.options.strip().override(.{ .expand = .horizontal, .name = "GridWidget header", .border = dvui.Rect.all(1) }),
-    );
-
-    try self.header.install();
-    try self.header.drawBackground();
-}
-
-/// Start the grid header.
-/// Must call defer on the returned widget.
-pub fn gridHeader(self: *GridWidget) !void {
-    _ = self;
-}
-
-/// Start the grid header.
-/// Must call defer on the returned widget.
-pub fn gridBody(self: *GridWidget) !void {
-    self.header.deinit();
-    self.scroll = ScrollAreaWidget.init(
-        @src(),
-        .{ .horizontal = .none },
-        self.vbox.data().options.strip().override(.{ .expand = .both, .name = "GridWidget scroll" }),
-    );
-    try self.scroll.install();
-    self.body = BoxWidget.init(
-        @src(),
-        .horizontal,
-        false,
-        self.vbox.data().options.strip().override(.{ .expand = .both, .name = "GridWidget body" }),
-    );
-    try self.body.install();
-    try self.body.drawBackground();
 }
 
 pub fn data(self: *GridWidget) *WidgetData {
@@ -89,12 +53,72 @@ pub fn data(self: *GridWidget) *WidgetData {
 }
 
 pub fn deinit(self: *GridWidget) void {
-    // TODO: dvui.dataSet(null, self.hbox.data().id, "_scroll_id", self.scroll.wd.id);
-    self.body.deinit();
-    self.scroll.deinit();
-    std.debug.print("DEINIT\n\n", .{});
     self.vbox.deinit();
 }
+
+pub const GridHeaderWidget = struct {
+    pub const InitOpts = struct {};
+
+    hbox: BoxWidget = undefined,
+
+    pub fn init(src: std.builtin.SourceLocation, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
+        var self = GridHeaderWidget{};
+        const options = defaults.override(opts);
+
+        self.hbox = BoxWidget.init(src, .horizontal, false, options);
+
+        _ = init_opts;
+        // _ = options;
+        return self;
+    }
+
+    pub fn install(self: *GridHeaderWidget) !void {
+        try self.hbox.install();
+        try self.hbox.drawBackground();
+    }
+
+    pub fn deinit(self: *GridHeaderWidget) void {
+        self.hbox.deinit();
+    }
+
+    pub fn data(self: *GridHeaderWidget) *WidgetData {
+        return &self.hbox.wd;
+    }
+};
+
+pub const GridBodyWidget = struct {
+    pub const InitOpts = struct {};
+
+    scroll: ScrollAreaWidget = undefined,
+    hbox: BoxWidget = undefined,
+
+    pub fn init(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
+        var self = GridBodyWidget{};
+        const options = defaults.override(opts);
+        self.scroll = ScrollAreaWidget.init(src, .{ .horizontal = .none }, .{ .expand = .both });
+
+        // TODO: options
+        _ = init_opts;
+        _ = options;
+        return self;
+    }
+
+    pub fn install(self: *GridBodyWidget) !void {
+        try self.scroll.install();
+        self.hbox = BoxWidget.init(@src(), .horizontal, false, .{ .expand = .vertical });
+        try self.hbox.install();
+        try self.hbox.drawBackground();
+    }
+
+    pub fn deinit(self: *GridBodyWidget) void {
+        self.hbox.deinit();
+        self.scroll.deinit();
+    }
+
+    pub fn data(self: *GridBodyWidget) *WidgetData {
+        return &self.scroll.wd;
+    }
+};
 
 // TODO:
 //test {

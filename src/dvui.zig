@@ -76,6 +76,8 @@ pub const TextEntryWidget = widgets.TextEntryWidget;
 pub const TextLayoutWidget = widgets.TextLayoutWidget;
 pub const VirtualParentWidget = widgets.VirtualParentWidget;
 pub const GridWidget = widgets.GridWidget;
+pub const GridHeaderWidget = GridWidget.GridHeaderWidget;
+pub const GridBodyWidget = GridWidget.GridBodyWidget;
 const se = @import("structEntry.zig");
 pub const structEntry = se.structEntry;
 pub const structEntryEx = se.structEntryEx;
@@ -3724,9 +3726,23 @@ pub fn scrollArea(src: std.builtin.SourceLocation, init_opts: ScrollAreaWidget.I
     return ret;
 }
 
-pub fn gridWidget(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opts: Options) !*GridWidget {
+pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opts: Options) !*GridWidget {
     const ret = try currentWindow().arena().create(GridWidget);
     ret.* = GridWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridHeader(src: std.builtin.SourceLocation, init_opts: GridHeaderWidget.InitOpts, opts: Options) !*GridHeaderWidget {
+    const ret = try currentWindow().arena().create(GridHeaderWidget);
+    ret.* = GridHeaderWidget.init(src, init_opts, opts);
+    try ret.install();
+    return ret;
+}
+
+pub fn gridBody(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) !*GridBodyWidget {
+    const ret = try currentWindow().arena().create(GridBodyWidget);
+    ret.* = GridBodyWidget.init(src, init_opts, opts);
     try ret.install();
     return ret;
 }

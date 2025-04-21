@@ -121,16 +121,28 @@ fn gui_frame() !void {
             _ = try dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
         }
     }
+    if (col_widths[0] == 0.0) {
+        dvui.refresh(null, @src(), null);
+    }
 
-    var grid = try dvui.gridWidget(@src(), .{}, .{ .expand = .both, .background = true });
+    current_col = 0;
+    var grid = try dvui.grid(@src(), .{}, .{ .expand = .both, .background = true });
     defer grid.deinit();
-    try grid.gridHeader();
-    try gridHeading(@src(), "Make", .{});
-    try gridHeading(@src(), "Model", .{});
-    try grid.gridBody();
-    try gridColumn(@src(), Car, cars[0..], "make", "{s}", .{});
-    try gridColumn(@src(), Car, cars[0..], "model", "{s}", .{});
-
+    {
+        var header = try dvui.gridHeader(@src(), .{}, .{});
+        defer header.deinit();
+        try gridHeading(@src(), "Make", .{});
+        try gridHeading(@src(), "Model", .{});
+        try gridHeading(@src(), "Year", .{});
+    }
+    current_col = 0;
+    {
+        var body = try dvui.gridBody(@src(), .{}, .{});
+        defer body.deinit();
+        try gridColumn(@src(), Car, cars[0..], "make", "{s}", .{});
+        try gridColumn(@src(), Car, cars[0..], "model", "{s}", .{});
+        try gridColumn(@src(), Car, cars[0..], "year", "{d:>6}", .{});
+    }
     // Sorting / Filtering
     // Pass an optional SortFn and FilterFn
     // FilterFn is done in grid.bind(t: []T) and is applied to each row
@@ -142,9 +154,22 @@ fn gui_frame() !void {
 
 }
 
+var col_widths: [3]f32 = @splat(0);
+var current_col: usize = 0;
+
 // TODO: Prob need some initopts for the sort function.
 pub fn gridHeading(src: std.builtin.SourceLocation, heading: []const u8, opts: dvui.Options) !void {
-    _ = try dvui.button(src, heading, .{}, opts);
+    //_ = try dvui.button(src, heading, .{}, opts);
+    // TODO: opts
+    _ = opts;
+    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = col_widths[current_col] } });
+    defer hbox.deinit();
+    _ = try dvui.button(@src(), heading, .{ .draw_focus = false }, .{
+        .expand = .horizontal,
+        .corner_radius = dvui.Rect.all(0),
+    });
+    try dvui.separator(@src(), .{ .expand = .vertical });
+    current_col += 1;
 }
 
 pub fn gridColumn(src: std.builtin.SourceLocation, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
@@ -155,6 +180,8 @@ pub fn gridColumn(src: std.builtin.SourceLocation, comptime T: type, data: []con
     for (data, 0..) |item, i| {
         try dvui.label(src, fmt, .{@field(item, field)}, .{ .id_extra = i });
     }
+    col_widths[current_col] = vbox.wd.contentRect().w;
+    current_col += 1;
 }
 
 const Car = struct {
@@ -168,6 +195,16 @@ const Car = struct {
 };
 
 const cars = [_]Car{
+    .{ .model = "Civic", .make = "Honda", .year = 2022, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
+    .{ .model = "Model 3", .make = "Tesla", .year = 2021, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
+    .{ .model = "Camry", .make = "Toyota", .year = 2018, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
+    .{ .model = "F-150", .make = "Ford", .year = 2015, .condition = .Fair, .description = "Hauls stuff, occasionally emotions." },
+    .{ .model = "Altima", .make = "Nissan", .year = 2010, .condition = .Poor, .description = "Drives like it’s got beef with the road." },
+    .{ .model = "Accord", .make = "Honda", .year = 2019, .condition = .Excellent, .description = "Sensible and smooth, like your friend with a Costco card." },
+    .{ .model = "Impreza", .make = "Subaru", .year = 2016, .condition = .Good, .description = "All-wheel drive and all-weather vibes." },
+    .{ .model = "Charger", .make = "Dodge", .year = 2014, .condition = .Fair, .description = "Goes fast, stops… usually." },
+    .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
+    .{ .model = "Mustang", .make = "Ford", .year = 2020, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
     .{ .model = "Civic", .make = "Honda", .year = 2022, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
     .{ .model = "Model 3", .make = "Tesla", .year = 2021, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
     .{ .model = "Camry", .make = "Toyota", .year = 2018, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
