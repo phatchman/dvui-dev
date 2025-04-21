@@ -121,27 +121,25 @@ fn gui_frame() !void {
             _ = try dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
         }
     }
-    if (col_widths[0] == 0.0) {
-        dvui.refresh(null, @src(), null);
-    }
-
-    current_col = 0;
-    var grid = try dvui.grid(@src(), .{}, .{ .expand = .both, .background = true });
+    var grid = try dvui.grid(
+        @src(),
+        .{ .sortFn = sort },
+        .{ .expand = .both, .background = true },
+    );
     defer grid.deinit();
     {
         var header = try dvui.gridHeader(@src(), .{}, .{});
         defer header.deinit();
-        try gridHeading(@src(), "Make", .{});
-        try gridHeading(@src(), "Model", .{});
-        try gridHeading(@src(), "Year", .{});
+        try dvui.gridHeading(@src(), grid, "Make", .{});
+        try dvui.gridHeading(@src(), grid, "Model", .{});
+        try dvui.gridHeading(@src(), grid, "Year", .{});
     }
-    current_col = 0;
     {
         var body = try dvui.gridBody(@src(), .{}, .{});
         defer body.deinit();
-        try gridColumn(@src(), Car, cars[0..], "make", "{s}", .{});
-        try gridColumn(@src(), Car, cars[0..], "model", "{s}", .{});
-        try gridColumn(@src(), Car, cars[0..], "year", "{d:>6}", .{});
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "make", "{s}", .{});
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "model", "{s}", .{});
+        try dvui.gridColumn(@src(), grid, Car, cars[0..], "year", "{d:>20}", .{});
     }
     // Sorting / Filtering
     // Pass an optional SortFn and FilterFn
@@ -154,34 +152,25 @@ fn gui_frame() !void {
 
 }
 
-var col_widths: [3]f32 = @splat(0);
-var current_col: usize = 0;
+//
 
-// TODO: Prob need some initopts for the sort function.
-pub fn gridHeading(src: std.builtin.SourceLocation, heading: []const u8, opts: dvui.Options) !void {
-    //_ = try dvui.button(src, heading, .{}, opts);
-    // TODO: opts
-    _ = opts;
-    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = col_widths[current_col] } });
-    defer hbox.deinit();
-    _ = try dvui.button(@src(), heading, .{ .draw_focus = false }, .{
-        .expand = .horizontal,
-        .corner_radius = dvui.Rect.all(0),
-    });
-    try dvui.separator(@src(), .{ .expand = .vertical });
-    current_col += 1;
+fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
+    switch (direction) {
+        .descending => std.mem.sort(Car, &cars, key, sortDesc),
+        else => std.mem.sort(Car, &cars, key, sortAsc),
+    }
 }
 
-pub fn gridColumn(src: std.builtin.SourceLocation, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
-    _ = opts;
-    var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
-    defer vbox.deinit();
+fn sortAsc(key: []const u8, lhs: Car, rhs: Car) bool {
+    if (std.mem.eql(u8, key, "Model")) return std.mem.lessThan(u8, lhs.model, rhs.model);
+    if (std.mem.eql(u8, key, "Year")) return lhs.year < rhs.year;
+    return std.mem.lessThan(u8, lhs.make, rhs.make);
+}
 
-    for (data, 0..) |item, i| {
-        try dvui.label(src, fmt, .{@field(item, field)}, .{ .id_extra = i });
-    }
-    col_widths[current_col] = vbox.wd.contentRect().w;
-    current_col += 1;
+fn sortDesc(key: []const u8, lhs: Car, rhs: Car) bool {
+    if (std.mem.eql(u8, key, "Model")) return std.mem.lessThan(u8, rhs.model, lhs.model);
+    if (std.mem.eql(u8, key, "Year")) return rhs.year < lhs.year;
+    return std.mem.lessThan(u8, rhs.make, lhs.make);
 }
 
 const Car = struct {
@@ -194,7 +183,7 @@ const Car = struct {
     const Condition = enum { New, Excellent, Good, Fair, Poor };
 };
 
-const cars = [_]Car{
+var cars = [_]Car{
     .{ .model = "Civic", .make = "Honda", .year = 2022, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
     .{ .model = "Model 3", .make = "Tesla", .year = 2021, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
     .{ .model = "Camry", .make = "Toyota", .year = 2018, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },

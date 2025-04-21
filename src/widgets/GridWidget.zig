@@ -23,22 +23,49 @@ pub var defaults: Options = .{
     //    .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
 };
 
-pub const InitOpts = struct {};
+pub const SortDirection = enum {
+    unsorted,
+    ascending,
+    descending,
+};
+
+pub const InitOpts = struct {
+    sortFn: ?*const fn (sort_key: []const u8, direction: SortDirection) void,
+};
 
 vbox: BoxWidget = undefined,
-//header: BoxWidget = undefined,
-//body: BoxWidget = undefined,
-//scroll: ScrollAreaWidget = undefined,
 init_opts: InitOpts = undefined,
 options: Options = undefined,
+col_widths: std.ArrayListUnmanaged(f32) = undefined,
+num_cols_set: usize = 0,
+num_cols_get: usize = 0,
+sort_direction: SortDirection = .unsorted,
+sort_key: []const u8 = "",
 
-pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) GridWidget {
+pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
     self.init_opts = init_opts;
     const options = defaults.override(opts);
 
     self.vbox = BoxWidget.init(src, .vertical, false, options);
+    if (dvui.dataGet(null, self.data().id, "_sort_key", []const u8)) |sort_key| {
+        self.sort_key = sort_key;
+    }
 
+    if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
+        self.sort_direction = sort_direction;
+    } else {
+        self.sort_direction = .unsorted;
+    }
+
+    if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []f32)) |col_widths| {
+        try self.col_widths.ensureTotalCapacity(dvui.currentWindow().arena(), col_widths.len);
+        self.col_widths.appendSliceAssumeCapacity(col_widths);
+    } else {
+        // Need to refresh first display frame as the header column widths
+        // were not set yet.
+        dvui.refresh(null, @src(), null);
+    }
     self.options = options;
     return self;
 }
@@ -49,11 +76,44 @@ pub fn install(self: *GridWidget) !void {
 }
 
 pub fn data(self: *GridWidget) *WidgetData {
-    return &self.hbox.wd;
+    return &self.vbox.wd;
 }
 
 pub fn deinit(self: *GridWidget) void {
+    dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths.items[0..]);
+    dvui.dataSet(null, self.data().id, "_sort_key", self.sort_key);
+    dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
     self.vbox.deinit();
+}
+
+pub fn colWidthSet(self: *GridWidget, w: f32) !void {
+    if (self.num_cols_set < self.col_widths.items.len) {
+        self.col_widths.items[self.num_cols_set] = w;
+    } else {
+        try self.col_widths.append(dvui.currentWindow().arena(), w);
+    }
+    self.num_cols_set += 1;
+}
+
+pub fn colWidthGet(self: *GridWidget) f32 {
+    if (self.num_cols_get < self.col_widths.items.len) {
+        return self.col_widths.items[self.num_cols_get];
+    } else {
+        // TODO: This should log a debug message. mark in red etc.
+        return 0;
+    }
+    self.num_cols_get += 1;
+}
+
+pub fn sort(self: *GridWidget, sort_key: []const u8) void {
+    if (!std.mem.eql(u8, sort_key, self.sort_key)) {
+        self.sort_direction = .unsorted;
+        self.sort_key = sort_key;
+    }
+    self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
+    if (self.init_opts.sortFn) |sort_fn| {
+        sort_fn(sort_key, self.sort_direction);
+    }
 }
 
 pub const GridHeaderWidget = struct {
@@ -64,7 +124,6 @@ pub const GridHeaderWidget = struct {
     pub fn init(src: std.builtin.SourceLocation, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
         var self = GridHeaderWidget{};
         const options = defaults.override(opts);
-
         self.hbox = BoxWidget.init(src, .horizontal, false, options);
 
         _ = init_opts;
@@ -82,7 +141,8 @@ pub const GridHeaderWidget = struct {
     }
 
     pub fn data(self: *GridHeaderWidget) *WidgetData {
-        return &self.hbox.wd;
+        // Our data is the scroll widget's
+        return &self.hbox.data().parent.data();
     }
 };
 
@@ -96,7 +156,7 @@ pub const GridBodyWidget = struct {
         var self = GridBodyWidget{};
         const options = defaults.override(opts);
         self.scroll = ScrollAreaWidget.init(src, .{ .horizontal = .none }, .{ .expand = .both });
-
+        // TODO: Somehow check that our parent is the Grid header.
         // TODO: options
         _ = init_opts;
         _ = options;
@@ -116,7 +176,8 @@ pub const GridBodyWidget = struct {
     }
 
     pub fn data(self: *GridBodyWidget) *WidgetData {
-        return &self.scroll.wd;
+        // Our data is the scroll windget's data.
+        return &self.scroll.data().parent.data();
     }
 };
 
