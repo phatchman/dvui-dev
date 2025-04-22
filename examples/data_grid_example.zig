@@ -168,6 +168,7 @@ fn gui_frame() !void {
     // HMMM?
     // What about derived values e.g. if it is supplied via a function?? Thinking of things like totals etc.
     // as well as maybe just wanting to format an enum differently.
+    // For this they prob need to write their own column.it is quite easy to do now.
 
 }
 

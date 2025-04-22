@@ -3748,16 +3748,21 @@ pub fn gridBody(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitO
 }
 
 pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
+    const icon_arrow_dn = @embedFile("icons/entypo/chevron-small-down.tvg");
+    const icon_arrow_up = @embedFile("icons/entypo/chevron-small-up.tvg");
+
     // TODO: opts
     _ = opts;
     try g.beginHeaderCol(src);
     defer g.endHeaderCol();
-    var sort_changed = false;
-    if (try button(@src(), heading, .{ .draw_focus = false }, .{
-        .expand = .horizontal,
-        .corner_radius = dvui.Rect.all(0),
-    })) {
-        sort_changed = true;
+
+    const sort_changed = switch (g.colSortOrder()) {
+        .unsorted => try button(@src(), heading, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
+        .ascending => try buttonLabelAndIcon(@src(), heading, icon_arrow_dn, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
+        .descending => try buttonLabelAndIcon(@src(), heading, icon_arrow_up, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
+    };
+
+    if (sort_changed) {
         g.sortChanged();
     }
     try separator(@src(), .{ .expand = .vertical });
@@ -4265,6 +4270,36 @@ pub fn buttonIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: 
 
     const click = bw.clicked();
     try bw.drawFocus();
+    bw.deinit();
+    return click;
+}
+
+pub fn buttonLabelAndIcon(src: std.builtin.SourceLocation, label_str: []const u8, tvg_bytes: []const u8, init_opts: ButtonWidget.InitOptions, opts: Options) !bool {
+    // initialize widget and get rectangle from parent
+    var bw = ButtonWidget.init(src, init_opts, opts);
+
+    // make ourselves the new parent
+    try bw.install();
+
+    // process events (mouse and keyboard)
+    bw.processEvents();
+    var options = opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5 });
+    if (bw.pressed()) options = options.override(.{ .color_text = .{ .color = opts.color(.text_press) } });
+
+    // draw background/border
+    try bw.drawBackground();
+    {
+        var hbox = try box(src, .horizontal, .{ .expand = .horizontal });
+        defer hbox.deinit();
+
+        try labelNoFmt(@src(), label_str, options.override(.{ .expand = .horizontal }));
+        try icon(@src(), label_str, tvg_bytes, opts.strip().override(.{ .gravity_y = 0.5 }));
+    }
+
+    const click = bw.clicked();
+
+    try bw.drawFocus();
+
     bw.deinit();
     return click;
 }
