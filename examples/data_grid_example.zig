@@ -151,17 +151,10 @@ fn gui_frame() !void {
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
         try dvui.gridColumn(@src(), grid, Car, cars[0..], "description", "{s}", .{});
     }
-    // Sorting / Filtering
-    // Pass an optional SortFn and FilterFn
-    // FilterFn is done in grid.bind(t: []T) and is applied to each row
-    // It is also applied to any checkbox columns, so that the filtered rows will match
-    // the selected rows. This needs to be done before the pe-column binds are done:
-    // 1) So we know how many entries in the list so we can set the scroll window appropraitely
-    // 2) So that we know which checkbox rows to clear (e.g. if they are not in the currrent filter)
-    //
 
     // HMMM?
-    // What about derived values e.g. if it is supplied via a function??
+    // What about derived values e.g. if it is supplied via a function?? Thinking of things like totals etc.
+    // as well as maybe just wanting to format an enum differently.
 
 }
 
