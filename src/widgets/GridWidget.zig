@@ -154,7 +154,7 @@ pub fn endBodyCol(self: *GridWidget) void {
     self.col_number += 1;
 }
 
-pub fn colWidthGet(self: *GridWidget) f32 {
+pub fn colWidthGet(self: *const GridWidget) f32 {
     if (self.col_number < self.col_widths.items.len) {
         return self.col_widths.items[self.col_number];
     } else {
@@ -169,6 +169,14 @@ pub fn sortChanged(self: *GridWidget) void {
         self.sort_col_number = self.col_number;
     }
     self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
+}
+
+pub fn colSortOrder(self: *const GridWidget) SortDirection {
+    if (self.col_number == self.sort_col_number) {
+        return self.sort_direction;
+    } else {
+        return .unsorted;
+    }
 }
 
 //pub fn sort(self: *GridWidget, sort_key: []const u8) void {
