@@ -216,23 +216,40 @@ pub const GridHeaderWidget = struct {
 };
 
 pub const GridBodyWidget = struct {
-    pub const InitOpts = struct {};
-
+    pub const InitOpts = struct {
+        scroll_info: ?*ScrollInfo = null,
+    };
+    //    si_store: ScrollInfo = undefined,
+    //    si: *ScrollInfo = undefined,
     scroll: ScrollAreaWidget = undefined,
     hbox: BoxWidget = undefined,
+    //init_opts: GridBodyWidget.InitOpts = undefined,
 
     pub fn init(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
         var self = GridBodyWidget{};
         const options = defaults.override(opts);
-        self.scroll = ScrollAreaWidget.init(src, .{ .horizontal = .auto }, .{ .expand = .both });
+
+        // Can't set the scroll_info here as it might be a pointer to a stack object.
+        self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = init_opts.scroll_info }, .{ .expand = .both });
+
         // TODO: Somehow check that our parent is the Grid header.
         // TODO: options
-        _ = init_opts;
+        //self.init_opts = init_opts;
         _ = options;
         return self;
     }
 
     pub fn install(self: *GridBodyWidget) !void {
+        //        if (self.init_opts.scroll_info) |si| {
+        //            self.si = si;
+        //        } else if (dvui.dataGet(null, self.data().id, "_scroll_info", ScrollInfo)) |si| {
+        //            self.si_store = si;
+        //            self.si = &self.si_store;
+        //        } else {
+        //            self.si_store = .{ .verical = .show, .horizontal = .auto };
+        //            self.si = &self.si_store;
+        //        }
+        //        self.scroll.init_opts.scroll_info = self.si;
         try self.scroll.install();
         self.hbox = BoxWidget.init(@src(), .horizontal, false, .{ .expand = .vertical });
         try self.hbox.install();
