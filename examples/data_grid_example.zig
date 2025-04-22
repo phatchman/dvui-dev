@@ -95,6 +95,7 @@ pub fn main() !void {
     }
 }
 
+pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 // both dvui and SDL drawing
 fn gui_frame() !void {
     const backend = g_backend orelse return;
@@ -131,7 +132,7 @@ fn gui_frame() !void {
         var header = try dvui.gridHeader(@src(), .{}, .{});
         defer header.deinit();
         var sort_dir: dvui.GridWidget.SortDirection = undefined;
-        try dvui.gridHeadingCheckBox(@src(), grid, .{});
+        //try dvui.gridHeadingCheckBox(@src(), grid, .{});
         if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
             sort("Make", sort_dir);
         }
@@ -152,18 +153,34 @@ fn gui_frame() !void {
         }
     }
     {
-        var body = try dvui.gridBody(@src(), .{}, .{});
+        var body = try dvui.gridBody(@src(), .{ .scroll_info = &scroll_info }, .{});
         defer body.deinit();
-        const changed = try dvui.gridColumnCheckBox(@src(), grid, Car, cars[0..], "selected", .{});
+        //const changed = try dvui.gridColumnCheckBox(@src(), grid, Car, cars[0..], "selected", .{});
         //        const changed = try dvui.gridCheckboxColumn(@src(), grid, bool, selections[0..], "0", .{});
-        if (changed) std.debug.print("selection changed\n", .{});
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "year", "{d}", .{});
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{});
+        //if (changed) std.debug.print("selection changed\n", .{});
+        scroll_info.virtual_size.h = 28 * cars.len;
+        const first: usize = @intFromFloat(@round(scroll_info.viewport.y / 28));
+        const last: usize = @min(first + @as(usize, @intFromFloat(@round(scroll_info.viewport.h / 28))), cars.len);
+        var empty = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .min_size_content = .{ .h = scroll_info.viewport.y } });
+        empty.deinit();
+        //        try dvui.labelNoFmt(@src(), "Filler", .{ .min_size_content = .{ .h = scroll_info.viewport.x } });
+
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", .{}, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "model", "{s}", .{}, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "year", "{d}", .{}, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 }, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 }, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "description", "{s}", .{}, &scroll_info);
+        //std.debug.print("VP = {}\n VS = {} first = {}, last = {}\n", .{ body.scroll.si.viewport, body.scroll.si.virtual_size, first, last });
     }
+
+    // OK So in onr of the widgets, we need to:
+    // 1) Get the height of a single row. (Grid Widget knows this)
+    // 2) Get the viewport height. (Body Widget knows this)
+    // 3) Calc number of rows to display (From 1 and 2)
+    // 4) Calc starting display row.
+    // 5) In the display data column, get the start offset and number to display from some widget.
+    // 6) Only create labels for the needed rows.
 
     // HMMM?
     // What about derived values e.g. if it is supplied via a function?? Thinking of things like totals etc.

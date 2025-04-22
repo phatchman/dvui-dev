@@ -3769,11 +3769,19 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, head
     dir.* = g.sort_direction;
     return sort_changed;
 }
+//const tmp_si = @import("../examples/data_grid_example.zig").scroll_info;
 
-pub fn gridColumnFromSlice(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
+pub fn gridColumnFromSlice(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options, si: ?*const ScrollInfo) !void {
     try g.beginBodyCol(src);
     defer g.endBodyCol();
-
+    if (si) |scroll_info| {
+        var vbox = try box(@src(), .vertical, .{
+            .expand = .horizontal,
+            .min_size_content = .{ .h = scroll_info.viewport.y },
+            .max_size_content = .{ .h = scroll_info.viewport.y },
+        });
+        vbox.deinit();
+    }
     for (data, 0..) |item, i| {
         try label(
             @src(),
