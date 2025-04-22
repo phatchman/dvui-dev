@@ -123,33 +123,46 @@ fn gui_frame() !void {
     }
     var grid = try dvui.grid(
         @src(),
-        .{ .sortFn = sort },
+        .{},
         .{ .expand = .both, .background = true },
     );
     defer grid.deinit();
     {
         var header = try dvui.gridHeader(@src(), .{}, .{});
         defer header.deinit();
-        try dvui.gridCheckboxHeader(@src(), grid, .{});
-        try dvui.gridHeading(@src(), grid, "Make", .{});
-        try dvui.gridHeading(@src(), grid, "Model", .{});
-        try dvui.gridHeading(@src(), grid, "Year", .{});
-        try dvui.gridHeading(@src(), grid, "Mileage", .{});
-        try dvui.gridHeading(@src(), grid, "Condition", .{});
-        try dvui.gridHeading(@src(), grid, "Description", .{});
+        var sort_dir: dvui.GridWidget.SortDirection = undefined;
+        try dvui.gridHeadingCheckBox(@src(), grid, .{});
+        if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
+            sort("Make", sort_dir);
+        }
+        if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
+            sort("Model", sort_dir);
+        }
+        if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
+            sort("Year", sort_dir);
+        }
+        if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
+            sort("Mileage", sort_dir);
+        }
+        if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
+            sort("Condition", sort_dir);
+        }
+        if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
+            sort("Description", sort_dir);
+        }
     }
     {
         var body = try dvui.gridBody(@src(), .{}, .{});
         defer body.deinit();
-        const changed = try dvui.gridCheckboxColumn(@src(), grid, Car, cars[0..], "selected", .{});
+        const changed = try dvui.gridColumnCheckBox(@src(), grid, Car, cars[0..], "selected", .{});
         //        const changed = try dvui.gridCheckboxColumn(@src(), grid, bool, selections[0..], "0", .{});
         if (changed) std.debug.print("selection changed\n", .{});
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "make", "{s}", .{});
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "model", "{s}", .{});
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "year", "{d}", .{});
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
-        try dvui.gridColumn(@src(), grid, Car, cars[0..], "description", "{s}", .{});
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "year", "{d}", .{});
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
+        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{});
     }
 
     // HMMM?
@@ -159,9 +172,6 @@ fn gui_frame() !void {
 }
 
 fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
-    if (std.mem.eql(u8, key, "X")) {
-        return;
-    }
     switch (direction) {
         .descending => std.mem.sort(Car, &cars, key, sortDesc),
         else => std.mem.sort(Car, &cars, key, sortAsc),

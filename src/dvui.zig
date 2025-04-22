@@ -3747,23 +3747,25 @@ pub fn gridBody(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitO
     return ret;
 }
 
-pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, opts: dvui.Options) !void {
-    //_ = try dvui.button(src, heading, .{}, opts);
+pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
     // TODO: opts
     _ = opts;
     try g.beginHeaderCol(src);
     defer g.endHeaderCol();
-
+    var sort_changed = false;
     if (try button(@src(), heading, .{ .draw_focus = false }, .{
         .expand = .horizontal,
         .corner_radius = dvui.Rect.all(0),
     })) {
-        g.sort(heading);
+        sort_changed = true;
+        g.sortChanged();
     }
     try separator(@src(), .{ .expand = .vertical });
+    dir.* = g.sort_direction;
+    return sort_changed;
 }
 
-pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
+pub fn gridColumnFromSlice(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
     try g.beginBodyCol(src);
     defer g.endBodyCol();
 
@@ -3778,7 +3780,7 @@ pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: t
 }
 
 // TODO: Prob some init options about sorting etc?
-pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, opts: dvui.Options) !void {
+pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, g: *dvui.GridWidget, opts: dvui.Options) !void {
     try g.beginHeaderCol(src);
     defer g.endHeaderCol();
     _ = opts;
@@ -3794,7 +3796,7 @@ pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
     }
 }
 
-pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
+pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
     try g.beginBodyCol(src);
     defer g.endBodyCol();
     _ = opts;
