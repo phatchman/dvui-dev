@@ -31,9 +31,7 @@ pub const SortDirection = enum {
 
 pub const SelectionState = enum { select_all, select_none, unchanged };
 
-pub const InitOpts = struct {
-    sortFn: ?*const fn (sort_key: []const u8, direction: SortDirection) void = null,
-};
+pub const InitOpts = struct {};
 
 vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
@@ -43,7 +41,7 @@ col_number: usize = 0,
 num_cols_get: usize = 0,
 col_hvbox: ?dvui.BoxWidget = null,
 sort_direction: SortDirection = .unsorted,
-sort_key: []const u8 = "",
+sort_col_number: usize = 0,
 selection_state: SelectionState = .unchanged,
 in_body: bool = false,
 
@@ -53,8 +51,8 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     const options = defaults.override(opts);
 
     self.vbox = BoxWidget.init(src, .vertical, false, options);
-    if (dvui.dataGet(null, self.data().id, "_sort_key", []const u8)) |sort_key| {
-        self.sort_key = sort_key;
+    if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
+        self.sort_col_number = sort_col;
     }
 
     if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
@@ -67,8 +65,7 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         try self.col_widths.ensureTotalCapacity(dvui.currentWindow().arena(), col_widths.len);
         self.col_widths.appendSliceAssumeCapacity(col_widths);
     } else {
-        // Need to refresh first display frame as the header column widths
-        // were not set yet.
+        // Need to refresh first display frame as the body column widths have not been populated yet.
         dvui.refresh(null, @src(), null);
     }
     self.options = options;
@@ -86,7 +83,7 @@ pub fn data(self: *GridWidget) *WidgetData {
 
 pub fn deinit(self: *GridWidget) void {
     dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths.items[0..]);
-    dvui.dataSet(null, self.data().id, "_sort_key", self.sort_key);
+    dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
     self.vbox.deinit();
 }
@@ -166,16 +163,24 @@ pub fn colWidthGet(self: *GridWidget) f32 {
     }
 }
 
-pub fn sort(self: *GridWidget, sort_key: []const u8) void {
-    if (!std.mem.eql(u8, sort_key, self.sort_key)) {
+pub fn sortChanged(self: *GridWidget) void {
+    if (self.col_number != self.sort_col_number) {
         self.sort_direction = .unsorted;
-        self.sort_key = sort_key;
+        self.sort_col_number = self.col_number;
     }
     self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
-    if (self.init_opts.sortFn) |sort_fn| {
-        sort_fn(sort_key, self.sort_direction);
-    }
 }
+
+//pub fn sort(self: *GridWidget, sort_key: []const u8) void {
+//    if (!std.mem.eql(u8, sort_key, self.sort_key)) {
+//        self.sort_direction = .unsorted;
+//        self.sort_key = sort_key;
+//    }
+//    self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
+//    if (self.init_opts.sortFn) |sort_fn| {
+//        sort_fn(sort_key, self.sort_direction);
+//    }
+//}
 
 pub const GridHeaderWidget = struct {
     pub const InitOpts = struct {};
