@@ -3751,12 +3751,9 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
     //_ = try dvui.button(src, heading, .{}, opts);
     // TODO: opts
     _ = opts;
-    //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = col_widths[current_col] } });
     try g.beginHeaderCol(src);
     defer g.endHeaderCol();
-    const min_width = g.colWidthGet();
-    var hbox = try box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
-    defer hbox.deinit();
+
     if (try button(@src(), heading, .{ .draw_focus = false }, .{
         .expand = .horizontal,
         .corner_radius = dvui.Rect.all(0),
@@ -3764,20 +3761,11 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
         g.sort(heading);
     }
     try separator(@src(), .{ .expand = .vertical });
-    const header_width = hbox.widget().data().contentRect().w;
-
-    if (header_width > min_width) {
-        try g.colWidthSet(header_width);
-    }
 }
 
 pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options) !void {
     try g.beginBodyCol(src);
     defer g.endBodyCol();
-    const min_width = g.colWidthGet();
-
-    var vbox = try box(src, .vertical, .{ .expand = .vertical, .min_size_content = .{ .w = min_width } });
-    defer vbox.deinit();
 
     for (data, 0..) |item, i| {
         try label(
@@ -3787,12 +3775,6 @@ pub fn gridColumn(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: t
             opts.override(.{ .id_extra = i }),
         );
     }
-    const current_width = vbox.data().contentRect().w;
-    // TODO: So the issue is we can never shrink because we don't know the header vs body width.
-    // Is there a better way that just storing them separately?
-    if (current_width > min_width) {
-        try g.colWidthSet(current_width);
-    }
 }
 
 // TODO: Prob some init options about sorting etc?
@@ -3800,7 +3782,7 @@ pub fn gridCheckboxHeader(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
     try g.beginHeaderCol(src);
     defer g.endHeaderCol();
     _ = opts;
-    //    var hbox = try dvui.box(src, .horizontal, .{ .min_size_content = .{ .w = g.colWidthGet() } });
+
     const parent_id = dvui.parentGet().data().id;
     var selected: bool = dvui.dataGet(null, parent_id, "_selected", bool) orelse false;
     const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5 });
@@ -3817,8 +3799,7 @@ pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
     defer g.endBodyCol();
     _ = opts;
     // TODO: Make sure field is a bool or struct with a a bool field
-    //    var vbox = try dvui.box(src, .vertical, .{ .expand = .vertical });
-    //    defer vbox.deinit();
+    // Also make field name optional, either as an option struct or an optional.
     var selection_changed = false;
     for (data, 0..) |*item, i| {
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name);
@@ -3831,7 +3812,6 @@ pub fn gridCheckboxColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
         _ = try dvui.checkbox(@src(), is_selected, null, .{ .id_extra = i });
         selection_changed = selection_changed or was_selected != is_selected.*;
     }
-    //    try g.colWidthSet(vbox.wd.contentRect().w);
     return selection_changed;
 }
 

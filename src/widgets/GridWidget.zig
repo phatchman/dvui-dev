@@ -102,7 +102,8 @@ pub fn colWidthSet(self: *GridWidget, w: f32) !void {
 pub fn beginHeaderCol(self: *GridWidget, src: std.builtin.SourceLocation) !void {
     // Check if box is null. Log warning if not.
     // check not in_body. Log warning if not.
-    self.col_hvbox = BoxWidget.init(src, .horizontal, false, .{});
+    const min_width = self.colWidthGet();
+    self.col_hvbox = BoxWidget.init(src, .horizontal, false, .{ .min_size_content = .{ .w = min_width } });
     try self.col_hvbox.?.install();
     try self.col_hvbox.?.drawBackground();
 }
@@ -110,6 +111,13 @@ pub fn beginHeaderCol(self: *GridWidget, src: std.builtin.SourceLocation) !void 
 pub fn endHeaderCol(self: *GridWidget) void {
     // Check in_body, log warning if not?? Needed?
     if (self.col_hvbox) |*hbox| {
+        const header_width = self.col_hvbox.?.data().contentRect().w;
+        const min_width = self.colWidthGet();
+
+        if (header_width > min_width) {
+            self.colWidthSet(header_width) catch unreachable; // TODO: Don't want to throw from a de-init.
+        }
+
         hbox.deinit();
         self.col_hvbox = null;
     } // else log warning.
@@ -124,13 +132,25 @@ pub fn beginBodyCol(self: *GridWidget, src: std.builtin.SourceLocation) !void {
         self.col_number = 0;
         self.in_body = true;
     }
-    self.col_hvbox = BoxWidget.init(src, .vertical, false, .{ .expand = .vertical });
+    const min_width = self.colWidthGet();
+
+    self.col_hvbox = BoxWidget.init(src, .vertical, false, .{ .min_size_content = .{ .w = min_width }, .expand = .vertical });
     try self.col_hvbox.?.install();
     try self.col_hvbox.?.drawBackground();
+
+    // TODO: So the issue is we can never shrink because we don't know the header vs body width.
+    // Is there a better way that just storing them separately?
 }
 
 pub fn endBodyCol(self: *GridWidget) void {
     if (self.col_hvbox) |*vbox| {
+        const current_width = self.col_hvbox.?.data().contentRect().w;
+        const min_width = self.colWidthGet();
+
+        if (current_width > min_width) {
+            self.colWidthSet(current_width) catch unreachable; // TODO: Don't want to throw from a deinit.
+        }
+
         vbox.deinit();
         self.col_hvbox = null;
     } // else log warning.
