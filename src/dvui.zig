@@ -3792,7 +3792,7 @@ pub fn gridColumnFromSlice(
 }
 
 // TODO: Prob some init options about sorting etc?
-pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *dvui.GridHeaderWidget, opts: dvui.Options) !void {
+pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridWidget.SelectionState, opts: dvui.Options) !bool {
     try header.colBegin(src);
     defer header.colEnd();
     _ = opts;
@@ -3804,30 +3804,26 @@ pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *dvui.GridHe
 
     dvui.dataSet(null, parent_id, "_selected", selected);
     if (clicked) {
-        header.grid.selection_state = if (selected) .select_all else .select_none;
+        selection.* = if (selected) .select_all else .select_none;
+    } else {
+        selection.* = .unchanged;
     }
+    return clicked;
 }
 
-pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, all_data: []T, display_data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
+pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
     try body.colBegin(src);
     defer body.colEnd();
     _ = opts;
     // TODO: Make sure field is a bool or struct with a a bool field
     // Also make field name optional, either as an option struct or an optional.
+
     var selection_changed = false;
-    for (all_data) |*item| {
+    for (data, 0..) |*item, i| {
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name);
         const was_selected = is_selected.*;
-        switch (body.grid.selection_state) {
-            .select_all => is_selected.* = true,
-            .select_none => is_selected.* = false,
-            else => {},
-        }
-        selection_changed = selection_changed or was_selected != is_selected.*;
-    }
-    for (display_data, 0..) |*item, i| {
-        const is_selected: *bool = if (T == bool) item else &@field(item, field_name);
         _ = try dvui.checkbox(@src(), is_selected, null, .{ .id_extra = i });
+        selection_changed = selection_changed or was_selected != is_selected.*;
     }
     return selection_changed;
 }

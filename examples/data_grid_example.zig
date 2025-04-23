@@ -132,7 +132,18 @@ fn gui_frame() !void {
         var header = try dvui.gridHeader(@src(), grid, .{}, .{});
         defer header.deinit();
         var sort_dir: dvui.GridWidget.SortDirection = undefined;
-        try dvui.gridHeadingCheckBox(@src(), header, .{});
+        var selection: dvui.GridWidget.SelectionState = undefined;
+        if (try dvui.gridHeadingCheckBox(@src(), header, &selection, .{})) {
+            for (cars[0..]) |*car| {
+                switch (selection) {
+                    .select_all => car.selected = true,
+                    .select_none => car.selected = false,
+                    .unchanged => {},
+                }
+            }
+        }
+        // TODO: Make grid heading checkbox return the selet all / select none options.
+        // User is responsible for doing the select all / none.
         if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, .{})) {
             sort("Make", sort_dir);
         }
@@ -157,9 +168,10 @@ fn gui_frame() !void {
         defer body.deinit();
         var scroller = dvui.GridWidget.GridVirtualScroller.init(body, cars.len);
         const first = scroller.rowFirstVisible();
-        const last = @min(scroller.rowLastVisible(), cars.len);
+        const last = scroller.rowLastVisible();
 
-        const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[0..], cars[first..last], "selected", .{});
+        // TODO: Just handle select-single.
+        const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[first..last], "selected", .{});
         if (changed) std.debug.print("selection changed\n", .{});
 
         //std.debug.print("first = {}, last = {}, height = {d}\n", .{ first, last, body.rowHeight() });
@@ -243,7 +255,7 @@ const Car = struct {
 var selections: [cars.len]bool = @splat(false);
 
 var cars = initCars();
-const num_cars = 50000;
+const num_cars = 50;
 fn initCars() [num_cars]Car {
     comptime var result: [num_cars]Car = undefined;
     comptime {

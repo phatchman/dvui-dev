@@ -29,7 +29,7 @@ pub const SortDirection = enum {
     descending,
 };
 
-pub const SelectionState = enum { select_all, select_none, unchanged };
+pub const SelectionState = enum { select_all, select_none, unchanged }; // TODO: Move this
 
 pub const InitOpts = struct {};
 
@@ -37,7 +37,6 @@ vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(f32) = undefined,
-selection_state: SelectionState = .unchanged,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
