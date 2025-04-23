@@ -129,31 +129,31 @@ fn gui_frame() !void {
     );
     defer grid.deinit();
     {
-        var header = try dvui.gridHeader(@src(), .{}, .{});
+        var header = try dvui.gridHeader(@src(), grid, .{}, .{});
         defer header.deinit();
         var sort_dir: dvui.GridWidget.SortDirection = undefined;
         //try dvui.gridHeadingCheckBox(@src(), grid, .{});
-        if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
+        if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, .{})) {
             sort("Make", sort_dir);
         }
-        if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
+        if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, .{})) {
             sort("Model", sort_dir);
         }
-        if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
+        if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, .{})) {
             sort("Year", sort_dir);
         }
-        if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
+        if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, .{})) {
             sort("Mileage", sort_dir);
         }
-        if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
+        if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, .{})) {
             sort("Condition", sort_dir);
         }
-        if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
+        if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, .{})) {
             sort("Description", sort_dir);
         }
     }
     {
-        var body = try dvui.gridBody(@src(), .{ .scroll_info = &scroll_info }, .{});
+        var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = &scroll_info }, .{});
         defer body.deinit();
         //const changed = try dvui.gridColumnCheckBox(@src(), grid, Car, cars[0..], "selected", .{});
         //        const changed = try dvui.gridCheckboxColumn(@src(), grid, bool, selections[0..], "0", .{});
@@ -165,16 +165,18 @@ fn gui_frame() !void {
         empty.deinit();
         //        try dvui.labelNoFmt(@src(), "Filler", .{ .min_size_content = .{ .h = scroll_info.viewport.x } });
 
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", .{}, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "model", "{s}", .{}, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "year", "{d}", .{}, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 }, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 }, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "description", "{s}", .{}, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", .{}, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", .{}, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", .{}, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 }, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 }, &scroll_info);
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", .{}, &scroll_info);
         //std.debug.print("VP = {}\n VS = {} first = {}, last = {}\n", .{ body.scroll.si.viewport, body.scroll.si.virtual_size, first, last });
     }
 
-    // OK So in onr of the widgets, we need to:
+    // Think about the alternative of 2 blank h/vboxes before and after the grid.
+
+    // OK So in one of the widgets, we need to:
     // 1) Get the height of a single row. (Grid Widget knows this)
     // 2) Get the viewport height. (Body Widget knows this)
     // 3) Calc number of rows to display (From 1 and 2)

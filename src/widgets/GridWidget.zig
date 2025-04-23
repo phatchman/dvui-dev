@@ -37,37 +37,22 @@ vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(f32) = undefined,
-col_number: usize = 0,
-num_cols_get: usize = 0,
-col_hvbox: ?dvui.BoxWidget = null,
-sort_direction: SortDirection = .unsorted,
-sort_col_number: usize = 0,
-selection_state: SelectionState = .unchanged,
-in_body: bool = false,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
     self.init_opts = init_opts;
     const options = defaults.override(opts);
-
     self.vbox = BoxWidget.init(src, .vertical, false, options);
-    if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
-        self.sort_col_number = sort_col;
-    }
-
-    if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
-        self.sort_direction = sort_direction;
-    } else {
-        self.sort_direction = .unsorted;
-    }
 
     if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []f32)) |col_widths| {
         try self.col_widths.ensureTotalCapacity(dvui.currentWindow().arena(), col_widths.len);
         self.col_widths.appendSliceAssumeCapacity(col_widths);
     } else {
-        // Need to refresh first display frame as the body column widths have not been populated yet.
+        self.col_widths = .empty;
+        // Refresh as body col width not set yet.
         dvui.refresh(null, @src(), null);
     }
+    //    std.debug.print("Got {d}\n", .{self.col_widths.items});
     self.options = options;
     return self;
 }
@@ -83,135 +68,116 @@ pub fn data(self: *GridWidget) *WidgetData {
 
 pub fn deinit(self: *GridWidget) void {
     dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths.items[0..]);
-    dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
-    dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
     self.vbox.deinit();
+    // Need to refresh first display frame as the body column widths have not been populated yet.
+    dvui.refresh(null, @src(), null);
 }
 
-pub fn colWidthSet(self: *GridWidget, w: f32) !void {
-    if (self.col_number < self.col_widths.items.len) {
-        self.col_widths.items[self.col_number] = w;
+pub fn colWidthSet(self: *GridWidget, w: f32, col_num: usize) !void {
+    if (col_num < self.col_widths.items.len) {
+        self.col_widths.items[col_num] = w;
     } else {
         try self.col_widths.append(dvui.currentWindow().arena(), w);
     }
 }
 
-pub fn beginHeaderCol(self: *GridWidget, src: std.builtin.SourceLocation) !void {
-    // Check if box is null. Log warning if not.
-    // check not in_body. Log warning if not.
-    const min_width = self.colWidthGet();
-    self.col_hvbox = BoxWidget.init(src, .horizontal, false, .{ .min_size_content = .{ .w = min_width } });
-    try self.col_hvbox.?.install();
-    try self.col_hvbox.?.drawBackground();
-}
-
-pub fn endHeaderCol(self: *GridWidget) void {
-    // Check in_body, log warning if not?? Needed?
-    if (self.col_hvbox) |*hbox| {
-        const header_width = self.col_hvbox.?.data().contentRect().w;
-        const min_width = self.colWidthGet();
-
-        if (header_width > min_width) {
-            self.colWidthSet(header_width) catch unreachable; // TODO: Don't want to throw from a de-init.
-        }
-
-        hbox.deinit();
-        self.col_hvbox = null;
-    } // else log warning.
-
-    self.col_number += 1;
-}
-
-pub fn beginBodyCol(self: *GridWidget, src: std.builtin.SourceLocation) !void {
-    // Check if box is null. Log warning if not.
-
-    if (!self.in_body) {
-        self.col_number = 0;
-        self.in_body = true;
-    }
-    const min_width = self.colWidthGet();
-
-    self.col_hvbox = BoxWidget.init(src, .vertical, false, .{ .min_size_content = .{ .w = min_width }, .expand = .vertical });
-    try self.col_hvbox.?.install();
-    try self.col_hvbox.?.drawBackground();
-
-    // TODO: So the issue is we can never shrink because we don't know the header vs body width.
-    // Is there a better way that just storing them separately?
-}
-
-pub fn endBodyCol(self: *GridWidget) void {
-    if (self.col_hvbox) |*vbox| {
-        const current_width = self.col_hvbox.?.data().contentRect().w;
-        const min_width = self.colWidthGet();
-
-        if (current_width > min_width) {
-            self.colWidthSet(current_width) catch unreachable; // TODO: Don't want to throw from a deinit.
-        }
-
-        vbox.deinit();
-        self.col_hvbox = null;
-    } // else log warning.
-    self.col_number += 1;
-}
-
-pub fn colWidthGet(self: *const GridWidget) f32 {
-    if (self.col_number < self.col_widths.items.len) {
-        return self.col_widths.items[self.col_number];
+pub fn colWidthGet(self: *const GridWidget, col_num: usize) f32 {
+    if (col_num < self.col_widths.items.len) {
+        return self.col_widths.items[col_num];
     } else {
         // TODO: This should log a debug message. mark in red etc.
         return 0;
     }
 }
 
-pub fn sortChanged(self: *GridWidget) void {
-    if (self.col_number != self.sort_col_number) {
-        self.sort_direction = .unsorted;
-        self.sort_col_number = self.col_number;
-    }
-    self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
-}
-
-pub fn colSortOrder(self: *const GridWidget) SortDirection {
-    if (self.col_number == self.sort_col_number) {
-        return self.sort_direction;
-    } else {
-        return .unsorted;
-    }
-}
-
-//pub fn sort(self: *GridWidget, sort_key: []const u8) void {
-//    if (!std.mem.eql(u8, sort_key, self.sort_key)) {
-//        self.sort_direction = .unsorted;
-//        self.sort_key = sort_key;
-//    }
-//    self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
-//    if (self.init_opts.sortFn) |sort_fn| {
-//        sort_fn(sort_key, self.sort_direction);
-//    }
-//}
-
 pub const GridHeaderWidget = struct {
     pub const InitOpts = struct {};
 
-    hbox: BoxWidget = undefined,
+    header_hbox: BoxWidget = undefined,
+    col_hbox: ?BoxWidget = null,
+    grid: *GridWidget,
+    col_number: usize = 0,
+    sort_col_number: usize = 0,
+    sort_direction: SortDirection = .unsorted,
+    selection_state: SelectionState = .unchanged,
 
-    pub fn init(src: std.builtin.SourceLocation, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
-        var self = GridHeaderWidget{};
+    pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
+        var self = GridHeaderWidget{ .grid = grid };
         const options = defaults.override(opts);
-        self.hbox = BoxWidget.init(src, .horizontal, false, options);
-        // TODO: Validate that ourt parent is a GridWidget.
+
         _ = init_opts;
         // _ = options;
+        self.header_hbox = BoxWidget.init(src, .horizontal, false, options);
+
+        if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
+            self.sort_col_number = sort_col;
+        }
+
+        if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
+            self.sort_direction = sort_direction;
+        } else {
+            self.sort_direction = .unsorted;
+        }
+
         return self;
     }
 
-    pub fn install(self: *GridHeaderWidget) !void {
-        try self.hbox.install();
-        try self.hbox.drawBackground();
+    pub fn deinit(self: *GridHeaderWidget) void {
+        dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
+        dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
+
+        self.header_hbox.deinit();
     }
 
-    pub fn deinit(self: *GridHeaderWidget) void {
-        self.hbox.deinit();
+    pub fn install(self: *GridHeaderWidget) !void {
+        try self.header_hbox.install();
+        try self.header_hbox.drawBackground();
+    }
+
+    pub fn data(self: *GridHeaderWidget) *WidgetData {
+        return &self.header_hbox.wd;
+    }
+
+    pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation) !void {
+        // Check if box is null. Log warning if not.
+        // check not in_body. Log warning if not.
+        const min_width = self.grid.colWidthGet(self.col_number);
+        self.col_hbox = BoxWidget.init(src, .horizontal, false, .{ .min_size_content = .{ .w = min_width } });
+        try self.col_hbox.?.install();
+        try self.col_hbox.?.drawBackground();
+    }
+
+    pub fn colEnd(self: *GridHeaderWidget) void {
+        // Check in_body, log warning if not?? Needed?
+        if (self.col_hbox) |*hbox| {
+            const header_width = self.col_hbox.?.data().contentRect().w;
+            const min_width = self.grid.colWidthGet(self.col_number);
+
+            if (header_width > min_width) {
+                self.grid.colWidthSet(header_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a de-init.
+            }
+
+            hbox.deinit();
+            self.col_hbox = null;
+        } // else log warning.
+
+        self.col_number += 1;
+    }
+
+    pub fn sortChanged(self: *GridHeaderWidget) void {
+        if (self.col_number != self.sort_col_number) {
+            self.sort_direction = .unsorted;
+            self.sort_col_number = self.col_number;
+        }
+        self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
+    }
+
+    pub fn colSortOrder(self: *const GridHeaderWidget) SortDirection {
+        if (self.col_number == self.sort_col_number) {
+            return self.sort_direction;
+        } else {
+            return .unsorted;
+        }
     }
 };
 
@@ -221,15 +187,18 @@ pub const GridBodyWidget = struct {
     };
     //    si_store: ScrollInfo = undefined,
     //    si: *ScrollInfo = undefined,
+    grid: *GridWidget,
     scroll: ScrollAreaWidget = undefined,
     hbox: BoxWidget = undefined,
+    col_vbox: ?BoxWidget = null,
+    col_number: usize = 0,
     //init_opts: GridBodyWidget.InitOpts = undefined,
 
-    pub fn init(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
-        var self = GridBodyWidget{};
+    pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
+        var self = GridBodyWidget{ .grid = grid };
         const options = defaults.override(opts);
 
-        // Can't set the scroll_info here as it might be a pointer to a stack object.
+        // TODO: If we provide out own scroll_info, then we can't set the scroll_info here as it might be a pointer to a stack object.
         self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = init_opts.scroll_info }, .{ .expand = .both });
 
         // TODO: Somehow check that our parent is the Grid header.
@@ -259,5 +228,32 @@ pub const GridBodyWidget = struct {
     pub fn deinit(self: *GridBodyWidget) void {
         self.hbox.deinit();
         self.scroll.deinit();
+    }
+
+    pub fn colBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation) !void {
+        // Check if box is null. Log warning if not.
+        const min_width = self.grid.colWidthGet(self.col_number);
+
+        self.col_vbox = BoxWidget.init(src, .vertical, false, .{ .min_size_content = .{ .w = min_width }, .expand = .vertical });
+        try self.col_vbox.?.install();
+        try self.col_vbox.?.drawBackground();
+
+        // TODO: So the issue is we can never shrink because we don't know the header vs body width.
+        // Is there a better way that just storing them separately?
+    }
+
+    pub fn colEnd(self: *GridBodyWidget) void {
+        if (self.col_vbox) |*vbox| {
+            const current_width = vbox.data().contentRect().w;
+            const min_width = self.grid.colWidthGet(self.col_number);
+
+            if (current_width > min_width) {
+                self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
+            }
+
+            vbox.deinit();
+            self.col_vbox = null;
+        } // else log warning.
+        self.col_number += 1;
     }
 };

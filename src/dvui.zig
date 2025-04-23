@@ -3733,47 +3733,47 @@ pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opt
     return ret;
 }
 
-pub fn gridHeader(src: std.builtin.SourceLocation, init_opts: GridHeaderWidget.InitOpts, opts: Options) !*GridHeaderWidget {
+pub fn gridHeader(src: std.builtin.SourceLocation, g: *GridWidget, init_opts: GridHeaderWidget.InitOpts, opts: Options) !*GridHeaderWidget {
     const ret = try currentWindow().arena().create(GridHeaderWidget);
-    ret.* = GridHeaderWidget.init(src, init_opts, opts);
+    ret.* = GridHeaderWidget.init(src, g, init_opts, opts);
     try ret.install();
     return ret;
 }
 
-pub fn gridBody(src: std.builtin.SourceLocation, init_opts: GridBodyWidget.InitOpts, opts: Options) !*GridBodyWidget {
+pub fn gridBody(src: std.builtin.SourceLocation, g: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) !*GridBodyWidget {
     const ret = try currentWindow().arena().create(GridBodyWidget);
-    ret.* = GridBodyWidget.init(src, init_opts, opts);
+    ret.* = GridBodyWidget.init(src, g, init_opts, opts);
     try ret.install();
     return ret;
 }
 
-pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
+pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
     const icon_arrow_dn = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_arrow_up = @embedFile("icons/entypo/chevron-small-up.tvg");
 
     // TODO: opts
     _ = opts;
-    try g.beginHeaderCol(src);
-    defer g.endHeaderCol();
+    try header.colBegin(src);
+    defer header.colEnd();
 
-    const sort_changed = switch (g.colSortOrder()) {
+    const sort_changed = switch (header.colSortOrder()) {
         .unsorted => try button(@src(), heading, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
         .ascending => try buttonLabelAndIcon(@src(), heading, icon_arrow_dn, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
         .descending => try buttonLabelAndIcon(@src(), heading, icon_arrow_up, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
     };
 
     if (sort_changed) {
-        g.sortChanged();
+        header.sortChanged();
     }
     try separator(@src(), .{ .expand = .vertical });
-    dir.* = g.sort_direction;
+    dir.* = header.sort_direction;
     return sort_changed;
 }
 //const tmp_si = @import("../examples/data_grid_example.zig").scroll_info;
 
-pub fn gridColumnFromSlice(src: std.builtin.SourceLocation, g: *GridWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options, si: ?*const ScrollInfo) !void {
-    try g.beginBodyCol(src);
-    defer g.endBodyCol();
+pub fn gridColumnFromSlice(src: std.builtin.SourceLocation, body: *GridBodyWidget, comptime T: type, data: []const T, comptime field: []const u8, comptime fmt: []const u8, opts: dvui.Options, si: ?*const ScrollInfo) !void {
+    try body.colBegin(src);
+    defer body.colEnd();
     if (si) |scroll_info| {
         var vbox = try box(@src(), .vertical, .{
             .expand = .horizontal,
