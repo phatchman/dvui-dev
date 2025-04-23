@@ -37,7 +37,7 @@ vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(f32) = undefined,
-
+refresh_count: usize = 0,
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
     self.init_opts = init_opts;
@@ -50,7 +50,6 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     } else {
         self.col_widths = .empty;
         // Refresh as body col width not set yet.
-        dvui.refresh(null, @src(), null);
     }
     //    std.debug.print("Got {d}\n", .{self.col_widths.items});
     self.options = options;
@@ -69,8 +68,6 @@ pub fn data(self: *GridWidget) *WidgetData {
 pub fn deinit(self: *GridWidget) void {
     dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths.items[0..]);
     self.vbox.deinit();
-    // Need to refresh first display frame as the body column widths have not been populated yet.
-    dvui.refresh(null, @src(), null);
 }
 
 pub fn colWidthSet(self: *GridWidget, w: f32, col_num: usize) !void {
@@ -155,6 +152,7 @@ pub const GridHeaderWidget = struct {
 
             if (header_width > min_width) {
                 self.grid.colWidthSet(header_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a de-init.
+                dvui.refresh(null, @src(), null);
             }
 
             hbox.deinit();
@@ -248,6 +246,7 @@ pub const GridBodyWidget = struct {
             const min_width = self.grid.colWidthGet(self.col_number);
 
             if (current_width > min_width) {
+                dvui.refresh(null, @src(), null);
                 self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
             }
 
