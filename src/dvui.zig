@@ -3781,12 +3781,37 @@ pub fn gridColumnFromSlice(
 ) !void {
     try body.colBegin(src);
     defer body.colEnd();
-    for (data, 0..) |item, i| {
+    for (data, 0..) |item, id_extra| {
+        try body.cellBegin(@src());
+        defer body.cellEnd();
         try label(
             @src(),
             fmt,
             .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
-            opts.override(.{ .id_extra = i }),
+            opts.override(.{ .id_extra = id_extra }),
+        );
+    }
+}
+
+pub fn gridColumnFromIterator(
+    src: std.builtin.SourceLocation,
+    body: *GridBodyWidget,
+    iter: anytype,
+    comptime field: []const u8,
+    comptime fmt: []const u8,
+    opts: dvui.Options,
+) !void {
+    try body.colBegin(src);
+    defer body.colEnd();
+    var id_extra: usize = 0;
+    while (iter.next()) |item| : (id_extra += 1) {
+        try body.cellBegin(@src());
+        defer body.cellEnd();
+        try label(
+            @src(),
+            fmt,
+            .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
+            opts.override(.{ .id_extra = id_extra }),
         );
     }
 }

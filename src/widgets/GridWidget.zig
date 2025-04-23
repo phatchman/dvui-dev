@@ -1,6 +1,8 @@
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
+// TODO: The first 2 frames don't set the height correctly. Expect only the first frame would have an issue?
+
 // TODO: Remove unused.
 const Event = dvui.Event;
 const Options = dvui.Options;
@@ -183,8 +185,9 @@ pub const GridVirtualScroller = struct {
     si: *ScrollInfo,
     total_rows: usize,
     pub fn init(body: *GridBodyWidget, total_rows: usize) GridVirtualScroller {
-        body.scroll.si.virtual_size.h = @as(f32, @floatFromInt(total_rows)) * body.rowHeight();
+        body.scroll.si.virtual_size.h = @max(@as(f32, @floatFromInt(total_rows)) * body.row_height, body.scroll.si.viewport.h);
         body.invisible_height = body.scroll.si.viewport.y;
+
         return .{
             .body = body,
             .si = body.scroll.si,
@@ -193,11 +196,15 @@ pub const GridVirtualScroller = struct {
     }
 
     pub fn rowFirstVisible(self: *const GridVirtualScroller) usize {
-        return @intFromFloat(@round(self.si.viewport.y / self.body.rowHeight()));
+        return @intFromFloat(@round(self.si.viewport.y / self.body.row_height));
     }
 
     pub fn rowLastVisible(self: *const GridVirtualScroller) usize {
-        return @min(@as(usize, @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.rowHeight()))), self.total_rows);
+        if (self.body.row_height < 1) {
+            return 1;
+        } else {
+            return @min(@as(usize, @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height))), self.total_rows);
+        }
     }
 };
 
@@ -209,10 +216,12 @@ pub const GridBodyWidget = struct {
     scroll: ScrollAreaWidget = undefined,
     hbox: BoxWidget = undefined,
     col_vbox: ?BoxWidget = null,
+    row_hbox: ?BoxWidget = null,
+    //row_hbox: ?BoxWidget = null,
     col_number: usize = 0,
-    row_height: f32 = 0.01,
+    row_number: usize = 0,
     invisible_height: f32 = 0,
-    //init_opts: GridBodyWidget.InitOpts = undefined,
+    row_height: f32 = 0,
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
         var self = GridBodyWidget{ .grid = grid };
@@ -220,13 +229,14 @@ pub const GridBodyWidget = struct {
 
         // TODO: If we provide out own scroll_info, then we can't set the scroll_info here as it might be a pointer to a stack object.
         self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = init_opts.scroll_info }, .{ .expand = .both });
-        if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
-            self.row_height = row_height;
-        }
-
         // TODO: Somehow check that our parent is the Grid header.
         // TODO: options
         //self.init_opts = init_opts;
+        if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
+            self.row_height = row_height;
+        } else {
+            self.row_height = 1;
+        }
         _ = options;
         return self;
     }
@@ -254,7 +264,7 @@ pub const GridBodyWidget = struct {
 
         const min_width = self.grid.colWidthGet(self.col_number);
 
-        self.col_vbox = BoxWidget.init(src, .vertical, false, .{ .min_size_content = .{ .w = min_width }, .expand = .vertical });
+        self.col_vbox = BoxWidget.init(src, .vertical, false, .{ .min_size_content = .{ .w = min_width }, .expand = .none });
         try self.col_vbox.?.install();
         try self.col_vbox.?.drawBackground();
 
@@ -272,29 +282,46 @@ pub const GridBodyWidget = struct {
         // Is there a better way that just storing them separately?
     }
 
+    // TODO: Should the count go on the begin??
     pub fn colEnd(self: *GridBodyWidget) void {
         if (self.col_vbox) |*vbox| {
             const current_width = vbox.data().contentRect().w;
-            const current_height = vbox.data().borderRect().h;
             const min_width = self.grid.colWidthGet(self.col_number);
 
             if (current_width > min_width) {
+                // TODO:
                 dvui.refresh(null, @src(), null);
                 self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
             }
 
-            if (current_height > self.row_height) {
-                self.row_height = current_height;
-            }
             vbox.deinit();
             self.col_vbox = null;
         } // else log warning.
         self.col_number += 1;
     }
 
-    pub fn rowHeight(self: *GridBodyWidget) f32 {
-        _ = self;
-        return 28;
-        //return self.row_height;
+    //    // TODO: Checks for null / not null / ordering etc.
+    pub fn cellBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation) !void {
+        self.row_hbox = BoxWidget.init(src, .horizontal, false, .{ .id_extra = self.row_number });
+        try self.row_hbox.?.install();
+        try self.row_hbox.?.drawBackground();
+    }
+
+    pub fn cellEnd(self: *GridBodyWidget) void {
+        if (self.row_hbox) |*hbox| {
+            if (hbox.wd.rect.h > self.row_height) {
+                self.row_height = hbox.wd.rect.h;
+            }
+            if (self.row_number == 0) {
+                std.debug.print("h = {d}\n", .{hbox.wd.rect.h});
+            }
+            hbox.deinit();
+            self.row_hbox = null;
+        }
+        self.row_number += 1;
+    }
+
+    pub fn firstCellHeight(self: *GridBodyWidget) f32 {
+        return self.row_height;
     }
 };
