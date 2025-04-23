@@ -132,7 +132,7 @@ fn gui_frame() !void {
         var header = try dvui.gridHeader(@src(), grid, .{}, .{});
         defer header.deinit();
         var sort_dir: dvui.GridWidget.SortDirection = undefined;
-        //try dvui.gridHeadingCheckBox(@src(), grid, .{});
+        try dvui.gridHeadingCheckBox(@src(), header, .{});
         if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, .{})) {
             sort("Make", sort_dir);
         }
@@ -155,22 +155,20 @@ fn gui_frame() !void {
     {
         var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = &scroll_info }, .{});
         defer body.deinit();
-        //const changed = try dvui.gridColumnCheckBox(@src(), grid, Car, cars[0..], "selected", .{});
-        //        const changed = try dvui.gridCheckboxColumn(@src(), grid, bool, selections[0..], "0", .{});
-        //if (changed) std.debug.print("selection changed\n", .{});
-        scroll_info.virtual_size.h = 28 * cars.len;
-        const first: usize = @intFromFloat(@round(scroll_info.viewport.y / 28));
-        const last: usize = @min(first + @as(usize, @intFromFloat(@round(scroll_info.viewport.h / 28))), cars.len);
-        var empty = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .min_size_content = .{ .h = scroll_info.viewport.y } });
-        empty.deinit();
-        //        try dvui.labelNoFmt(@src(), "Filler", .{ .min_size_content = .{ .h = scroll_info.viewport.x } });
+        var scroller = dvui.GridWidget.GridVirtualScroller.init(body, cars.len);
+        const first = scroller.rowFirstVisible();
+        const last = @min(scroller.rowLastVisible(), cars.len);
 
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", .{}, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", .{}, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", .{}, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 }, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 }, &scroll_info);
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", .{}, &scroll_info);
+        const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[0..], cars[first..last], "selected", .{});
+        if (changed) std.debug.print("selection changed\n", .{});
+
+        //std.debug.print("first = {}, last = {}, height = {d}\n", .{ first, last, body.rowHeight() });
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", .{});
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", .{});
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", .{});
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 });
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 });
+        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", .{});
         //std.debug.print("VP = {}\n VS = {} first = {}, last = {}\n", .{ body.scroll.si.viewport, body.scroll.si.virtual_size, first, last });
     }
 
@@ -245,7 +243,7 @@ const Car = struct {
 var selections: [cars.len]bool = @splat(false);
 
 var cars = initCars();
-const num_cars = 10000;
+const num_cars = 50000;
 fn initCars() [num_cars]Car {
     comptime var result: [num_cars]Car = undefined;
     comptime {
