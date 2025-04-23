@@ -188,7 +188,7 @@ fn gui_frame() !void {
     // What about derived values e.g. if it is supplied via a function?? Thinking of things like totals etc.
     // as well as maybe just wanting to format an enum differently.
     // For this they prob need to write their own column.it is quite easy to do now.
-
+    std.debug.print("FPS = {d}\n", .{dvui.FPS()});
 }
 
 fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
@@ -244,7 +244,22 @@ const Car = struct {
 
 var selections: [cars.len]bool = @splat(false);
 
-var cars = [_]Car{
+var cars = initCars();
+const num_cars = 10000;
+fn initCars() [num_cars]Car {
+    comptime var result: [num_cars]Car = undefined;
+    comptime {
+        @setEvalBranchQuota(num_cars + 1);
+
+        for (0..num_cars) |i| {
+            result[i] = some_cars[i % some_cars.len];
+            result[i].year = i;
+        }
+    }
+    return result;
+}
+
+const some_cars = [_]Car{
     .{ .model = "Civic", .make = "Honda", .year = 2022, .mileage = 8500, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
     .{ .model = "Model 3", .make = "Tesla", .year = 2021, .mileage = 15000, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
     .{ .model = "Camry", .make = "Toyota", .year = 2018, .mileage = 43000, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
