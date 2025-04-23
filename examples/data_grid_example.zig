@@ -94,13 +94,15 @@ pub fn main() !void {
         }
     }
 }
-
+var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
+const use_iterator = false;
+const virtual_scrolling = true;
 // both dvui and SDL drawing
 fn gui_frame() !void {
     const backend = g_backend orelse return;
     _ = backend;
-
+    defer first_frame = false;
     {
         var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
         defer m.deinit();
@@ -142,8 +144,6 @@ fn gui_frame() !void {
                 }
             }
         }
-        // TODO: Make grid heading checkbox return the selet all / select none options.
-        // User is responsible for doing the select all / none.
         if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, .{})) {
             sort("Make", sort_dir);
         }
@@ -163,24 +163,44 @@ fn gui_frame() !void {
             sort("Description", sort_dir);
         }
     }
-    {
-        var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = &scroll_info }, .{});
-        defer body.deinit();
-        var scroller = dvui.GridWidget.GridVirtualScroller.init(body, cars.len);
-        const first = scroller.rowFirstVisible();
-        const last = scroller.rowLastVisible();
 
-        // TODO: Just handle select-single.
+    {
+        var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .{});
+        defer body.deinit();
+        const first, const last = limits: {
+            if (virtual_scrolling) {
+                var scroller = dvui.GridWidget.GridVirtualScroller.init(body, cars.len);
+                break :limits .{ scroller.rowFirstVisible(), scroller.rowLastVisible() };
+            } else {
+                break :limits .{ 0, cars.len };
+            }
+        };
+
         const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[first..last], "selected", .{});
         if (changed) std.debug.print("selection changed\n", .{});
 
-        //std.debug.print("first = {}, last = {}, height = {d}\n", .{ first, last, body.rowHeight() });
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", .{});
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", .{});
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", .{});
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 });
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 });
-        try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", .{});
+        if (!use_iterator) {
+            std.debug.print("first = {}, last = {}\n", .{ first, last });
+            try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", .{});
+            try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", .{});
+            try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", .{});
+            try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 });
+            try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 });
+            try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", .{});
+        } else {
+            var iter = CarsIterator.init(cars[first..last]);
+            try dvui.gridColumnFromIterator(@src(), body, &iter, "make", "{s}", .{});
+            iter.reset();
+            try dvui.gridColumnFromIterator(@src(), body, &iter, "model", "{s}", .{});
+            iter.reset();
+            try dvui.gridColumnFromIterator(@src(), body, &iter, "year", "{d}", .{});
+            iter.reset();
+            try dvui.gridColumnFromIterator(@src(), body, &iter, "mileage", "{d}", .{ .gravity_x = 1.0 });
+            iter.reset();
+            try dvui.gridColumnFromIterator(@src(), body, &iter, "condition", "{s}", .{ .gravity_x = 0.5 });
+            iter.reset();
+            try dvui.gridColumnFromIterator(@src(), body, &iter, "description", "{s}", .{});
+        }
         //std.debug.print("VP = {}\n VS = {} first = {}, last = {}\n", .{ body.scroll.si.viewport, body.scroll.si.virtual_size, first, last });
     }
 
@@ -200,6 +220,31 @@ fn gui_frame() !void {
     // For this they prob need to write their own column.it is quite easy to do now.
     std.debug.print("FPS = {d}\n", .{dvui.FPS()});
 }
+
+const CarsIterator = struct {
+    index: usize,
+    cars: []Car,
+
+    pub fn init(_cars: []Car) CarsIterator {
+        return .{
+            .index = 0,
+            .cars = _cars,
+        };
+    }
+
+    pub fn next(self: *CarsIterator) ?*Car {
+        if (self.index < self.cars.len) {
+            self.index += 1;
+            return &cars[self.index - 1];
+        } else {
+            return null;
+        }
+    }
+
+    pub fn reset(self: *CarsIterator) void {
+        self.index = 0;
+    }
+};
 
 fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
     switch (direction) {
@@ -255,7 +300,7 @@ const Car = struct {
 var selections: [cars.len]bool = @splat(false);
 
 var cars = initCars();
-const num_cars = 50;
+const num_cars = 10_000;
 fn initCars() [num_cars]Car {
     comptime var result: [num_cars]Car = undefined;
     comptime {
