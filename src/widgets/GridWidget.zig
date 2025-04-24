@@ -185,7 +185,11 @@ pub const GridVirtualScroller = struct {
     si: *ScrollInfo,
     total_rows: usize,
     pub fn init(body: *GridBodyWidget, total_rows: usize) GridVirtualScroller {
-        body.scroll.si.virtual_size.h = @max(@as(f32, @floatFromInt(total_rows)) * body.row_height, body.scroll.si.viewport.h);
+        const total_rows_f: f32 = @floatFromInt(total_rows);
+        // Add a little padding so that the last row is always fully shown, when the viewport is not a multiple
+        // of row_height. TODO: When on last page, measure invisible height from bottom of virtual_size.
+        // This will ensure the last row is always fully displayed and flush with the bottom of the viewport.
+        body.scroll.si.virtual_size.h = @max((total_rows_f + 1.5) * body.row_height, body.scroll.si.viewport.h);
         body.invisible_height = body.scroll.si.viewport.y;
 
         return .{
@@ -196,14 +200,16 @@ pub const GridVirtualScroller = struct {
     }
 
     pub fn rowFirstVisible(self: *const GridVirtualScroller) usize {
-        return @intFromFloat(@round(self.si.viewport.y / self.body.row_height));
+        const result: usize = @intFromFloat(@round(self.si.viewport.y / self.body.row_height));
+        return if (result == 0) result else @min(result - 1, self.total_rows);
     }
 
     pub fn rowLastVisible(self: *const GridVirtualScroller) usize {
         if (self.body.row_height < 1) {
             return 1;
         } else {
-            return @min(@as(usize, @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height))), self.total_rows);
+            const result: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height));
+            return @min(result + 1, self.total_rows);
         }
     }
 };
