@@ -221,6 +221,7 @@ fn gui_frame() !void {
         std.debug.print("first = {}, last = {}\n", .{ first, last });
 
         const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[first..last], "selected", .{});
+        //const changed = try dvui.gridColumnCheckBox(@src(), body, bool, selections[0..], "selected", .{});
         if (changed) std.debug.print("selection changed\n", .{});
 
         if (!use_iterator) {
@@ -230,6 +231,8 @@ fn gui_frame() !void {
             try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", .{ .gravity_x = 1.0 });
             try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", .{ .gravity_x = 0.5 });
             try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", .{});
+            //try dvui.gridColumnFromSlice(@src(), body, bool, selections[first..last], null, "{s}", .{});
+            //try dvui.gridColumnFromSlice(@src(), body, usize, other_data[first..last], null, "{d}", .{});
         } else {
             var iter = CarsIterator.init(cars[first..last]);
             try dvui.gridColumnFromIterator(@src(), body, &iter, "make", "{s}", .{});
@@ -340,7 +343,7 @@ const Car = struct {
     const Condition = enum(u32) { New, Excellent, Good, Fair, Poor };
 };
 
-var selections: [cars.len]bool = @splat(false);
+var selections: [num_cars]bool = @splat(false);
 
 var cars = initCars();
 const num_cars = 250;
@@ -356,6 +359,14 @@ fn initCars() [num_cars]Car {
     }
     return result;
 }
+
+var other_data = blk: {
+    var tmp: [num_cars]usize = undefined;
+    for (0..num_cars) |i| {
+        tmp[i] = i;
+    }
+    break :blk tmp;
+};
 
 const some_cars = [_]Car{
     .{ .model = "Civic", .make = "Honda", .year = 2022, .mileage = 8500, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
