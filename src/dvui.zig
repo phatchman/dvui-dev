@@ -3762,7 +3762,7 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
 
     // TODO: opts
     _ = opts;
-    try header.colBegin(src);
+    try header.colBegin(src, .{});
     defer header.colEnd();
 
     const sort_changed = switch (header.colSortOrder()) {
@@ -3797,7 +3797,7 @@ pub fn gridColumnFromSlice(
             @src(),
             fmt,
             .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
-            opts.override(.{ .id_extra = id_extra }),
+            opts.override(.{ .id_extra = id_extra, .expand = .horizontal }),
         );
     }
 }
@@ -3827,16 +3827,25 @@ pub fn gridColumnFromIterator(
 
 // TODO: Prob some init options about sorting etc?
 pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridWidget.SelectionState, opts: dvui.Options) !bool {
-    try header.colBegin(src);
+    //    try header.colBegin(src, opts.override(.{ .color_fill = .{ .name = .fill_control }, .background = true }));
+    const header_defaults: Options = .{
+        .background = true,
+        .color_fill = .{ .name = .fill_control },
+        //.expand = .both,
+        .margin = ButtonWidget.defaults.margin,
+        //.padding = ButtonWidget.defaults.padding,
+    };
+    const header_options = header_defaults.override(opts);
+    try header.colBegin(src, .{});
     defer header.colEnd();
-    _ = opts;
-    var hbox = try dvui.box(@src(), .horizontal, .{ .color_fill = .{ .name = .fill_control }, .background = true });
+    var hbox = try dvui.box(@src(), .horizontal, header_options);
     defer hbox.deinit();
-    var selected: bool = dvui.dataGet(null, hbox.wd.id, "_selected", bool) orelse false;
-    const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5 });
+    //const hbox = dvui.parentGet();
+    var selected: bool = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
+    const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5, .gravity_x = 0.5 });
     try dvui.separator(@src(), .{ .expand = .vertical });
 
-    dvui.dataSet(null, hbox.wd.id, "_selected", selected);
+    dvui.dataSet(null, hbox.data().id, "_selected", selected);
     if (clicked) {
         selection.* = if (selected) .select_all else .select_none;
     } else {
@@ -3848,7 +3857,10 @@ pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderW
 pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
     try body.colBegin(src);
     defer body.colEnd();
-    _ = opts;
+    const col_defaults: Options = .{
+        .gravity_x = 0.5,
+        .gravity_y = 0.5,
+    };
     // TODO: Make sure field is a bool or struct with a a bool field
     // Also make field name optional, either as an option struct or an optional.
 
@@ -3856,7 +3868,7 @@ pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyW
     for (data, 0..) |*item, i| {
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name);
         const was_selected = is_selected.*;
-        _ = try dvui.checkbox(@src(), is_selected, null, .{ .id_extra = i });
+        _ = try dvui.checkbox(@src(), is_selected, null, col_defaults.override(opts).override(.{ .id_extra = i }));
         selection_changed = selection_changed or was_selected != is_selected.*;
     }
     return selection_changed;
