@@ -3779,24 +3779,51 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     return sort_changed;
 }
 
+/// Create a column from a slice
+///
+/// If data is a slice of struct field_name must be supplied
+/// Enums are displayed as their tagName. fmt must be "{s}"
+/// Bools are displayed as Y or N. fmt must be "{s}"
+/// Other types are formatted as per the fmt string.
 pub fn gridColumnFromSlice(
     src: std.builtin.SourceLocation,
     body: *GridBodyWidget,
     comptime T: type,
     data: []const T,
-    comptime field: []const u8,
+    comptime field_name: ?[]const u8,
     comptime fmt: []const u8,
     opts: dvui.Options,
 ) !void {
+    if (field_name) |_field_name| {
+        if (!@hasField(T, _field_name)) {
+            @compileError(std.fmt.comptimePrint("data does not contain field {s}.", .{_field_name}));
+        }
+    }
+
     try body.colBegin(src);
     defer body.colEnd();
     for (data, 0..) |item, id_extra| {
         try body.cellBegin(@src());
         defer body.cellEnd();
+        const cell_value = value: {
+            if (field_name) |_field_name| {
+                break :value switch (@typeInfo(@TypeOf(@field(item, _field_name)))) {
+                    .@"enum" => @tagName(@field(item, _field_name)),
+                    .bool => if (@field(item, _field_name)) "Y" else "N",
+                    else => @field(item, _field_name),
+                };
+            } else {
+                break :value switch (@typeInfo(T)) {
+                    .@"enum" => @tagName(item),
+                    .bool => if (item) "Y" else "N",
+                    else => item,
+                };
+            }
+        };
         try label(
             @src(),
             fmt,
-            .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
+            .{cell_value},
             opts.override(.{ .id_extra = id_extra, .expand = .horizontal }),
         );
     }
@@ -3838,14 +3865,18 @@ pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderW
     const header_options = header_defaults.override(opts);
     try header.colBegin(src, .{});
     defer header.colEnd();
-    var hbox = try dvui.box(@src(), .horizontal, header_options);
-    defer hbox.deinit();
-    //const hbox = dvui.parentGet();
-    var selected: bool = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
-    const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5, .gravity_x = 0.5 });
+    var clicked = false;
+    var selected = false;
+    {
+        var hbox = try dvui.box(@src(), .horizontal, header_options);
+        defer hbox.deinit();
+        //const hbox = dvui.parentGet();
+        selected = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
+        clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5, .gravity_x = 0.5 });
+        dvui.dataSet(null, hbox.data().id, "_selected", selected);
+    }
     try dvui.separator(@src(), .{ .expand = .vertical });
 
-    dvui.dataSet(null, hbox.data().id, "_selected", selected);
     if (clicked) {
         selection.* = if (selected) .select_all else .select_none;
     } else {
@@ -3854,7 +3885,17 @@ pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderW
     return clicked;
 }
 
-pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: []const u8, opts: dvui.Options) !bool {
+pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: ?[]const u8, opts: dvui.Options) !bool {
+    if (T != bool) {
+        if (field_name) |_field_name| {
+            if (!@hasField(T, _field_name)) {
+                @compileError(std.fmt.comptimePrint("data does not contain field {s}.", .{_field_name}));
+            }
+        } else {
+            @compileError("data must be of type []bool or field_name must be supplied.");
+        }
+    }
+
     try body.colBegin(src);
     defer body.colEnd();
     const col_defaults: Options = .{
@@ -3866,7 +3907,7 @@ pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyW
 
     var selection_changed = false;
     for (data, 0..) |*item, i| {
-        const is_selected: *bool = if (T == bool) item else &@field(item, field_name);
+        const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
         const was_selected = is_selected.*;
         _ = try dvui.checkbox(@src(), is_selected, null, col_defaults.override(opts).override(.{ .id_extra = i }));
         selection_changed = selection_changed or was_selected != is_selected.*;
