@@ -97,8 +97,9 @@ pub fn main() !void {
 var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 const use_iterator = false;
-const virtual_scrolling = false;
-const sortable = false;
+const virtual_scrolling = true;
+const sortable = true;
+const testing = false;
 // both dvui and SDL drawing
 fn gui_frame() !void {
     const backend = g_backend orelse return;
@@ -125,6 +126,38 @@ fn gui_frame() !void {
             _ = try dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
         }
     }
+    if (testing) {
+        var hbox0 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1), .background = true });
+        try dvui.labelNoFmt(@src(), "Testing gx = 0.5 in hbox", .{ .gravity_x = 0.5, .expand = .horizontal });
+        hbox0.deinit();
+
+        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1), .background = true });
+        defer vbox.deinit();
+
+        // Text is displayed left-justified, not centerd.
+        var hbox1 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1) });
+        try dvui.labelNoFmt(@src(), "Testing gx = 0.5 in hbox", .{ .gravity_x = 0.5 });
+        hbox1.deinit();
+
+        // Text is displayed correctly as right-justified
+        var hbox2 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1) });
+        try dvui.labelNoFmt(@src(), "Testing gx = 1.0 in hbox", .{ .gravity_x = 1.0 });
+        hbox2.deinit();
+
+        // Text is displayed correctly as centered.
+        try dvui.labelNoFmt(@src(), "Testing gx 0.5 no hbox", .{ .gravity_x = 0.5 });
+
+        var hbox3 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1), .background = true });
+        var text = try dvui.textLayout(@src(), .{}, .{});
+        try text.addText("textlayout gx = 0.5", .{ .gravity_x = 0.5 });
+        text.deinit();
+        hbox3.deinit();
+
+        try dvui.labelNoFmt(@src(), "Testing gx = 0.5 in hbox", .{ .gravity_x = 0.5, .expand = .horizontal });
+
+        return;
+    }
+
     var grid = try dvui.grid(
         @src(),
         .{},
@@ -310,7 +343,7 @@ const Car = struct {
 var selections: [cars.len]bool = @splat(false);
 
 var cars = initCars();
-const num_cars = 100;
+const num_cars = 250;
 fn initCars() [num_cars]Car {
     comptime var result: [num_cars]Car = undefined;
     comptime {

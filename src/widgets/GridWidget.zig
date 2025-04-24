@@ -146,11 +146,15 @@ pub const GridHeaderWidget = struct {
         return &self.header_hbox.wd;
     }
 
-    pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation) !void {
+    pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation, opts: Options) !void {
         // Check if box is null. Log warning if not.
         // check not in_body. Log warning if not.
         const min_width = self.grid.colWidthGet(self.col_number);
-        self.col_hbox = BoxWidget.init(src, .horizontal, false, .{ .min_size_content = .{ .w = min_width, .h = self.height } });
+
+        const col_defaults: Options = .{
+            .min_size_content = .{ .w = min_width, .h = self.height },
+        };
+        self.col_hbox = BoxWidget.init(src, .horizontal, false, col_defaults.override(opts));
         try self.col_hbox.?.install();
         try self.col_hbox.?.drawBackground();
     }
@@ -158,8 +162,8 @@ pub const GridHeaderWidget = struct {
     pub fn colEnd(self: *GridHeaderWidget) void {
         // Check in_body, log warning if not?? Needed?
         if (self.col_hbox) |*hbox| {
-            const header_width = self.col_hbox.?.data().contentRect().w;
-            const header_height = self.col_hbox.?.data().contentRect().h;
+            const header_width = hbox.data().contentRect().w;
+            const header_height = hbox.data().contentRect().h;
 
             const min_width = self.grid.colWidthGet(self.col_number);
 
@@ -216,6 +220,9 @@ pub const GridVirtualScroller = struct {
     }
 
     pub fn rowFirstVisible(self: *const GridVirtualScroller) usize {
+        if (self.body.row_height < 1) {
+            return 0;
+        }
         const result: usize = @intFromFloat(@round(self.si.viewport.y / self.body.row_height));
         return if (result == 0) result else @min(result - 1, self.total_rows);
     }
@@ -223,10 +230,9 @@ pub const GridVirtualScroller = struct {
     pub fn rowLastVisible(self: *const GridVirtualScroller) usize {
         if (self.body.row_height < 1) {
             return 1;
-        } else {
-            const result: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height));
-            return @min(result + 1, self.total_rows);
         }
+        const result: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height));
+        return @min(result + 1, self.total_rows);
     }
 };
 
@@ -239,11 +245,11 @@ pub const GridBodyWidget = struct {
     hbox: BoxWidget = undefined,
     col_vbox: ?BoxWidget = null,
     row_hbox: ?BoxWidget = null,
-    //row_hbox: ?BoxWidget = null,
     col_number: usize = 0,
     row_number: usize = 0,
     invisible_height: f32 = 0,
     row_height: f32 = 0,
+    row_height_this_frame: f32 = 0,
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
         var self = GridBodyWidget{ .grid = grid };
@@ -256,10 +262,9 @@ pub const GridBodyWidget = struct {
         //self.init_opts = init_opts;
         if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
             self.row_height = row_height;
-        } else {
-            self.row_height = 1;
         }
         _ = options;
+
         return self;
     }
 
@@ -272,7 +277,7 @@ pub const GridBodyWidget = struct {
     }
 
     pub fn deinit(self: *GridBodyWidget) void {
-        dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
+        dvui.dataSet(null, self.data().id, "_row_height", self.row_height_this_frame);
         self.hbox.deinit();
         self.scroll.deinit();
     }
@@ -311,7 +316,6 @@ pub const GridBodyWidget = struct {
             const min_width = self.grid.colWidthGet(self.col_number);
 
             if (current_width > min_width) {
-                // TODO:
                 dvui.refresh(null, @src(), null);
                 self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
             }
@@ -331,8 +335,8 @@ pub const GridBodyWidget = struct {
 
     pub fn cellEnd(self: *GridBodyWidget) void {
         if (self.row_hbox) |*hbox| {
-            if (hbox.wd.rect.h > self.row_height) {
-                self.row_height = hbox.wd.rect.h;
+            if (hbox.wd.rect.h > self.row_height_this_frame) {
+                self.row_height_this_frame = hbox.wd.rect.h;
             }
             if (self.row_number == 0) {
                 std.debug.print("h = {d}\n", .{hbox.wd.rect.h});
@@ -341,9 +345,5 @@ pub const GridBodyWidget = struct {
             self.row_hbox = null;
         }
         self.row_number += 1;
-    }
-
-    pub fn firstCellHeight(self: *GridBodyWidget) f32 {
-        return self.row_height;
     }
 };
