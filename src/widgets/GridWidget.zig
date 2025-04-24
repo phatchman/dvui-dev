@@ -18,12 +18,14 @@ const GridWidget = @This();
 
 pub var defaults: Options = .{
     .name = "GridWidget",
-    //    .background = true,
+    .background = true,
     // generally the top of a scroll area is against something flat (like
     // window header), and the bottom is against something curved (bottom
     // of a window)
-    //    .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
+    .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
 };
+
+pub const InitOpts = struct {};
 
 pub const SortDirection = enum {
     unsorted,
@@ -31,9 +33,7 @@ pub const SortDirection = enum {
     descending,
 };
 
-pub const SelectionState = enum { select_all, select_none, unchanged }; // TODO: Move this
-
-pub const InitOpts = struct {};
+pub const SelectionState = enum { select_all, select_none, unchanged };
 
 vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
@@ -90,7 +90,10 @@ pub fn colWidthGet(self: *const GridWidget, col_num: usize) f32 {
 }
 
 pub const GridHeaderWidget = struct {
-    pub const InitOpts = struct {};
+    pub const InitOpts = struct {
+        min_heading_size: ?Size = null,
+        max_heading_size: ?Size = null,
+    };
 
     header_hbox: BoxWidget = undefined,
     col_hbox: ?BoxWidget = null,
@@ -98,6 +101,8 @@ pub const GridHeaderWidget = struct {
     col_number: usize = 0,
     sort_col_number: usize = 0,
     sort_direction: SortDirection = .unsorted,
+    height: f32 = 0,
+    height_this_frame: f32 = 0,
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
         var self = GridHeaderWidget{ .grid = grid };
@@ -117,10 +122,15 @@ pub const GridHeaderWidget = struct {
             self.sort_direction = .unsorted;
         }
 
+        if (dvui.dataGet(null, self.data().id, "_height", f32)) |height| {
+            self.height = height;
+        }
+
         return self;
     }
 
     pub fn deinit(self: *GridHeaderWidget) void {
+        dvui.dataSet(null, self.data().id, "_height", self.height_this_frame);
         dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
         dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
 
@@ -140,7 +150,7 @@ pub const GridHeaderWidget = struct {
         // Check if box is null. Log warning if not.
         // check not in_body. Log warning if not.
         const min_width = self.grid.colWidthGet(self.col_number);
-        self.col_hbox = BoxWidget.init(src, .horizontal, false, .{ .min_size_content = .{ .w = min_width } });
+        self.col_hbox = BoxWidget.init(src, .horizontal, false, .{ .min_size_content = .{ .w = min_width, .h = self.height } });
         try self.col_hbox.?.install();
         try self.col_hbox.?.drawBackground();
     }
@@ -149,11 +159,17 @@ pub const GridHeaderWidget = struct {
         // Check in_body, log warning if not?? Needed?
         if (self.col_hbox) |*hbox| {
             const header_width = self.col_hbox.?.data().contentRect().w;
+            const header_height = self.col_hbox.?.data().contentRect().h;
+
             const min_width = self.grid.colWidthGet(self.col_number);
 
             if (header_width > min_width) {
                 self.grid.colWidthSet(header_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a de-init.
                 dvui.refresh(null, @src(), null);
+            }
+
+            if (header_height > self.height_this_frame) {
+                self.height_this_frame = header_height;
             }
 
             hbox.deinit();
@@ -306,9 +322,9 @@ pub const GridBodyWidget = struct {
         self.col_number += 1;
     }
 
-    //    // TODO: Checks for null / not null / ordering etc.
+    // TODO: Checks for null / not null / ordering etc.
     pub fn cellBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation) !void {
-        self.row_hbox = BoxWidget.init(src, .horizontal, false, .{ .id_extra = self.row_number });
+        self.row_hbox = BoxWidget.init(src, .horizontal, false, .{ .id_extra = self.row_number, .expand = .horizontal });
         try self.row_hbox.?.install();
         try self.row_hbox.?.drawBackground();
     }
