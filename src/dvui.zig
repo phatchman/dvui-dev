@@ -3747,6 +3747,15 @@ pub fn gridBody(src: std.builtin.SourceLocation, g: *GridWidget, init_opts: Grid
     return ret;
 }
 
+pub fn gridHeading(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, opts: dvui.Options) !void {
+    // TODO: opts
+    _ = opts;
+    try header.colBegin(src);
+    defer header.colEnd();
+    try labelNoFmt(@src(), heading, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0), .gravity_x = 0.5, .gravity_y = 0.5, .color_fill = .{ .name = .fill_control }, .background = true });
+    try separator(@src(), .{ .expand = .vertical });
+}
+
 pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
     const icon_arrow_dn = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_arrow_up = @embedFile("icons/entypo/chevron-small-up.tvg");
@@ -3821,13 +3830,13 @@ pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderW
     try header.colBegin(src);
     defer header.colEnd();
     _ = opts;
-
-    const parent_id = dvui.parentGet().data().id;
-    var selected: bool = dvui.dataGet(null, parent_id, "_selected", bool) orelse false;
+    var hbox = try dvui.box(@src(), .horizontal, .{ .color_fill = .{ .name = .fill_control }, .background = true });
+    defer hbox.deinit();
+    var selected: bool = dvui.dataGet(null, hbox.wd.id, "_selected", bool) orelse false;
     const clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5 });
     try dvui.separator(@src(), .{ .expand = .vertical });
 
-    dvui.dataSet(null, parent_id, "_selected", selected);
+    dvui.dataSet(null, hbox.wd.id, "_selected", selected);
     if (clicked) {
         selection.* = if (selected) .select_all else .select_none;
     } else {

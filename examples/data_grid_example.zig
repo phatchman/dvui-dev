@@ -97,7 +97,8 @@ pub fn main() !void {
 var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 const use_iterator = false;
-const virtual_scrolling = true;
+const virtual_scrolling = false;
+const sortable = false;
 // both dvui and SDL drawing
 fn gui_frame() !void {
     const backend = g_backend orelse return;
@@ -144,23 +145,32 @@ fn gui_frame() !void {
                 }
             }
         }
-        if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, .{})) {
-            sort("Make", sort_dir);
-        }
-        if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, .{})) {
-            sort("Model", sort_dir);
-        }
-        if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, .{})) {
-            sort("Year", sort_dir);
-        }
-        if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, .{})) {
-            sort("Mileage", sort_dir);
-        }
-        if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, .{})) {
-            sort("Condition", sort_dir);
-        }
-        if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, .{})) {
-            sort("Description", sort_dir);
+        if (sortable) {
+            if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, .{})) {
+                sort("Make", sort_dir);
+            }
+            if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, .{})) {
+                sort("Model", sort_dir);
+            }
+            if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, .{})) {
+                sort("Year", sort_dir);
+            }
+            if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, .{})) {
+                sort("Mileage", sort_dir);
+            }
+            if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, .{})) {
+                sort("Condition", sort_dir);
+            }
+            if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, .{})) {
+                sort("Description", sort_dir);
+            }
+        } else {
+            try dvui.gridHeading(@src(), header, "Make", .{});
+            try dvui.gridHeading(@src(), header, "Model", .{});
+            try dvui.gridHeading(@src(), header, "Year", .{});
+            try dvui.gridHeading(@src(), header, "Mileage", .{});
+            try dvui.gridHeading(@src(), header, "Condition", .{});
+            try dvui.gridHeading(@src(), header, "Description", .{});
         }
     }
 
@@ -175,12 +185,12 @@ fn gui_frame() !void {
                 break :limits .{ 0, cars.len };
             }
         };
+        std.debug.print("first = {}, last = {}\n", .{ first, last });
 
         const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[first..last], "selected", .{});
         if (changed) std.debug.print("selection changed\n", .{});
 
         if (!use_iterator) {
-            std.debug.print("first = {}, last = {}\n", .{ first, last });
             try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", .{});
             try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", .{});
             try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", .{});
@@ -300,7 +310,7 @@ const Car = struct {
 var selections: [cars.len]bool = @splat(false);
 
 var cars = initCars();
-const num_cars = 10_000;
+const num_cars = 100;
 fn initCars() [num_cars]Car {
     comptime var result: [num_cars]Car = undefined;
     comptime {
