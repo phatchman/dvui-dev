@@ -97,7 +97,7 @@ pub fn main() !void {
 var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 const use_iterator = false;
-const virtual_scrolling = true;
+const virtual_scrolling = false;
 const sortable = true;
 const testing = false;
 // both dvui and SDL drawing
@@ -165,6 +165,7 @@ fn gui_frame() !void {
     );
     defer grid.deinit();
     {
+        cars[0].selected = true;
         var header = try dvui.gridHeader(@src(), grid, .{}, .{});
         defer header.deinit();
         var sort_dir: dvui.GridWidget.SortDirection = undefined;
