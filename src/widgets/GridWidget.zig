@@ -362,9 +362,9 @@ pub const GridVirtualScroller = struct {
     window_size: usize,
     pub fn init(body: *GridBodyWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
-        body.scroll.si.virtual_size.h = @max((total_rows_f + 0) * body.row_height, body.scroll.si.viewport.h);
+        body.scroll.si.virtual_size.h = @max(total_rows_f * body.row_height, body.scroll.si.viewport.h);
         const window_size: f32 = @floatFromInt(init_opts.window_size);
-        body.invisible_height = @max(0, body.scroll.si.viewport.y - body.row_height * window_size * 2);
+        body.invisible_height = @max(0, body.scroll.si.viewport.y - body.row_height * window_size);
         return .{
             .body = body,
             .si = body.scroll.si,

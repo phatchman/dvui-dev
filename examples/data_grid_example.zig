@@ -244,7 +244,7 @@ fn gui_frame() !void {
             defer body.deinit();
             const first, const last = limits: {
                 if (virtual_scrolling) {
-                    var scroller = dvui.GridWidget.GridVirtualScroller.init(body, .{ .total_rows = cars.len, .window_size = 1 });
+                    var scroller = dvui.GridWidget.GridVirtualScroller.init(body, .{ .total_rows = cars.len, .window_size = 20 });
                     break :limits .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
                 } else {
                     break :limits .{ 0, cars.len };
@@ -406,7 +406,7 @@ const Car = struct {
 var selections: [num_cars]bool = @splat(false);
 
 var cars = initCars();
-const num_cars = 1000;
+const num_cars = 250;
 fn initCars() [num_cars]Car {
     comptime var result: [num_cars]Car = undefined;
     comptime {
