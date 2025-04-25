@@ -3788,7 +3788,7 @@ pub fn gridHeading(src: std.builtin.SourceLocation, header: *GridHeaderWidget, h
         .background = true,
     };
     const label_options = label_defaults.override(opts);
-    try header.colBegin(src);
+    try header.colBegin(src, opts);
     defer header.colEnd();
     try labelNoFmt(@src(), heading, label_options);
     try separator(@src(), .{ .expand = .vertical });
@@ -3799,7 +3799,7 @@ pub fn gridHeading(src: std.builtin.SourceLocation, header: *GridHeaderWidget, h
 /// Returns true if the sort direction has changed.
 /// sort_dir is an out parameter containing the current sort direction.
 /// opts controls the styling for the button label used for the heading.
-pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
+pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, dir: *GridHeaderWidget.SortDirection, opts: dvui.Options) !bool {
     const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
     const heading_defaults: Options = .{
@@ -3808,7 +3808,7 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     };
     const heading_opts = heading_defaults.override(opts);
 
-    try header.colBegin(src, .{});
+    try header.colBegin(src, opts);
     defer header.colEnd();
 
     const sort_changed = switch (header.colSortOrder()) {
@@ -3853,19 +3853,21 @@ pub fn gridColumnFromSlice(
     };
     const label_opts = label_defaults.override(opts);
 
-    try body.colBegin(src);
+    try body.colBegin(src, opts);
     defer body.colEnd();
     for (data, 0..) |item, id_extra| {
         try body.cellBegin(@src());
         defer body.cellEnd();
         const cell_value = value: {
             if (field_name) |_field_name| {
+                // populate value from struct field.
                 break :value switch (@typeInfo(@TypeOf(@field(item, _field_name)))) {
                     .@"enum" => @tagName(@field(item, _field_name)),
                     .bool => if (@field(item, _field_name)) "Y" else "N",
                     else => @field(item, _field_name),
                 };
             } else {
+                // populate value directly from slice
                 break :value switch (@typeInfo(T)) {
                     .@"enum" => @tagName(item),
                     .bool => if (item) "Y" else "N",
@@ -3890,7 +3892,7 @@ pub fn gridColumnFromIterator(
     comptime fmt: []const u8,
     opts: dvui.Options,
 ) !void {
-    try body.colBegin(src);
+    try body.colBegin(src, opts);
     defer body.colEnd();
     var id_extra: usize = 0;
     while (iter.next()) |item| : (id_extra += 1) {
@@ -3909,14 +3911,14 @@ pub fn gridColumnFromIterator(
 ///
 /// Returns true if the selection state has changed.
 /// selection - out parameter containing the current selection state.
-pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridWidget.SelectionState, opts: dvui.Options) !bool {
+pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridHeaderWidget.SelectionState, opts: dvui.Options) !bool {
     const header_defaults: Options = .{
         .background = true,
         .color_fill = .{ .name = .fill_control },
         .margin = ButtonWidget.defaults.margin,
     };
     const header_options = header_defaults.override(opts);
-    try header.colBegin(src, .{});
+    try header.colBegin(src, opts);
     defer header.colEnd();
 
     var clicked = false;
@@ -3955,7 +3957,7 @@ pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyW
         }
     }
 
-    try body.colBegin(src);
+    try body.colBegin(src, opts);
     defer body.colEnd();
     const cell_defaults: Options = .{
         .gravity_x = 0.5,

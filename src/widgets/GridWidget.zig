@@ -3,14 +3,10 @@ const dvui = @import("../dvui.zig");
 
 // TODO: The first 2 frames don't set the height correctly. Expect only the first frame would have an issue?
 
-// TODO: Remove unused.
-const Event = dvui.Event;
 const Options = dvui.Options;
 const Rect = dvui.Rect;
-const RectScale = dvui.RectScale;
-const ScrollInfo = dvui.ScrollInfo;
 const Size = dvui.Size;
-const Widget = dvui.Widget;
+const ScrollInfo = dvui.ScrollInfo;
 const WidgetData = dvui.WidgetData;
 const BoxWidget = dvui.BoxWidget;
 const ScrollAreaWidget = dvui.ScrollAreaWidget;
@@ -26,14 +22,6 @@ pub var defaults: Options = .{
 };
 
 pub const InitOpts = struct {};
-
-pub const SortDirection = enum {
-    unsorted,
-    ascending,
-    descending,
-};
-
-pub const SelectionState = enum { select_all, select_none, unchanged };
 
 vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
@@ -53,7 +41,6 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         self.col_widths = .empty;
         // Refresh as body col width not set yet.
     }
-    //    std.debug.print("Got {d}\n", .{self.col_widths.items});
     self.options = options;
     return self;
 }
@@ -90,9 +77,23 @@ pub fn colWidthGet(self: *const GridWidget, col_num: usize) f32 {
 }
 
 pub const GridHeaderWidget = struct {
-    pub const InitOpts = struct {
-        min_heading_size: ?Size = null,
-        max_heading_size: ?Size = null,
+    pub const InitOpts = struct {};
+    pub const SortDirection = enum {
+        unsorted,
+        ascending,
+        descending,
+    };
+    pub const SelectionState = enum {
+        select_all,
+        select_none,
+        unchanged,
+    };
+
+    pub var defaults: Options = .{
+        .name = "GridHeaderWidget",
+        // generally the top of a scroll area is against something flat (like
+        // window header), and the bottom is against something curved (bottom
+        // of a window)
     };
 
     header_hbox: BoxWidget = undefined,
@@ -105,26 +106,24 @@ pub const GridHeaderWidget = struct {
     height_this_frame: f32 = 0,
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
+        // TODO: Check how other widgets do this initialization
         var self = GridHeaderWidget{ .grid = grid };
-        const options = defaults.override(opts);
+        const options = GridHeaderWidget.defaults.override(opts);
 
         _ = init_opts;
-        // _ = options;
         self.header_hbox = BoxWidget.init(src, .horizontal, false, options);
 
         if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
             self.sort_col_number = sort_col;
         }
-
         if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
             self.sort_direction = sort_direction;
-        } else {
-            self.sort_direction = .unsorted;
         }
-
         if (dvui.dataGet(null, self.data().id, "_height", f32)) |height| {
             self.height = height;
         }
+        //        self.min_size = opts.min_size_content;
+        //        self.max_size = opts.max_size_content;
 
         return self;
     }
@@ -146,19 +145,27 @@ pub const GridHeaderWidget = struct {
         return &self.header_hbox.wd;
     }
 
+    /// Start a new column heading.
+    /// must be called before any widgets are created.
     pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation, opts: Options) !void {
         // Check if box is null. Log warning if not.
         // check not in_body. Log warning if not.
         const min_width = self.grid.colWidthGet(self.col_number);
 
-        const col_defaults: Options = .{
+        var col_options: Options = .{
             .min_size_content = .{ .w = min_width, .h = self.height },
+            .max_size_content = opts.max_size_content,
         };
-        self.col_hbox = BoxWidget.init(src, .horizontal, false, col_defaults.override(opts));
+        if (opts.min_size_content) |min_size_content| {
+            col_options.min_size_content = min_size_content;
+        }
+        self.col_hbox = BoxWidget.init(src, .horizontal, false, col_options);
         try self.col_hbox.?.install();
         try self.col_hbox.?.drawBackground();
     }
 
+    /// End of a column heading.
+    /// must be called after all column widgets are deinit-ed.
     pub fn colEnd(self: *GridHeaderWidget) void {
         // Check in_body, log warning if not?? Needed?
         if (self.col_hbox) |*hbox| {
@@ -183,14 +190,22 @@ pub const GridHeaderWidget = struct {
         self.col_number += 1;
     }
 
+    pub fn colWidthGet(self: *GridHeaderWidget) f32 {
+        return self.grid.colWidthGet(self.col_number);
+    }
+
+    /// Must be called from the column header when the current column's sort order has changed.
     pub fn sortChanged(self: *GridHeaderWidget) void {
+        // If sorting on a new column, change current sort column to unsorted.
         if (self.col_number != self.sort_col_number) {
             self.sort_direction = .unsorted;
             self.sort_col_number = self.col_number;
         }
+        // If new sort column, then ascending, otherwise opposite of current sort.
         self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
     }
 
+    /// Returns the sort order for the current header.
     pub fn colSortOrder(self: *const GridHeaderWidget) SortDirection {
         if (self.col_number == self.sort_col_number) {
             return self.sort_direction;
@@ -200,43 +215,13 @@ pub const GridHeaderWidget = struct {
     }
 };
 
-pub const GridVirtualScroller = struct {
-    body: *GridBodyWidget,
-    si: *ScrollInfo,
-    total_rows: usize,
-    pub fn init(body: *GridBodyWidget, total_rows: usize) GridVirtualScroller {
-        const total_rows_f: f32 = @floatFromInt(total_rows);
-        // Add a little padding so that the last row is always fully shown, when the viewport is not a multiple
-        // of row_height. TODO: When on last page, measure invisible height from bottom of virtual_size.
-        // This will ensure the last row is always fully displayed and flush with the bottom of the viewport.
-        body.scroll.si.virtual_size.h = @max((total_rows_f + 1.5) * body.row_height, body.scroll.si.viewport.h);
-        body.invisible_height = body.scroll.si.viewport.y;
-
-        return .{
-            .body = body,
-            .si = body.scroll.si,
-            .total_rows = total_rows,
-        };
-    }
-
-    pub fn rowFirstVisible(self: *const GridVirtualScroller) usize {
-        if (self.body.row_height < 1) {
-            return 0;
-        }
-        const result: usize = @intFromFloat(@round(self.si.viewport.y / self.body.row_height));
-        return if (result == 0) result else @min(result - 1, self.total_rows);
-    }
-
-    pub fn rowLastVisible(self: *const GridVirtualScroller) usize {
-        if (self.body.row_height < 1) {
-            return 1;
-        }
-        const result: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height));
-        return @min(result + 1, self.total_rows);
-    }
-};
-
 pub const GridBodyWidget = struct {
+    pub const defaults: Options = .{
+        .name = "GridBodyWidget",
+        .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
+        // Must either provide .expand or .min_size_content for virtual scrolling to work.
+        .expand = .vertical,
+    };
     pub const InitOpts = struct {
         scroll_info: ?*ScrollInfo = null,
     };
@@ -246,24 +231,26 @@ pub const GridBodyWidget = struct {
     col_vbox: ?BoxWidget = null,
     row_hbox: ?BoxWidget = null,
     col_number: usize = 0,
-    row_number: usize = 0,
+    cell_number: usize = 0,
+    // invisible_height is used to pad the top of the scroll area in virtual scrolling mode
+    // The padded area will contain the "invisibile" rows at the start of the grid.
     invisible_height: f32 = 0,
     row_height: f32 = 0,
     row_height_this_frame: f32 = 0,
+    min_size: ?Size = null,
+    max_size: ?Size = null,
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
         var self = GridBodyWidget{ .grid = grid };
-        const options = defaults.override(opts);
+        const options = GridBodyWidget.defaults.override(opts);
 
-        // TODO: If we provide out own scroll_info, then we can't set the scroll_info here as it might be a pointer to a stack object.
-        self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = init_opts.scroll_info }, .{ .expand = .both });
+        self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = init_opts.scroll_info }, options);
         // TODO: Somehow check that our parent is the Grid header.
-        // TODO: options
-        //self.init_opts = init_opts;
         if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
             self.row_height = row_height;
         }
-        _ = options;
+        self.min_size = opts.min_size_content;
+        self.max_size = opts.max_size_content;
 
         return self;
     }
@@ -277,7 +264,7 @@ pub const GridBodyWidget = struct {
     }
 
     pub fn deinit(self: *GridBodyWidget) void {
-        dvui.dataSet(null, self.data().id, "_row_height", self.row_height_this_frame);
+        dvui.dataSet(null, self.data().id, "_row_height", if (self.row_height_this_frame > 0) self.row_height_this_frame else self.row_height);
         self.hbox.deinit();
         self.scroll.deinit();
     }
@@ -286,12 +273,21 @@ pub const GridBodyWidget = struct {
         return self.scroll.data();
     }
 
-    pub fn colBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation) !void {
+    /// Begin a new grid column
+    /// must be called before any widgets are created in the column
+    pub fn colBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation, opts: Options) !void {
         // Check if box is null. Log warning if not.
 
         const min_width = self.grid.colWidthGet(self.col_number);
 
-        self.col_vbox = BoxWidget.init(src, .vertical, false, .{ .min_size_content = .{ .w = min_width }, .expand = .none });
+        var col_options: Options = .{
+            .min_size_content = .{ .w = min_width },
+            .max_size_content = opts.max_size_content,
+        };
+        if (opts.min_size_content) |min_size_content| {
+            col_options.min_size_content = min_size_content;
+        }
+        self.col_vbox = BoxWidget.init(src, .vertical, false, col_options);
         try self.col_vbox.?.install();
         try self.col_vbox.?.drawBackground();
 
@@ -309,7 +305,8 @@ pub const GridBodyWidget = struct {
         // Is there a better way that just storing them separately?
     }
 
-    // TODO: Should the count go on the begin??
+    /// End a new column
+    /// must be called after all widgets in the column have been deinit-ed.
     pub fn colEnd(self: *GridBodyWidget) void {
         if (self.col_vbox) |*vbox| {
             const current_width = vbox.data().contentRect().w;
@@ -326,24 +323,74 @@ pub const GridBodyWidget = struct {
         self.col_number += 1;
     }
 
-    // TODO: Checks for null / not null / ordering etc.
+    // Start a new cell.
+    // must be called before any widgets are createdf in the cell
     pub fn cellBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation) !void {
-        self.row_hbox = BoxWidget.init(src, .horizontal, false, .{ .id_extra = self.row_number, .expand = .horizontal });
+        self.row_hbox = BoxWidget.init(src, .horizontal, false, .{ .id_extra = self.cell_number, .expand = .both });
         try self.row_hbox.?.install();
         try self.row_hbox.?.drawBackground();
     }
 
+    // End a new cell
+    // must be called after all widgets in the cell have been deinit-ed.
     pub fn cellEnd(self: *GridBodyWidget) void {
         if (self.row_hbox) |*hbox| {
             if (hbox.wd.rect.h > self.row_height_this_frame) {
                 self.row_height_this_frame = hbox.wd.rect.h;
             }
-            if (self.row_number == 0) {
-                std.debug.print("h = {d}\n", .{hbox.wd.rect.h});
-            }
             hbox.deinit();
             self.row_hbox = null;
         }
-        self.row_number += 1;
+        self.cell_number += 1;
+    }
+};
+
+/// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.
+/// GridVirtualScroller requires that a scroll_info has been passed to as an init_option
+/// to the GridBodyWidget.
+pub const GridVirtualScroller = struct {
+    pub const InitOpts = struct {
+        // Total rows in the columns displayed
+        total_rows: usize,
+        // The number of rows before and after the visible scroll area to load.
+        // The larger the window, the smoother the scrolling, at the expense of more rows being rendered.
+        window_size: usize = 1,
+    };
+    body: *GridBodyWidget,
+    si: *ScrollInfo,
+    total_rows: usize,
+    window_size: usize,
+    pub fn init(body: *GridBodyWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
+        const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
+        body.scroll.si.virtual_size.h = @max((total_rows_f + 0) * body.row_height, body.scroll.si.viewport.h);
+        const window_size: f32 = @floatFromInt(init_opts.window_size);
+        body.invisible_height = @max(0, body.scroll.si.viewport.y - body.row_height * window_size * 2);
+        return .{
+            .body = body,
+            .si = body.scroll.si,
+            .total_rows = init_opts.total_rows,
+            .window_size = init_opts.window_size,
+        };
+    }
+
+    /// Return the first row within the visible scroll area, minus window_size
+    pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
+        if (self.body.row_height < 1) {
+            return 0;
+        }
+        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.body.row_height));
+        if (first_row_in_viewport < self.window_size) {
+            return @min(first_row_in_viewport, self.total_rows);
+        }
+        return @min(first_row_in_viewport - self.window_size, self.total_rows);
+    }
+
+    /// Return the first row within the visible scroll area, plus the window size.
+    pub fn rowLastRendered(self: *const GridVirtualScroller) usize {
+        if (self.body.row_height < 1) {
+            return 1;
+        }
+        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height));
+        return @min(last_row_in_viewport + self.window_size, self.total_rows);
     }
 };
