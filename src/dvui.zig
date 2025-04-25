@@ -3747,28 +3747,46 @@ pub fn gridBody(src: std.builtin.SourceLocation, g: *GridWidget, init_opts: Grid
     return ret;
 }
 
+/// Create a heading with a static label
+///
+/// opts controls the styling for the label.
 pub fn gridHeading(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, opts: dvui.Options) !void {
-    // TODO: opts
-    _ = opts;
+    const label_defaults: Options = .{
+        .corner_radius = Rect.all(0),
+        .expand = .horizontal,
+        .gravity_x = 0.5,
+        .gravity_y = 0.5,
+        .color_fill = .{ .name = .fill_control },
+        .background = true,
+    };
+    const label_options = label_defaults.override(opts);
     try header.colBegin(src);
     defer header.colEnd();
-    try labelNoFmt(@src(), heading, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0), .gravity_x = 0.5, .gravity_y = 0.5, .color_fill = .{ .name = .fill_control }, .background = true });
+    try labelNoFmt(@src(), heading, label_options);
     try separator(@src(), .{ .expand = .vertical });
 }
 
+/// Create a heading which allow the column to be sorted.
+///
+/// Returns true if the sort direction has changed.
+/// sort_dir is an out parameter containing the current sort direction.
+/// opts controls the styling for the button label used for the heading.
 pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
-    const icon_arrow_dn = @embedFile("icons/entypo/chevron-small-down.tvg");
-    const icon_arrow_up = @embedFile("icons/entypo/chevron-small-up.tvg");
+    const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
+    const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
+    const heading_defaults: Options = .{
+        .expand = .horizontal,
+        .corner_radius = Rect.all(0),
+    };
+    const heading_opts = heading_defaults.override(opts);
 
-    // TODO: opts
-    _ = opts;
     try header.colBegin(src, .{});
     defer header.colEnd();
 
     const sort_changed = switch (header.colSortOrder()) {
-        .unsorted => try button(@src(), heading, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
-        .ascending => try buttonLabelAndIcon(@src(), heading, icon_arrow_dn, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
-        .descending => try buttonLabelAndIcon(@src(), heading, icon_arrow_up, .{ .draw_focus = false }, .{ .expand = .horizontal, .corner_radius = dvui.Rect.all(0) }),
+        .unsorted => try button(@src(), heading, .{ .draw_focus = false }, heading_opts),
+        .ascending => try buttonLabelAndIcon(@src(), heading, icon_ascending, .{ .draw_focus = false }, heading_opts),
+        .descending => try buttonLabelAndIcon(@src(), heading, icon_descending, .{ .draw_focus = false }, heading_opts),
     };
 
     if (sort_changed) {
@@ -3784,7 +3802,9 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
 /// If data is a slice of struct field_name must be supplied
 /// Enums are displayed as their tagName. fmt must be "{s}"
 /// Bools are displayed as Y or N. fmt must be "{s}"
-/// Other types are formatted as per the fmt string.
+/// Other types are formatted as per the supplied fmt string.
+/// opts controls the label displayed in the grid cell.
+/// opts.id_extra is ignored.
 pub fn gridColumnFromSlice(
     src: std.builtin.SourceLocation,
     body: *GridBodyWidget,
@@ -3799,6 +3819,11 @@ pub fn gridColumnFromSlice(
             @compileError(std.fmt.comptimePrint("data does not contain field {s}.", .{_field_name}));
         }
     }
+
+    const label_defaults: Options = .{
+        .expand = .horizontal,
+    };
+    const label_opts = label_defaults.override(opts);
 
     try body.colBegin(src);
     defer body.colEnd();
@@ -3824,7 +3849,7 @@ pub fn gridColumnFromSlice(
             @src(),
             fmt,
             .{cell_value},
-            opts.override(.{ .id_extra = id_extra, .expand = .horizontal }),
+            label_opts.override(.{ .id_extra = id_extra }),
         );
     }
 }
@@ -3852,25 +3877,25 @@ pub fn gridColumnFromIterator(
     }
 }
 
-// TODO: Prob some init options about sorting etc?
+/// A grid heading with a checkbox for select-all and select-none
+///
+/// Returns true if the selection state has changed.
+/// selection - out parameter containing the current selection state.
 pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridWidget.SelectionState, opts: dvui.Options) !bool {
-    //    try header.colBegin(src, opts.override(.{ .color_fill = .{ .name = .fill_control }, .background = true }));
     const header_defaults: Options = .{
         .background = true,
         .color_fill = .{ .name = .fill_control },
-        //.expand = .both,
         .margin = ButtonWidget.defaults.margin,
-        //.padding = ButtonWidget.defaults.padding,
     };
     const header_options = header_defaults.override(opts);
     try header.colBegin(src, .{});
     defer header.colEnd();
+
     var clicked = false;
     var selected = false;
     {
         var hbox = try dvui.box(@src(), .horizontal, header_options);
         defer hbox.deinit();
-        //const hbox = dvui.parentGet();
         selected = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
         clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5, .gravity_x = 0.5 });
         dvui.dataSet(null, hbox.data().id, "_selected", selected);
@@ -3885,6 +3910,12 @@ pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderW
     return clicked;
 }
 
+/// A checkbox column that allows selection of boolean items.
+///
+/// Returns true if any selections have changed.
+/// If field_name is null, T must be a bool.
+/// Otherwise field_name must refer to a bool field within a struct.
+/// opts is used to style the checkbox.
 pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: ?[]const u8, opts: dvui.Options) !bool {
     if (T != bool) {
         if (field_name) |_field_name| {
@@ -3898,18 +3929,16 @@ pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyW
 
     try body.colBegin(src);
     defer body.colEnd();
-    const col_defaults: Options = .{
+    const cell_defaults: Options = .{
         .gravity_x = 0.5,
         .gravity_y = 0.5,
     };
-    // TODO: Make sure field is a bool or struct with a a bool field
-    // Also make field name optional, either as an option struct or an optional.
 
     var selection_changed = false;
     for (data, 0..) |*item, i| {
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
         const was_selected = is_selected.*;
-        _ = try dvui.checkbox(@src(), is_selected, null, col_defaults.override(opts).override(.{ .id_extra = i }));
+        _ = try dvui.checkbox(@src(), is_selected, null, cell_defaults.override(opts).override(.{ .id_extra = i }));
         selection_changed = selection_changed or was_selected != is_selected.*;
     }
     return selection_changed;
