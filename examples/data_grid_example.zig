@@ -94,37 +94,61 @@ pub fn main() !void {
         }
     }
 }
+const testing = false;
+
 var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 const use_iterator = false;
 var virtual_scrolling = true;
-var fixed_width = false;
 var sortable = true;
 var header_height: f32 = 0;
 var row_height: f32 = 0;
+const ColumnSizing = enum {
+    size_content,
+    size_window,
+    size_ratio,
+    fixed_width,
+};
+var column_sizing: ColumnSizing = .size_content;
 
 const fixed_width_w: f32 = 50;
-pub fn headerMinSize() ?dvui.Size {
-    if (fixed_width) return .{ .w = fixed_width_w };
-    if (header_height > 0) return .{ .h = header_height };
-    return null;
+pub fn headerOptions(ratio_w: f32) dvui.Options {
+    const default_header_options: dvui.Options = .{};
+
+    var opts = switch (column_sizing) {
+        .size_content => default_header_options,
+        .size_window => default_header_options.override(.{ .expand = .horizontal }),
+        .size_ratio => default_header_options.override(.{ .expand = .ratio, .min_size_content = .{ .w = ratio_w } }),
+        .fixed_width => default_header_options.override(.{ .min_size_content = .{ .w = fixed_width_w }, .max_size_content = .{ .w = fixed_width_w } }),
+    };
+    if (header_height > 0) {
+        if (opts.min_size_content) |*min_size_content| {
+            min_size_content.h = header_height;
+        } else {
+            opts.min_size_content = .{ .h = header_height };
+        }
+    }
+    return opts;
 }
 
-pub fn headerMaxSize() ?dvui.Size {
-    if (!fixed_width) return null else return .{ .w = fixed_width_w };
+pub fn rowOptions(ratio_w: f32) dvui.Options {
+    const default_row_options: dvui.Options = .{};
+    var opts = switch (column_sizing) {
+        .size_content => default_row_options,
+        .size_window => default_row_options.override(.{ .expand = .horizontal }),
+        .size_ratio => default_row_options.override(.{ .expand = .ratio, .min_size_content = .{ .w = ratio_w } }),
+        .fixed_width => default_row_options.override(.{ .min_size_content = .{ .w = fixed_width_w }, .max_size_content = .{ .w = fixed_width_w } }),
+    };
+    if (row_height > 0) {
+        if (opts.min_size_content) |*min_size_content| {
+            min_size_content.h = row_height;
+        } else {
+            opts.min_size_content = .{ .h = row_height };
+        }
+    }
+    return opts;
 }
 
-pub fn rowMinSize() ?dvui.Size {
-    if (fixed_width) return .{ .w = fixed_width_w };
-    if (row_height > 0) return .{ .h = row_height };
-    return null;
-}
-
-pub fn rowMaxSize() ?dvui.Size {
-    if (!fixed_width) return null else return .{ .w = fixed_width_w };
-}
-
-const testing = false;
 // both dvui and SDL drawing
 fn gui_frame() !void {
     const backend = g_backend orelse return;
@@ -188,7 +212,7 @@ fn gui_frame() !void {
         var grid = try dvui.grid(
             @src(),
             .{},
-            .{ .expand = .vertical, .background = true },
+            .{ .expand = .both, .background = true },
         );
         defer grid.deinit();
         {
@@ -197,9 +221,8 @@ fn gui_frame() !void {
             defer header.deinit();
             var sort_dir: dvui.GridHeaderWidget.SortDirection = undefined;
             var selection: dvui.GridHeaderWidget.SelectionState = undefined;
-            const opts: dvui.Options = .{ .min_size_content = headerMinSize(), .max_size_content = headerMaxSize() };
 
-            if (try dvui.gridHeadingCheckBox(@src(), header, &selection, opts)) {
+            if (try dvui.gridHeadingCheckBox(@src(), header, &selection, headerOptions(20))) {
                 for (cars[0..]) |*car| {
                     switch (selection) {
                         .select_all => car.selected = true,
@@ -210,36 +233,35 @@ fn gui_frame() !void {
             }
 
             if (sortable) {
-                if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, opts)) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, headerOptions(30))) {
                     sort("Make", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, opts)) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, headerOptions(40))) {
                     sort("Model", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, opts)) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, headerOptions(50))) {
                     sort("Year", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, opts)) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, headerOptions(60))) {
                     sort("Mileage", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, opts)) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, headerOptions(70))) {
                     sort("Condition", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, opts)) {
-                    sort("Description", sort_dir);
-                }
+                //                if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, headerOptions(80))) {
+                //                    sort("Description", sort_dir);
+                //                }
             } else {
-                try dvui.gridHeading(@src(), header, "Make", opts);
-                try dvui.gridHeading(@src(), header, "Model", opts);
-                try dvui.gridHeading(@src(), header, "Year", opts);
-                try dvui.gridHeading(@src(), header, "Mileage", opts);
-                try dvui.gridHeading(@src(), header, "Condition", opts);
-                try dvui.gridHeading(@src(), header, "Description", opts);
+                //                try dvui.gridHeading(@src(), header, "Make", opts);
+                //                try dvui.gridHeading(@src(), header, "Model", opts);
+                //                try dvui.gridHeading(@src(), header, "Year", opts);
+                //                try dvui.gridHeading(@src(), header, "Mileage", opts);
+                //                try dvui.gridHeading(@src(), header, "Condition", opts);
+                //try dvui.gridHeading(@src(), header, "Description", opts);
             }
         }
 
         {
-            const opts: dvui.Options = .{ .min_size_content = rowMinSize(), .max_size_content = rowMaxSize() };
             var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .{});
             defer body.deinit();
             const first, const last = limits: {
@@ -252,45 +274,59 @@ fn gui_frame() !void {
             };
             //std.debug.print("first = {}, last = {}\n", .{ first, last });
 
-            const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[first..last], "selected", opts);
+            const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[first..last], "selected", rowOptions(20));
             //const changed = try dvui.gridColumnCheckBox(@src(), body, bool, selections[0..], "selected", .{});
             if (changed) std.debug.print("selection changed\n", .{});
 
             if (!use_iterator) {
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", opts);
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", opts);
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", opts);
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", opts.override(.{ .gravity_x = 1.0 }));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", opts.override(.{ .gravity_x = 0.5 }));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", opts);
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions(30));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", rowOptions(40));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", rowOptions(50));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", rowOptions(60).override(.{ .gravity_x = 1.0 }));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", rowOptions(70).override(.{ .gravity_x = 0.5 }));
+                //try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", rowOptions(80));
                 //try dvui.gridColumnFromSlice(@src(), body, bool, selections[first..last], null, "{s}", .{});
                 //try dvui.gridColumnFromSlice(@src(), body, usize, other_data[first..last], null, "{d}", .{});
             } else {
-                var iter = CarsIterator.init(cars[first..last]);
-                try dvui.gridColumnFromIterator(@src(), body, &iter, "make", "{s}", .{});
-                iter.reset();
-                try dvui.gridColumnFromIterator(@src(), body, &iter, "model", "{s}", .{});
-                iter.reset();
-                try dvui.gridColumnFromIterator(@src(), body, &iter, "year", "{d}", .{});
-                iter.reset();
-                try dvui.gridColumnFromIterator(@src(), body, &iter, "mileage", "{d}", .{ .gravity_x = 1.0 });
-                iter.reset();
-                try dvui.gridColumnFromIterator(@src(), body, &iter, "condition", "{s}", .{ .gravity_x = 0.5 });
-                iter.reset();
-                try dvui.gridColumnFromIterator(@src(), body, &iter, "description", "{s}", .{});
+                //                var iter = CarsIterator.init(cars[first..last]);
+                //                try dvui.gridColumnFromIterator(@src(), body, &iter, "make", "{s}", .{});
+                //                iter.reset();
+                //                try dvui.gridColumnFromIterator(@src(), body, &iter, "model", "{s}", .{});
+                //                iter.reset();
+                //                try dvui.gridColumnFromIterator(@src(), body, &iter, "year", "{d}", .{});
+                //                iter.reset();
+                //                try dvui.gridColumnFromIterator(@src(), body, &iter, "mileage", "{d}", .{ .gravity_x = 1.0 });
+                //                iter.reset();
+                //                try dvui.gridColumnFromIterator(@src(), body, &iter, "condition", "{s}", .{ .gravity_x = 0.5 });
+                //                iter.reset();
+                //                try dvui.gridColumnFromIterator(@src(), body, &iter, "description", "{s}", .{});
             }
             //std.debug.print("VP = {}\n VS = {} first = {}, last = {}\n", .{ body.scroll.si.viewport, body.scroll.si.virtual_size, first, last });
         }
     }
     {
         // Control panel
-        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both });
+        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .vertical });
         defer vbox.deinit();
         try dvui.labelNoFmt(@src(), "Control Panel", .{ .font_style = .caption_heading });
         _ = try dvui.checkbox(@src(), &sortable, "sortable", .{});
         _ = try dvui.checkbox(@src(), &virtual_scrolling, "virtual scrolling", .{});
-        _ = try dvui.checkbox(@src(), &fixed_width, "fixed col width", .{});
-
+        if (try dvui.expander(@src(), "Column Layout", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
+            var inner_vbox = try dvui.box(@src(), .vertical, .{ .margin = .{ .x = 10 } });
+            defer inner_vbox.deinit();
+            if (try dvui.radio(@src(), column_sizing == .size_content, "Size to content", .{})) {
+                column_sizing = .size_content;
+            }
+            if (try dvui.radio(@src(), column_sizing == .size_window, "Size to window", .{})) {
+                column_sizing = .size_window;
+            }
+            if (try dvui.radio(@src(), column_sizing == .size_ratio, "Size to window (ratio)", .{})) {
+                column_sizing = .size_ratio;
+            }
+            if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
+                column_sizing = .fixed_width;
+            }
+        }
         {
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
             defer hbox.deinit();
