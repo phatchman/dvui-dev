@@ -3863,21 +3863,55 @@ pub fn gridColumnFromIterator(
     src: std.builtin.SourceLocation,
     body: *GridBodyWidget,
     iter: anytype,
-    comptime field: []const u8,
+    comptime field_name: ?[]const u8,
     comptime fmt: []const u8,
     opts: dvui.Options,
 ) !void {
+    // Make sure T is a ptr to a single.
+    const T = @TypeOf(iter.*);
+    if (!std.meta.hasMethod(T, "next")) {
+        @compileError(std.fmt.comptimePrint("{s} does not contain method next().", .{@typeName(T)}));
+    }
+    // TODO: Better type checking here.
+    //    if (field_name) |_field_name| {
+    //        if (!@hasField(@typeOf, _field_name)) {
+    //            @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), _field_name }));
+    //        }
+    //    }
+    const label_defaults: Options = .{
+        // .expand is required so that text labels can be centered.
+        .expand = .horizontal,
+    };
+    const label_opts = label_defaults.override(opts);
+
     try body.colBegin(src, opts);
     defer body.colEnd();
     var id_extra: usize = 0;
     while (iter.next()) |item| : (id_extra += 1) {
         try body.cellBegin(@src());
         defer body.cellEnd();
+        const cell_value = value: {
+            if (field_name) |_field_name| {
+                // populate value from struct field.
+                break :value switch (@typeInfo(@TypeOf(@field(item, _field_name)))) {
+                    .@"enum" => @tagName(@field(item, _field_name)),
+                    .bool => if (@field(item, _field_name)) "Y" else "N",
+                    else => @field(item, _field_name),
+                };
+            } else {
+                // populate value directly from slice
+                break :value switch (@typeInfo(T)) {
+                    .@"enum" => @tagName(item),
+                    .bool => if (item) "Y" else "N",
+                    else => item,
+                };
+            }
+        };
         try label(
             @src(),
             fmt,
-            .{if (@typeInfo(@TypeOf(@field(item, field))) == .@"enum") @tagName(@field(item, field)) else @field(item, field)},
-            opts.override(.{ .id_extra = id_extra }),
+            .{cell_value},
+            label_opts.override(.{ .id_extra = id_extra }),
         );
     }
 }
