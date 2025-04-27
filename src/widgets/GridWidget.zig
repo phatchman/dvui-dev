@@ -67,12 +67,19 @@ pub fn deinit(self: *GridWidget) void {
 
 pub fn colWidthSet(self: *GridWidget, which: ColWidth.Owner, w: f32, col_num: usize) !void {
     if (col_num < self.col_widths.items.len) {
-        if (self.col_widths.items[col_num].owner != which or self.col_widths.items[col_num].width != w) {
-            if (col_num == 2)
-                std.debug.print("{} on col {} changed width from {d} to {d}\n", .{ which, col_num, self.col_widths.items[col_num].width, w });
+        if (self.col_widths.items[col_num].owner != which or !std.math.approxEqRel(f32, self.col_widths.items[col_num].width, w, 0.01)) {
+            if (self.col_widths.items[col_num].changed_this_frame) {
+                self.col_widths.items[col_num].changed_this_frame = false;
+                return;
+            }
+            std.debug.print("{} on col {} changed width from {d} to {d}\n", .{ which, col_num, self.col_widths.items[col_num].width, w });
+            // If any col widths have changed, need to redraw.
+            dvui.refresh(null, @src(), null);
             self.col_widths.items[col_num] = .{ .owner = which, .width = w, .changed_this_frame = true };
         }
     } else {
+        std.debug.print("new\n", .{});
+        dvui.refresh(null, @src(), null);
         try self.col_widths.append(dvui.currentWindow().arena(), .{ .owner = which, .width = w, .changed_this_frame = true });
     }
 }
@@ -81,8 +88,8 @@ pub fn colWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: usiz
     if (col_num < self.col_widths.items.len) {
         const col_width = &self.col_widths.items[col_num];
         if (which == col_width.owner or col_width.changed_this_frame) {
-            col_width.changed_this_frame = false; // TODO: This can't go here.
-            std.debug.print("Changed this frame\n", .{});
+            //col_width.changed_this_frame = false; // TODO: This can't go here.
+            if (col_width.changed_this_frame) std.debug.print("Changed this frame\n", .{});
             return 0;
         }
         return col_width.width;
@@ -168,7 +175,6 @@ pub const GridHeaderWidget = struct {
         // Check if box is null. Log warning if not.
         // check not in_body. Log warning if not.
         const min_width = self.grid.colWidthGet(.header, self.col_number);
-        if (self.col_number == 2) std.debug.print("begin mw = {d}\n", .{min_width});
 
         var col_options: Options = .{
             .min_size_content = .{ .w = min_width, .h = self.height },
@@ -193,7 +199,6 @@ pub const GridHeaderWidget = struct {
             const min_width = self.grid.colWidthGet(.header, self.col_number);
 
             if (header_width > min_width) {
-                if (self.col_number == 2) std.debug.print("mw = {d}\n", .{min_width});
                 self.grid.colWidthSet(.header, header_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a de-init.
                 // TODO: Prolly do the refresh in the grid widget?
                 //dvui.refresh(null, @src(), null);
