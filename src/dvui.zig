@@ -3780,6 +3780,7 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     };
     const heading_opts = heading_defaults.override(opts);
 
+    //std.debug.print("GHS opts = {}\n", .{opts});
     try header.colBegin(src, opts);
     defer header.colEnd();
 
@@ -3816,15 +3817,17 @@ pub fn gridColumnFromSlice(
 ) !void {
     if (field_name) |_field_name| {
         if (!@hasField(T, _field_name)) {
-            @compileError(std.fmt.comptimePrint("data does not contain field {s}.", .{_field_name}));
+            @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), _field_name }));
         }
     }
 
     const label_defaults: Options = .{
+        // .expand is required so that text labels can be centered.
         .expand = .horizontal,
     };
     const label_opts = label_defaults.override(opts);
 
+    //std.debug.print("opts = {}\n", .{opts});
     try body.colBegin(src, opts);
     defer body.colEnd();
     for (data, 0..) |item, id_extra| {
@@ -3883,7 +3886,7 @@ pub fn gridColumnFromIterator(
 ///
 /// Returns true if the selection state has changed.
 /// selection - out parameter containing the current selection state.
-pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridHeaderWidget.SelectionState, opts: dvui.Options) !bool {
+pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridHeaderWidget.SelectionState, opts: dvui.Options) !bool {
     const header_defaults: Options = .{
         .background = true,
         .color_fill = .{ .name = .fill_control },
@@ -3918,14 +3921,16 @@ pub fn gridHeadingCheckBox(src: std.builtin.SourceLocation, header: *GridHeaderW
 /// If field_name is null, T must be a bool.
 /// Otherwise field_name must refer to a bool field within a struct.
 /// opts is used to style the checkbox.
-pub fn gridColumnCheckBox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: ?[]const u8, opts: dvui.Options) !bool {
+pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: ?[]const u8, opts: dvui.Options) !bool {
     if (T != bool) {
         if (field_name) |_field_name| {
             if (!@hasField(T, _field_name)) {
-                @compileError(std.fmt.comptimePrint("data does not contain field {s}.", .{_field_name}));
+                @compileError(std.fmt.comptimePrint("'{s}' does has no member named {s}.", .{ @typeName(T), _field_name }));
+            } else if (@FieldType(T, _field_name) != bool) {
+                @compileError(std.fmt.comptimePrint("{s}.{s} must be of type bool.", .{ @typeName(T), _field_name }));
             }
         } else {
-            @compileError("data must be of type []bool or field_name must be supplied.");
+            @compileError("data must be of type []bool when field_name is null.");
         }
     }
 

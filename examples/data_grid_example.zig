@@ -131,6 +131,18 @@ pub fn headerOptions(ratio_w: f32) dvui.Options {
     return opts;
 }
 
+pub fn headerCheckboxOptions() dvui.Options {
+    var opts = headerOptions(0);
+    if (opts.min_size_content) |*min_size_content| {
+        min_size_content.w = 0;
+    }
+    if (opts.max_size_content) |*max_size_content| {
+        max_size_content.w = 0;
+    }
+    opts.expand = .none;
+    return opts;
+}
+
 pub fn rowOptions(ratio_w: f32) dvui.Options {
     const default_row_options: dvui.Options = .{};
     var opts = switch (column_sizing) {
@@ -146,6 +158,18 @@ pub fn rowOptions(ratio_w: f32) dvui.Options {
             opts.min_size_content = .{ .h = row_height };
         }
     }
+    return opts;
+}
+
+pub fn rowCheckboxOptions() dvui.Options {
+    var opts = rowOptions(0);
+    if (opts.min_size_content) |*min_size_content| {
+        min_size_content.w = 0;
+    }
+    if (opts.max_size_content) |*max_size_content| {
+        max_size_content.w = 0;
+    }
+    opts.expand = .none;
     return opts;
 }
 
@@ -176,33 +200,30 @@ fn gui_frame() !void {
         }
     }
     if (testing) {
-        var hbox0 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1), .background = true });
-        try dvui.labelNoFmt(@src(), "Testing gx = 0.5 in hbox", .{ .gravity_x = 0.5, .expand = .horizontal });
-        hbox0.deinit();
+        var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
+        defer outer_hbox.deinit();
 
-        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1), .background = true });
-        defer vbox.deinit();
-
-        // Text is displayed left-justified, not centerd.
-        var hbox1 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1) });
-        try dvui.labelNoFmt(@src(), "Testing gx = 0.5 in hbox", .{ .gravity_x = 0.5 });
-        hbox1.deinit();
-
-        // Text is displayed correctly as right-justified
-        var hbox2 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1) });
-        try dvui.labelNoFmt(@src(), "Testing gx = 1.0 in hbox", .{ .gravity_x = 1.0 });
-        hbox2.deinit();
-
-        // Text is displayed correctly as centered.
-        try dvui.labelNoFmt(@src(), "Testing gx 0.5 no hbox", .{ .gravity_x = 0.5 });
-
-        var hbox3 = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .border = dvui.Rect.all(1), .background = true });
-        var text = try dvui.textLayout(@src(), .{}, .{});
-        try text.addText("textlayout gx = 0.5", .{ .gravity_x = 0.5 });
-        text.deinit();
-        hbox3.deinit();
-
-        try dvui.labelNoFmt(@src(), "Testing gx = 0.5 in hbox", .{ .gravity_x = 0.5, .expand = .horizontal });
+        {
+            var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
+            defer vb1.deinit();
+            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+            defer hbox.deinit();
+            try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
+        }
+        {
+            var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
+            defer vb1.deinit();
+            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+            defer hbox.deinit();
+            try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
+        }
+        {
+            var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
+            defer vb1.deinit();
+            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+            defer hbox.deinit();
+            try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
+        }
 
         return;
     }
@@ -217,12 +238,12 @@ fn gui_frame() !void {
         defer grid.deinit();
         {
             cars[0].selected = true;
-            var header = try dvui.gridHeader(@src(), grid, .{}, .{});
+            var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
             defer header.deinit();
             var sort_dir: dvui.GridHeaderWidget.SortDirection = undefined;
             var selection: dvui.GridHeaderWidget.SelectionState = undefined;
 
-            if (try dvui.gridHeadingCheckBox(@src(), header, &selection, headerOptions(20))) {
+            if (try dvui.gridHeadingCheckbox(@src(), header, &selection, headerCheckboxOptions())) {
                 for (cars[0..]) |*car| {
                     switch (selection) {
                         .select_all => car.selected = true,
@@ -233,6 +254,7 @@ fn gui_frame() !void {
             }
 
             if (sortable) {
+                //std.debug.print("INITIAL OPTS = {}\n", .{headerOptions(0)});
                 if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, headerOptions(30))) {
                     sort("Make", sort_dir);
                 }
@@ -262,7 +284,7 @@ fn gui_frame() !void {
         }
 
         {
-            var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .{});
+            var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .{ .expand = .both });
             defer body.deinit();
             const first, const last = limits: {
                 if (virtual_scrolling) {
@@ -274,8 +296,7 @@ fn gui_frame() !void {
             };
             //std.debug.print("first = {}, last = {}\n", .{ first, last });
 
-            const changed = try dvui.gridColumnCheckBox(@src(), body, Car, cars[first..last], "selected", rowOptions(20));
-            //const changed = try dvui.gridColumnCheckBox(@src(), body, bool, selections[0..], "selected", .{});
+            const changed = try dvui.gridColumnCheckbox(@src(), body, Car, cars[first..last], "selected", rowCheckboxOptions());
             if (changed) std.debug.print("selection changed\n", .{});
 
             if (!use_iterator) {
