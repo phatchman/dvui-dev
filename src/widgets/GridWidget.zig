@@ -225,7 +225,7 @@ pub const GridBodyWidget = struct {
     pub const InitOpts = struct {
         scroll_info: ?*ScrollInfo = null,
     };
-    grid: *GridWidget,
+    grid: *GridWidget = undefined,
     scroll: ScrollAreaWidget = undefined,
     hbox: BoxWidget = undefined,
     col_vbox: ?BoxWidget = null,
@@ -241,9 +241,10 @@ pub const GridBodyWidget = struct {
     max_size: ?Size = null,
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
-        var self = GridBodyWidget{ .grid = grid };
+        var self = GridBodyWidget{};
         const options = GridBodyWidget.defaults.override(opts);
 
+        self.grid = grid;
         self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = init_opts.scroll_info }, options);
         // TODO: Somehow check that our parent is the Grid header.
         if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
@@ -291,7 +292,7 @@ pub const GridBodyWidget = struct {
         try self.col_vbox.?.install();
         try self.col_vbox.?.drawBackground();
 
-        // Create a big vbox to pad out space for any invisible rows.
+        // Create a vbox to pad out space for any invisible rows.
         if (self.invisible_height > 0) {
             var vbox = BoxWidget.init(src, .vertical, false, .{
                 .expand = .horizontal,
@@ -316,6 +317,8 @@ pub const GridBodyWidget = struct {
                 dvui.refresh(null, @src(), null);
                 self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
             }
+            // TODO: Testing
+            self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
 
             vbox.deinit();
             self.col_vbox = null;
