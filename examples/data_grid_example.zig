@@ -99,7 +99,7 @@ const testing = false;
 
 var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
-const use_iterator = true;
+const use_iterator = false;
 var virtual_scrolling = true;
 var sortable = true;
 var header_height: f32 = 0;
