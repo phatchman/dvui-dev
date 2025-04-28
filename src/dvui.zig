@@ -3774,6 +3774,9 @@ pub fn gridHeading(src: std.builtin.SourceLocation, header: *GridHeaderWidget, h
 pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, dir: *GridHeaderWidget.SortDirection, opts: dvui.Options) !bool {
     const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
+    const icon_width = 27.5; // TODO: Is this really a const?
+    // TODO: Replace the 6 with defaults from some other widget?
+    const padding_opts: Options = .{ .padding = .{ .x = icon_width / 2.0, .w = icon_width / 2.0, .y = 6, .h = 6 } };
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
@@ -3785,7 +3788,7 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     defer header.colEnd();
 
     const sort_changed = switch (header.colSortOrder()) {
-        .unsorted => try button(@src(), heading, .{ .draw_focus = false }, heading_opts),
+        .unsorted => try button(@src(), heading, .{ .draw_focus = false }, padding_opts.override(heading_opts)),
         .ascending => try buttonLabelAndIcon(@src(), heading, icon_ascending, .{ .draw_focus = false }, heading_opts),
         .descending => try buttonLabelAndIcon(@src(), heading, icon_descending, .{ .draw_focus = false }, heading_opts),
     };
