@@ -234,7 +234,11 @@ fn gui_frame() !void {
         var grid = try dvui.grid(
             @src(),
             .{},
-            .{ .expand = .both, .background = true },
+            .{
+                .expand = .both,
+                .background = true,
+                .max_size_content = .{ .w = main_hbox.data().contentRect().w - 200 },
+            },
         );
         defer grid.deinit();
         {
@@ -329,7 +333,7 @@ fn gui_frame() !void {
     }
     {
         // Control panel
-        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .vertical });
+        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .vertical, .min_size_content = .{ .w = 250 }, .max_size_content = .{ .w = 250 } });
         defer vbox.deinit();
         try dvui.labelNoFmt(@src(), "Control Panel", .{ .font_style = .caption_heading });
         _ = try dvui.checkbox(@src(), &sortable, "sortable", .{});

@@ -179,6 +179,7 @@ pub const GridHeaderWidget = struct {
         var col_options: Options = .{
             .min_size_content = .{ .w = min_width, .h = self.height },
             .max_size_content = opts.max_size_content,
+            .expand = opts.expand,
         };
         if (opts.min_size_content) |min_size_content| {
             col_options.min_size_content = min_size_content;
@@ -309,6 +310,7 @@ pub const GridBodyWidget = struct {
         var col_options: Options = .{
             .min_size_content = .{ .w = min_width },
             .max_size_content = opts.max_size_content,
+            //.expand = opts.expand,
         };
         if (opts.min_size_content) |min_size_content| {
             col_options.min_size_content = min_size_content;
