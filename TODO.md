@@ -14,6 +14,7 @@ Issues
 - [X] checkbox header doesn't resize properly. separator needs gravity of 1. doesnt look right in undortable headers.
 - [ ] scrolling header and body simultaneously is not a smooth as I'd like.
 - [X] Need to add blank space for the "scrollbar width" in the header. Probably just always have it?
+- [ ] scrolling has started to becomine a bit "jumpy". Not sure what has changed here.
 
 Notes
  - For fixed width columns need to pass the same min/max size to the header and the column.

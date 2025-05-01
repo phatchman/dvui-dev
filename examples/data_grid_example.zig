@@ -339,6 +339,7 @@ fn gui_frame() !void {
                 const changed = try dvui.gridColumnCheckbox(@src(), body, Car, cars[first..last], "selected", rowCheckboxOptions());
                 if (changed) std.debug.print("selection changed\n", .{});
             }
+
             if (true) {
                 if (!use_iterator) {
                     try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions(30));
@@ -394,7 +395,9 @@ fn gui_frame() !void {
         if (column_sizing != .size_window) {
             _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
         }
-        _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
+        if (!use_iterator) {
+            _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
+        }
         {
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
             defer hbox.deinit();
@@ -423,6 +426,7 @@ fn gui_frame() !void {
                 }
                 if (use_iterator) {
                     _ = try dvui.checkbox(@src(), &filter_grid, "Filter", .{});
+                    selectable = false;
                 }
             }
         }
