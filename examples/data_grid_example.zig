@@ -101,6 +101,7 @@ var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 const use_iterator = false;
 var virtual_scrolling = true;
+var horizontal_scrolling = false;
 var sortable = true;
 var header_height: f32 = 0;
 var row_height: f32 = 0;
@@ -256,12 +257,10 @@ fn gui_frame() !void {
     var main_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
     {
+        scroll_info.horizontal = if (horizontal_scrolling) .auto else .none;
         var grid = try dvui.grid(
             @src(),
-            if (virtual_scrolling)
-                .{ .scroll_info = &scroll_info }
-            else
-                .{},
+            .{ .scroll_info = &scroll_info },
             //.{},
             .{
                 .expand = .both,
@@ -384,6 +383,7 @@ fn gui_frame() !void {
                 column_sizing = .fixed_width;
             }
         }
+        _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
         {
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
             defer hbox.deinit();

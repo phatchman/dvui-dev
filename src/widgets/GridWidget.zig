@@ -31,6 +31,7 @@ const ColWidth = struct {
     owner: Owner,
     width: f32,
     changed_this_frame: bool,
+    allow_body_updates: bool,
 };
 
 vbox: BoxWidget = undefined,
@@ -81,22 +82,30 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
-pub fn colWidthSet(self: *GridWidget, which: ColWidth.Owner, w: f32, col_num: usize) !void {
+pub fn colWidthSet(self: *GridWidget, which: ColWidth.Owner, w: f32, col_num: usize, allow_body_updates: ?bool) !void {
+    if (col_num == 2) {
+        std.debug.print("colWidthSet {s}, {d}, {d}, {}\n", .{ @tagName(which), w, col_num, allow_body_updates orelse false });
+    }
     if (col_num < self.col_widths.items.len) {
+        const abu = allow_body_updates orelse self.col_widths.items[col_num].allow_body_updates;
+        if (which == .body and !self.col_widths.items[col_num].allow_body_updates) return; // TODO: So plan is that if the header has a .expand, then ignore updates from body and set both a min and max width on them.
+
         if (self.col_widths.items[col_num].owner != which or !std.math.approxEqRel(f32, self.col_widths.items[col_num].width, w, 0.01)) {
             if (self.col_widths.items[col_num].changed_this_frame) {
                 self.col_widths.items[col_num].changed_this_frame = false;
+                dvui.refresh(null, @src(), null);
+
                 return;
             }
             std.debug.print("{} on col {} changed width from {d} to {d}\n", .{ which, col_num, self.col_widths.items[col_num].width, w });
             // If any col widths have changed, need to redraw.
             dvui.refresh(null, @src(), null);
-            self.col_widths.items[col_num] = .{ .owner = which, .width = w, .changed_this_frame = true };
+            self.col_widths.items[col_num] = .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = abu };
         }
     } else {
         std.debug.print("new\n", .{});
         dvui.refresh(null, @src(), null);
-        try self.col_widths.append(dvui.currentWindow().arena(), .{ .owner = which, .width = w, .changed_this_frame = true });
+        try self.col_widths.append(dvui.currentWindow().arena(), .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = true });
     }
 }
 
@@ -113,6 +122,20 @@ pub fn colWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: usiz
         // TODO: This should log a debug message. mark in red etc.
         return 0;
     }
+}
+
+pub fn colMaxWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: usize) ?f32 {
+    if (col_num < self.col_widths.items.len) {
+        const col_width = &self.col_widths.items[col_num];
+
+        if (col_num == 2) {
+            std.debug.print("getting width: updated_allows = {}\n", .{col_width.allow_body_updates});
+        }
+        if (which == .body and !col_width.allow_body_updates) {
+            return col_width.width;
+        }
+    }
+    return null;
 }
 
 pub const GridHeaderWidget = struct {
@@ -207,7 +230,10 @@ pub const GridHeaderWidget = struct {
     pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation, opts: Options) !void {
         // Check if box is null. Log warning if not.
         // check not in_body. Log warning if not.
-        const min_width = self.grid.colWidthGet(.header, self.col_number);
+        var min_width = self.grid.colWidthGet(.header, self.col_number);
+        const has_horizontal_expand = if (opts.expand) |expand| expand == .horizontal or expand == .vertical else false;
+        if (has_horizontal_expand)
+            min_width = 0;
 
         var col_options: Options = .{
             .min_size_content = .{ .w = min_width, .h = self.height },
@@ -232,8 +258,9 @@ pub const GridHeaderWidget = struct {
 
             const min_width = self.grid.colWidthGet(.header, self.col_number);
 
-            if (header_width > min_width) {
-                self.grid.colWidthSet(.header, header_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a de-init.
+            const allow_body_updates = hbox.data().options.expand == null;
+            if (header_width > min_width or !allow_body_updates) {
+                self.grid.colWidthSet(.header, header_width, self.col_number, allow_body_updates) catch unreachable; // TODO: Don't want to throw from a de-init.
                 // TODO: Prolly do the refresh in the grid widget?
                 //dvui.refresh(null, @src(), null);
             }
@@ -340,14 +367,18 @@ pub const GridBodyWidget = struct {
         // Check if box is null. Log warning if not.
 
         const min_width = self.grid.colWidthGet(.body, self.col_number);
+        const max_width = self.grid.colMaxWidthGet(.body, self.col_number);
 
         var col_options: Options = .{
             .min_size_content = .{ .w = min_width },
-            .max_size_content = opts.max_size_content,
+            .max_size_content = if (max_width) |mw| .width(mw) else opts.max_size_content, // TODO: Either always or never take width for the body
             //.expand = opts.expand,
         };
         if (opts.min_size_content) |min_size_content| {
             col_options.min_size_content = min_size_content;
+        }
+        if (self.col_number == 2) {
+            //            std.debug.print("Col opts = {}\n", .{col_options});
         }
         self.col_vbox = BoxWidget.init(src, .vertical, false, col_options);
         try self.col_vbox.?.install();
@@ -377,7 +408,7 @@ pub const GridBodyWidget = struct {
             if (current_width > min_width) {
                 // TODO: proll do this in GridWidget?
                 //dvui.refresh(null, @src(), null);
-                self.grid.colWidthSet(.body, current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
+                self.grid.colWidthSet(.body, current_width, self.col_number, null) catch unreachable; // TODO: Don't want to throw from a deinit.
             }
             // TODO: Testing
             //self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.

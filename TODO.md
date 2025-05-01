@@ -11,7 +11,8 @@ Issues
 - [X] The above is because of "window size". It is leaving an 'x' row gap at the bootom of the grid. Is window_size even worth it? YES!
 - [ ] Is there a better name than window size for the scroller? It's not even a window size. It's a number of extra rows to draw above and below
 - [X] checkbox header doesn't resize properly. separator needs gravity of 1. doesnt look right in undortable headers.
-- [ ] scrolling header and body simultaneously is a bit wonky.
+- [ ] scrolling header and body simultaneously is not a smooth as I'd like.
+- [X] Need to add blank space for the "scrollbar width" in the header. Probably just always have it?
 
 Notes
  - For fixed width columns need to pass the same min/max size to the header and the column.
