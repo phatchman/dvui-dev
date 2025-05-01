@@ -201,31 +201,56 @@ fn gui_frame() !void {
         }
     }
     if (testing) {
-        var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
-        defer outer_hbox.deinit();
+        const local = struct {
+            var hsi: dvui.ScrollInfo = .{ .horizontal = .given, .vertical = .none };
+            var bsi: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto };
+        };
+        var outer_vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
+        defer outer_vbox.deinit();
+        {
+            var header_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .background = true });
+            defer header_hbox.deinit();
+            local.hsi.virtual_size.h = local.hsi.viewport.h;
+            local.hsi.virtual_size.w = local.bsi.virtual_size.w;
+            local.hsi.viewport.x = local.bsi.viewport.x;
+            //local.hsi.viewport.y = 0;
+            std.debug.print("hsi = {}\n", .{local.hsi});
+            std.debug.print("bsi = {}\n", .{local.bsi});
 
-        {
-            var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
-            defer vb1.deinit();
-            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+            var header_scroll = try dvui.scrollArea(@src(), .{ .scroll_info = &local.hsi, .horizontal_bar = .hide }, .{ .expand = .horizontal });
+            defer header_scroll.deinit();
+            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
             defer hbox.deinit();
-            try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
+            _ = try dvui.button(@src(), "Heading 1111111111111111111111111", .{}, .{});
+            _ = try dvui.button(@src(), "Heading 2222222222222222222222222", .{}, .{});
         }
         {
-            var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
-            defer vb1.deinit();
-            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-            defer hbox.deinit();
-            try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
+            var body_scroll = try dvui.scrollArea(@src(), .{ .scroll_info = &local.bsi }, .{});
+            defer body_scroll.deinit();
+            var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+            defer outer_hbox.deinit();
+            {
+                var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
+                defer vb1.deinit();
+                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+                defer hbox.deinit();
+                try dvui.labelNoFmt(@src(), "Body 1111111111111111111111111", .{ .expand = .horizontal });
+            }
+            {
+                var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
+                defer vb1.deinit();
+                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+                defer hbox.deinit();
+                try dvui.labelNoFmt(@src(), "Body 2222222222222222222222222", .{ .expand = .horizontal });
+            }
+            //            {
+            //                var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
+            //                defer vb1.deinit();
+            //                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+            //                defer hbox.deinit();
+            //                try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
+            //            }
         }
-        {
-            var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
-            defer vb1.deinit();
-            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-            defer hbox.deinit();
-            try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
-        }
-
         return;
     }
     var main_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
@@ -233,7 +258,8 @@ fn gui_frame() !void {
     {
         var grid = try dvui.grid(
             @src(),
-            .{},
+            .{ .scroll_info = &scroll_info },
+            //.{},
             .{
                 .expand = .both,
                 .background = true,
@@ -274,9 +300,9 @@ fn gui_frame() !void {
                 if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, headerOptions(70))) {
                     sort("Condition", sort_dir);
                 }
-                //                if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, headerOptions(80))) {
-                //                    sort("Description", sort_dir);
-                //                }
+                if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, headerOptions(80))) {
+                    sort("Description", sort_dir);
+                }
             } else {
                 //                try dvui.gridHeading(@src(), header, "Make", opts);
                 //                try dvui.gridHeading(@src(), header, "Model", opts);
@@ -288,7 +314,7 @@ fn gui_frame() !void {
         }
 
         {
-            var body = try dvui.gridBody(@src(), grid, .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .{ .expand = .both });
+            var body = try dvui.gridBody(@src(), grid, .{}, .{ .expand = .both });
             defer body.deinit();
             var cars_iterator: CarsIterator = .init(cars[0..], if (filter_grid) filterLongModels else null);
             const row_count = if (use_iterator) cars_iterator.count() else cars.len;
@@ -311,7 +337,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", rowOptions(50));
                     try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", rowOptions(60).override(.{ .gravity_x = 1.0 }));
                     try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", rowOptions(70).override(.{ .gravity_x = 0.5 }));
-                    //try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", rowOptions(80));
+                    try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", rowOptions(80));
                     //try dvui.gridColumnFromSlice(@src(), body, bool, selections[first..last], null, "{s}", .{});
                     //try dvui.gridColumnFromSlice(@src(), body, usize, other_data[first..last], null, "{d}", .{});
                 } else {

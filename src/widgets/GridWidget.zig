@@ -22,7 +22,10 @@ pub var defaults: Options = .{
     .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
 };
 
-pub const InitOpts = struct {};
+pub const InitOpts = struct {
+    scroll_info: ?*dvui.ScrollInfo = null,
+};
+
 const ColWidth = struct {
     const Owner = enum { header, body };
     owner: Owner,
@@ -34,6 +37,8 @@ vbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(ColWidth) = undefined,
+si: *dvui.ScrollInfo = undefined,
+si_store: dvui.ScrollInfo = undefined,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -53,6 +58,12 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
 }
 
 pub fn install(self: *GridWidget) !void {
+    if (self.init_opts.scroll_info) |si| {
+        self.si = si;
+    } else {
+        self.si = &self.si_store;
+    }
+
     try self.vbox.install();
     try self.vbox.drawBackground();
 }
@@ -90,7 +101,7 @@ pub fn colWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: usiz
         const col_width = &self.col_widths.items[col_num];
         if (which == col_width.owner or col_width.changed_this_frame) {
             //col_width.changed_this_frame = false; // TODO: This can't go here.
-            if (col_width.changed_this_frame) std.debug.print("Changed this frame\n", .{});
+            //if (col_width.changed_this_frame) std.debug.print("Changed this frame\n", .{});
             return 0;
         }
         return col_width.width;
@@ -120,7 +131,9 @@ pub const GridHeaderWidget = struct {
         // of a window)
     };
 
+    hbox: BoxWidget = undefined,
     header_hbox: BoxWidget = undefined,
+    header_scroll: ScrollAreaWidget = undefined,
     col_hbox: ?BoxWidget = null,
     grid: *GridWidget = undefined,
     col_number: usize = 0,
@@ -128,6 +141,7 @@ pub const GridHeaderWidget = struct {
     sort_direction: SortDirection = .unsorted,
     height: f32 = 0,
     height_this_frame: f32 = 0,
+    si: ScrollInfo = .{ .horizontal = .given, .vertical = .none },
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
         // TODO: Check how other widgets do this initialization
@@ -136,7 +150,8 @@ pub const GridHeaderWidget = struct {
 
         _ = init_opts;
         self.grid = grid;
-        self.header_hbox = BoxWidget.init(src, .horizontal, false, options);
+        std.debug.print("header si = {}\n", .{self.si});
+        self.hbox = BoxWidget.init(src, .horizontal, false, options.override(.{ .expand = .horizontal }));
 
         if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
             self.sort_col_number = sort_col;
@@ -147,6 +162,10 @@ pub const GridHeaderWidget = struct {
         if (dvui.dataGet(null, self.data().id, "_height", f32)) |height| {
             self.height = height;
         }
+        if (dvui.dataGet(null, self.data().id, "_si2", ScrollInfo)) |*si| {
+            self.si = si.*;
+            std.debug.print("Got si = {}\n", .{si});
+        }
         //        self.min_size = opts.min_size_content;
         //        self.max_size = opts.max_size_content;
 
@@ -154,20 +173,32 @@ pub const GridHeaderWidget = struct {
     }
 
     pub fn deinit(self: *GridHeaderWidget) void {
+        std.debug.print("storing si1 = {}\n", .{self.si});
+        self.header_hbox.deinit();
+        self.header_scroll.deinit();
+
         dvui.dataSet(null, self.data().id, "_height", self.height_this_frame);
         dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
         dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
-
-        self.header_hbox.deinit();
+        dvui.dataSet(null, self.data().id, "_si2", self.si);
+        self.hbox.deinit();
     }
 
     pub fn install(self: *GridHeaderWidget) !void {
+        try self.hbox.install();
+        try self.hbox.drawBackground();
+        self.si.virtual_size.w = self.grid.si.virtual_size.w + 10; // 10 = scroll bar widget width
+        self.si.virtual_size.h = self.grid.si.viewport.h;
+        self.si.viewport.x = self.grid.si.viewport.x;
+        self.header_scroll = ScrollAreaWidget.init(@src(), .{ .scroll_info = &self.si, .horizontal_bar = .hide, .vertical_bar = .hide }, .{ .expand = .horizontal });
+        try self.header_scroll.install();
+        self.header_hbox = BoxWidget.init(@src(), .horizontal, false, .{ .expand = .horizontal });
         try self.header_hbox.install();
         try self.header_hbox.drawBackground();
     }
 
     pub fn data(self: *GridHeaderWidget) *WidgetData {
-        return &self.header_hbox.wd;
+        return self.hbox.data();
     }
 
     /// Start a new column heading.
@@ -250,7 +281,7 @@ pub const GridBodyWidget = struct {
         .expand = .vertical,
     };
     pub const InitOpts = struct {
-        scroll_info: ?*ScrollInfo = null,
+        //        scroll_info: ?*ScrollInfo = null,
     };
     grid: *GridWidget = undefined,
     scroll: ScrollAreaWidget = undefined,
@@ -270,15 +301,17 @@ pub const GridBodyWidget = struct {
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
         var self = GridBodyWidget{};
         const options = GridBodyWidget.defaults.override(opts);
+        _ = init_opts;
 
         self.grid = grid;
-        self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = init_opts.scroll_info }, options);
+        self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = self.grid.si }, options);
         // TODO: Somehow check that our parent is the Grid header.
         if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
             self.row_height = row_height;
         }
         self.min_size = opts.min_size_content;
         self.max_size = opts.max_size_content;
+        std.debug.print("body si = {}\n", .{self.grid.si});
 
         return self;
     }
