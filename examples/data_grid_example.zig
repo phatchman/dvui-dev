@@ -99,7 +99,7 @@ const testing = false;
 
 var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
-const use_iterator = false;
+var use_iterator = false;
 var virtual_scrolling = true;
 var horizontal_scrolling = false;
 var sortable = true;
@@ -261,8 +261,10 @@ fn gui_frame() !void {
         scroll_info.horizontal = if (horizontal_scrolling) .auto else .none;
         var grid = try dvui.grid(
             @src(),
-            .{ .scroll_info = &scroll_info },
-            //.{},
+            //            if (virtual_scrolling)
+            .{ .scroll_info = &scroll_info }, // TODO: Should only pass this for virtual scrolling.
+            //            else
+            //                .{},
             .{
                 .expand = .both,
                 .background = true,
@@ -358,8 +360,8 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromIterator(@src(), body, &iter, "mileage", "{d}", rowOptions(20).override(.{ .gravity_x = 1.0 }));
                     iter.reset();
                     try dvui.gridColumnFromIterator(@src(), body, &iter, "condition", "{s}", rowOptions(20).override(.{ .gravity_x = 0.5 }));
-                    //iter.reset();
-                    //try dvui.gridColumnFromIterator(@src(), body, &iter, "description", "{s}", rowOptions(20));
+                    iter.reset();
+                    try dvui.gridColumnFromIterator(@src(), body, &iter, "description", "{s}", rowOptions(20));
                 }
                 //std.debug.print("VP = {}\n VS = {} first = {}, last = {}\n", .{ body.scroll.si.viewport, body.scroll.si.virtual_size, first, last });
             }
@@ -380,6 +382,7 @@ fn gui_frame() !void {
             }
             if (try dvui.radio(@src(), column_sizing == .size_window, "Size to window", .{})) {
                 column_sizing = .size_window;
+                horizontal_scrolling = false;
             }
             if (try dvui.radio(@src(), column_sizing == .size_ratio, "Size to window (ratio)", .{})) {
                 column_sizing = .size_ratio;
@@ -388,7 +391,9 @@ fn gui_frame() !void {
                 column_sizing = .fixed_width;
             }
         }
-        _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
+        if (column_sizing != .size_window) {
+            _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
+        }
         _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
         {
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
@@ -408,7 +413,19 @@ fn gui_frame() !void {
                 row_height = result.value.Valid;
             }
         }
-        _ = try dvui.checkbox(@src(), &filter_grid, "Filter", .{});
+        {
+            if (try dvui.expander(@src(), "Populate From", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
+                if (try dvui.radio(@src(), !use_iterator, "Slice", .{})) {
+                    use_iterator = false;
+                }
+                if (try dvui.radio(@src(), use_iterator, "Iterator", .{})) {
+                    use_iterator = true;
+                }
+                if (use_iterator) {
+                    _ = try dvui.checkbox(@src(), &filter_grid, "Filter", .{});
+                }
+            }
+        }
     }
     // Think about the alternative of 2 blank h/vboxes before and after the grid.
 

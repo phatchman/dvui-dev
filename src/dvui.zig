@@ -3921,6 +3921,7 @@ pub fn gridColumnFromIterator(
     while (iter.next()) |item| : (id_extra += 1) {
         try body.cellBegin(@src());
         defer body.cellEnd();
+        // TODO: Can prob clean this up so that return the field (either from the struct or value and then covert it a second step)
         const cell_value = value: {
             if (field_name) |_field_name| {
                 // populate value from struct field.

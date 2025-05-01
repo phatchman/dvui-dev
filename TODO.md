@@ -1,6 +1,7 @@
 Todos
 - [ ] Equal space, ratio, expanding column widths.
 - [X] Header scrolling.
+- [X] MAke horizontal scrolling work without passing a scroll info. I though this used to work?
 
 
 Issues
