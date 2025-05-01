@@ -1,3 +1,5 @@
+//! ![demo](Examples-demo.png)
+
 const builtin = @import("builtin");
 const std = @import("std");
 const dvui = @import("dvui.zig");
@@ -87,16 +89,18 @@ const AnimatingDialog = struct {
         // once we record a response, refresh it until we close
         _ = dvui.dataGet(null, id, "response", enums.DialogResponse);
 
-        var win = FloatingWindowWidget.init(@src(), .{ .modal = modal }, .{ .id_extra = id, .max_size_content = .{ .w = 300 } });
+        var win = FloatingWindowWidget.init(@src(), .{ .modal = modal }, .{ .id_extra = id, .max_size_content = .width(300) });
 
         if (dvui.firstFrame(win.data().id)) {
             dvui.animation(win.wd.id, "rect_percent", .{ .start_val = 0.0, .end_val = 1.0, .end_time = duration, .easing = easing });
         }
 
         const winHeight = win.data().rect.h;
+        var winHeight_changed = false;
 
         if (dvui.animationGet(win.data().id, "rect_percent")) |a| {
             win.data().rect.h *= a.value();
+            winHeight_changed = true;
 
             // mucking with the window size can screw up the windows auto sizing, so force it
             win.autoSize();
@@ -139,7 +143,9 @@ const AnimatingDialog = struct {
         }
 
         // restore saved win rect so our change is not persisted to next frame
-        win.data().rect.h = winHeight;
+        if (winHeight_changed) {
+            win.data().rect.h = winHeight;
+        }
 
         win.deinit();
 
@@ -199,6 +205,7 @@ var calculation: f64 = 0;
 var calculand: ?f64 = null;
 var active_op: ?u8 = null;
 var digits_after_dot: f64 = 0;
+/// ![image](Examples-calculator.png)
 pub fn calculator() !void {
     var vbox = try dvui.box(@src(), .vertical, .{});
     defer vbox.deinit();
@@ -358,14 +365,14 @@ pub const demoKind = enum {
 
 pub var demo_active: demoKind = .basic_widgets;
 
-pub const demo_window_tag = "dvui-example-window";
+pub const demo_window_tag = "dvui_example_window";
 
 pub fn demo() !void {
     if (!show_demo_window) {
         return;
     }
 
-    var float = try dvui.floatingWindow(@src(), .{ .open_flag = &show_demo_window }, .{ .min_size_content = .{ .w = 600, .h = 400 }, .max_size_content = .{ .w = 600 }, .tag = demo_window_tag });
+    var float = try dvui.floatingWindow(@src(), .{ .open_flag = &show_demo_window }, .{ .min_size_content = .{ .w = 600, .h = 400 }, .max_size_content = .width(600), .tag = demo_window_tag });
     defer float.deinit();
 
     // pad the fps label so that it doesn't trigger refresh when the number
@@ -400,13 +407,9 @@ pub fn demo() !void {
     //if (dvui.firstFrame(paned.data().id)) {
     //    paned.split_ratio = 0;
     //}
-    blk: {
+    if (paned.showFirst()) {
         var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .background = false });
         defer scroll.deinit();
-
-        if (paned.collapsed() and paned.split_ratio == 0) {
-            break :blk;
-        }
 
         var invalidate: bool = false;
         {
@@ -436,7 +439,7 @@ pub fn demo() !void {
 
         inline for (0..@typeInfo(demoKind).@"enum".fields.len) |i| {
             const e = @as(demoKind, @enumFromInt(i));
-            var bw = dvui.ButtonWidget.init(@src(), .{}, .{ .id_extra = i, .border = Rect.all(1), .background = true, .min_size_content = dvui.Size.all(120), .max_size_content = dvui.Size.all(120), .margin = Rect.all(5), .color_fill = .{ .name = .fill } });
+            var bw = dvui.ButtonWidget.init(@src(), .{}, .{ .id_extra = i, .border = Rect.all(1), .background = true, .min_size_content = dvui.Size.all(120), .max_size_content = .size(dvui.Size.all(120)), .margin = Rect.all(5), .color_fill = .{ .name = .fill }, .tag = "demo_button_" ++ @tagName(e) });
             try bw.install();
             bw.processEvents();
             try bw.drawBackground();
@@ -475,8 +478,8 @@ pub fn demo() !void {
                     .reorderable => try reorderLists(),
                     .menus => try menus(),
                     .focus => try focus(),
-                    .scrolling => try scrolling(),
-                    .scroll_canvas => try scrollCanvas(),
+                    .scrolling => try scrolling(1),
+                    .scroll_canvas => try scrollCanvas(1),
                     .dialogs => try dialogs(float.data().id),
                     .animations => try animations(),
                     .struct_ui => try structUI(),
@@ -500,13 +503,13 @@ pub fn demo() !void {
         }
     }
 
-    {
+    if (paned.showSecond()) {
         var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .background = false });
         defer scroll.deinit();
 
         var hbox = try dvui.box(@src(), .horizontal, .{});
 
-        if (paned.collapsed() and try dvui.button(@src(), "Back to Demos", .{}, .{ .min_size_content = .{ .h = 30 } })) {
+        if (paned.collapsed() and try dvui.button(@src(), "Back to Demos", .{}, .{ .min_size_content = .{ .h = 30 }, .tag = "dvui_demo_window_back" })) {
             paned.animateSplit(1.0);
         }
 
@@ -527,8 +530,8 @@ pub fn demo() !void {
             .reorderable => reorderLists(),
             .menus => menus(),
             .focus => focus(),
-            .scrolling => scrolling(),
-            .scroll_canvas => scrollCanvas(),
+            .scrolling => scrolling(2),
+            .scroll_canvas => scrollCanvas(2),
             .dialogs => dialogs(float.data().id),
             .animations => animations(),
             .struct_ui => structUI(),
@@ -551,6 +554,7 @@ pub fn demo() !void {
     }
 }
 
+/// ![image](Examples-struct_ui.png)
 pub fn structUI() !void {
     var b = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
     defer b.deinit();
@@ -588,6 +592,7 @@ pub fn structUI() !void {
     }
 }
 
+/// ![image](Examples-themeEditor.png)
 pub fn themeEditor() !void {
     var b2 = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
     defer b2.deinit();
@@ -637,6 +642,7 @@ pub fn themeSerialization() !void {
     try dvui.labelNoFmt(@src(), "TODO: demonstrate loading a quicktheme here", .{});
 }
 
+/// ![image](Examples-basic_widgets.png)
 pub fn basicWidgets(demo_win_id: u32) !void {
     {
         var hbox = try dvui.box(@src(), .horizontal, .{});
@@ -884,6 +890,7 @@ pub fn dropdownAdvanced() !void {
     dd.deinit();
 }
 
+/// ![image](Examples-text_entry.png)
 pub fn textEntryWidgets(demo_win_id: u32) !void {
     var left_alignment = dvui.Alignment.init();
     defer left_alignment.deinit();
@@ -897,7 +904,7 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
 
         try left_alignment.spacer(@src(), 0);
 
-        var te = try dvui.textEntry(@src(), .{ .text = .{ .buffer = &text_entry_buf } }, .{ .max_size_content = dvui.Options.sizeM(20, 0) });
+        var te = try dvui.textEntry(@src(), .{ .text = .{ .buffer = &text_entry_buf } }, .{ .max_size_content = .size(dvui.Options.sizeM(20, 1)) });
         enter_pressed = te.enter_pressed;
         te.deinit();
 
@@ -1144,7 +1151,7 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
 
         try left_alignment.spacer(@src(), 0);
 
-        var te = dvui.TextEntryWidget.init(@src(), .{}, .{ .max_size_content = dvui.Options.sizeM(20, 0) });
+        var te = dvui.TextEntryWidget.init(@src(), .{}, .{ .max_size_content = .size(dvui.Options.sizeM(20, 1)) });
         try te.install();
 
         var sug = try dvui.suggestion(&te, .{ .open_on_text_change = true });
@@ -1259,6 +1266,7 @@ pub fn displayTextEntryNumberResult(result: anytype) !void {
     }
 }
 
+/// ![image](Examples-styling.png)
 pub fn styling() !void {
     {
         var hbox = try dvui.box(@src(), .horizontal, .{});
@@ -1356,6 +1364,7 @@ pub fn hsluvSliders(src: std.builtin.SourceLocation, hsluv: *dvui.Color.HSLuv, c
     }
 }
 
+/// ![image](Examples-layout.png)
 pub fn layout() !void {
     {
         var hbox = try dvui.box(@src(), .horizontal, .{});
@@ -1390,7 +1399,7 @@ pub fn layout() !void {
 
             var opts: Options = .{ .border = Rect.all(1), .background = true, .min_size_content = .{ .w = 200, .h = 140 } };
             if (Static.shrink) {
-                opts.max_size_content = opts.min_size_contentGet();
+                opts.max_size_content = .size(opts.min_size_contentGet());
             }
 
             var o = try dvui.overlay(@src(), opts);
@@ -1567,7 +1576,7 @@ pub fn layout() !void {
         var paned = try dvui.paned(@src(), .{ .direction = .horizontal, .collapsed_size = paned_collapsed_width }, .{ .expand = .both, .background = false, .min_size_content = .{ .h = 100 } });
         defer paned.deinit();
 
-        {
+        if (paned.showFirst()) {
             var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
             defer vbox.deinit();
 
@@ -1579,7 +1588,7 @@ pub fn layout() !void {
             }
         }
 
-        {
+        if (paned.showSecond()) {
             var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
             defer vbox.deinit();
 
@@ -1593,6 +1602,7 @@ pub fn layout() !void {
     _ = try dvui.sliderEntry(@src(), "collapse under {d:0.0}", .{ .value = &paned_collapsed_width, .min = 100, .max = 600, .interval = 10 }, .{});
 }
 
+/// ![image](Examples-text_layout.png)
 pub fn layoutText() !void {
     _ = try dvui.sliderEntry(@src(), "line height: {d:0.2}", .{ .value = &line_height_factor, .min = 0.1, .max = 2, .interval = 0.1 }, .{});
 
@@ -1610,7 +1620,7 @@ pub fn layoutText() !void {
         }
         cbox.deinit();
 
-        cbox = try dvui.box(@src(), .vertical, .{ .margin = Rect.all(4), .padding = Rect.all(4), .gravity_x = 1.0, .background = true, .color_fill = .{ .name = .fill_window }, .min_size_content = .{ .w = 160 }, .max_size_content = .{ .w = 160 } });
+        cbox = try dvui.box(@src(), .vertical, .{ .margin = Rect.all(4), .padding = Rect.all(4), .gravity_x = 1.0, .background = true, .color_fill = .{ .name = .fill_window }, .min_size_content = .{ .w = 160 }, .max_size_content = .width(160) });
         try dvui.icon(@src(), "aircraft", entypo.aircraft, .{ .min_size_content = .{ .h = 30 }, .gravity_x = 0.5 });
         try dvui.label(@src(), "Caption Heading", .{}, .{ .font_style = .caption_heading, .gravity_x = 0.5 });
         var tl_caption = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .background = false });
@@ -1655,6 +1665,7 @@ pub fn layoutText() !void {
     }
 }
 
+/// ![image](Examples-plots.png)
 pub fn plots() !void {
     {
         var hbox = try dvui.box(@src(), .horizontal, .{});
@@ -1725,16 +1736,20 @@ pub fn plots() !void {
     plot.deinit();
 
     if (pic) |*p| {
-        const texture = p.stop();
-        const png_slice = try dvui.pngFromTexture(dvui.currentWindow().arena(), texture, .{});
-        defer dvui.currentWindow().arena().free(png_slice);
+        p.stop();
+        defer p.deinit();
+
+        const arena = dvui.currentWindow().arena();
+
+        const png_slice = try p.png(arena);
+        defer arena.free(png_slice);
 
         if (dvui.wasm) {
             try dvui.backend.downloadData("plot.png", png_slice);
         } else {
-            const filename = try dvui.dialogNativeFileSave(dvui.currentWindow().arena(), .{ .path = "plot.png" });
+            const filename = try dvui.dialogNativeFileSave(arena, .{ .path = "plot.png" });
             if (filename) |fname| {
-                defer dvui.currentWindow().arena().free(fname);
+                defer arena.free(fname);
 
                 var file = try std.fs.createFileAbsoluteZ(fname, .{});
                 defer file.close();
@@ -1751,6 +1766,7 @@ const reorderLayout = enum {
     flex,
 };
 
+/// ![image](Examples-reorderable.png)
 pub fn reorderLists() !void {
     const g = struct {
         var layout: reorderLayout = .vertical;
@@ -1997,6 +2013,7 @@ pub fn reorderListsAdvanced() !void {
     g.reorder(removed_idx, insert_before_idx);
 }
 
+/// ![image](Examples-menus.png)
 pub fn menus() !void {
     var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .margin = .{ .x = 4 } });
     defer vbox.deinit();
@@ -2054,7 +2071,7 @@ pub fn menus() !void {
     _ = try dvui.spacer(@src(), .{ .h = 20 }, .{});
 
     {
-        var hbox = try dvui.box(@src(), .horizontal, .{ .border = dvui.Rect.all(1), .min_size_content = .{ .h = 50 }, .max_size_content = .{ .w = 300 } });
+        var hbox = try dvui.box(@src(), .horizontal, .{ .border = dvui.Rect.all(1), .min_size_content = .{ .h = 50 }, .max_size_content = .width(300) });
         defer hbox.deinit();
 
         var tl = try dvui.textLayout(@src(), .{}, .{ .background = false });
@@ -2067,7 +2084,7 @@ pub fn menus() !void {
     _ = try dvui.spacer(@src(), .{ .h = 10 }, .{});
 
     {
-        var hbox = try dvui.box(@src(), .horizontal, .{ .border = dvui.Rect.all(1), .min_size_content = .{ .h = 50 }, .max_size_content = .{ .w = 300 } });
+        var hbox = try dvui.box(@src(), .horizontal, .{ .border = dvui.Rect.all(1), .min_size_content = .{ .h = 50 }, .max_size_content = .width(300) });
         defer hbox.deinit();
 
         var tl = try dvui.textLayout(@src(), .{}, .{ .background = false });
@@ -2192,6 +2209,7 @@ pub fn submenus() !void {
     }
 }
 
+/// ![image](Examples-focus.png)
 pub fn focus() !void {
     if (try dvui.expander(@src(), "Changing Focus", .{}, .{ .expand = .horizontal })) {
         var b = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
@@ -2306,12 +2324,21 @@ pub fn focus() !void {
     }
 }
 
-pub fn scrolling() !void {
-    const Data = struct {
+/// ![image](Examples-scrolling.png)
+pub fn scrolling(comptime data: u8) !void {
+    const Data1 = struct {
         var msg_start: usize = 1_000;
         var msg_end: usize = 1_100;
         var scroll_info: ScrollInfo = .{};
     };
+
+    const Data2 = struct {
+        var msg_start: usize = 1_000;
+        var msg_end: usize = 1_100;
+        var scroll_info: ScrollInfo = .{};
+    };
+
+    const Data = if (data == 1) Data1 else Data2;
 
     var scroll_to_msg: ?usize = null;
     var scroll_to_bottom_after = false;
@@ -2388,7 +2415,7 @@ pub fn scrolling() !void {
         }
     }
     {
-        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .max_size_content = .{ .h = 300 } });
+        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .horizontal, .max_size_content = .height(300) });
         defer vbox.deinit();
 
         try dvui.label(@src(), "{d:0>4.2}% visible, offset {d} frac {d:0>4.2}", .{ Data.scroll_info.visibleFraction(.vertical) * 100.0, Data.scroll_info.viewport.y, Data.scroll_info.offsetFraction(.vertical) }, .{});
@@ -2423,8 +2450,9 @@ pub fn scrolling() !void {
 
 }
 
-pub fn scrollCanvas() !void {
-    const Data = struct {
+/// ![image](Examples-scroll_canvas.png)
+pub fn scrollCanvas(comptime data: u8) !void {
+    const Data1 = struct {
         var scroll_info: ScrollInfo = .{ .vertical = .given, .horizontal = .given };
         var origin: Point = .{};
         var scale: f32 = 1.0;
@@ -2436,6 +2464,21 @@ pub fn scrollCanvas() !void {
         const box_blue: dvui.Color = .{ .r = 0, .g = 0, .b = 200 };
         const box_green: dvui.Color = .{ .r = 0, .g = 200, .b = 0 };
     };
+
+    const Data2 = struct {
+        var scroll_info: ScrollInfo = .{ .vertical = .given, .horizontal = .given };
+        var origin: Point = .{};
+        var scale: f32 = 1.0;
+        var boxes: [2]Point = .{ .{ .x = 50, .y = 10 }, .{ .x = 80, .y = 150 } };
+        var box_contents: [2]u8 = .{ 1, 3 };
+
+        var drag_box_window: usize = 0;
+        var drag_box_content: usize = 0;
+        const box_blue: dvui.Color = .{ .r = 0, .g = 0, .b = 200 };
+        const box_green: dvui.Color = .{ .r = 0, .g = 200, .b = 0 };
+    };
+
+    const Data = if (data == 1) Data1 else Data2;
 
     var vbox = try dvui.box(@src(), .vertical, .{});
     defer vbox.deinit();
@@ -2523,7 +2566,7 @@ pub fn scrollCanvas() !void {
             }
         }
 
-        try dvui.label(@src(), "Box {d} {d}x{d}", .{ i, b.x, b.y }, .{});
+        try dvui.label(@src(), "Box {d} {d:0>3.0}x{d:0>3.0}", .{ i, b.x, b.y }, .{});
 
         {
             var hbox = try dvui.box(@src(), .horizontal, .{});
@@ -2769,6 +2812,7 @@ pub fn scrollCanvas() !void {
     }
 }
 
+/// ![image](Examples-dialogs.png)
 pub fn dialogs(demo_win_id: u32) !void {
     {
         var hbox = try dvui.box(@src(), .horizontal, .{});
@@ -2943,6 +2987,7 @@ pub fn dialogs(demo_win_id: u32) !void {
     }
 }
 
+/// ![image](Examples-animations.png)
 pub fn animations() !void {
     const global = struct {
         var animation_choice: usize = 0;
@@ -3184,6 +3229,7 @@ fn makeLabels(src: std.builtin.SourceLocation, count: usize) !void {
     try dvui.label(@src(), "two", .{}, .{});
 }
 
+/// ![image](Examples-debugging.png)
 pub fn debuggingErrors() !void {
     _ = try dvui.checkbox(@src(), &dvui.currentWindow().snap_to_pixels, "Snap to pixels", .{});
     try dvui.label(@src(), "on non-hdpi screens watch the window title \"DVUI Demo\"", .{}, .{ .margin = .{ .x = 10 } });
@@ -3297,7 +3343,7 @@ pub fn dialogDirect() !void {
     const data = struct {
         var extra_stuff: bool = false;
     };
-    var dialog_win = try dvui.floatingWindow(@src(), .{ .modal = false, .open_flag = &show_dialog }, .{ .max_size_content = .{ .w = 500 } });
+    var dialog_win = try dvui.floatingWindow(@src(), .{ .modal = false, .open_flag = &show_dialog }, .{ .max_size_content = .width(500) });
     defer dialog_win.deinit();
 
     try dvui.windowHeader("Dialog", "", &show_dialog);
@@ -3348,6 +3394,7 @@ const icon_fields: [@typeInfo(entypo).@"struct".decls.len][]const u8 = blk: {
     break :blk blah;
 };
 
+/// ![image](Examples-icon_browser.png)
 pub fn icon_browser() !void {
     var fwin = try dvui.floatingWindow(@src(), .{ .rect = &IconBrowser.rect, .open_flag = &IconBrowser.show }, .{ .min_size_content = .{ .w = 300, .h = 400 } });
     defer fwin.deinit();
@@ -3595,5 +3642,395 @@ pub const StrokeTest = struct {
 };
 
 test {
-    @import("std").testing.refAllDecls(@This());
+    //std.debug.print("Examples test\n", .{});
+    std.testing.refAllDecls(@This());
+}
+
+test "Doc Images" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+
+    dvui.Examples.show_demo_window = true;
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            try dvui.Examples.demo();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveImage(frame, dvui.tagGet(demo_window_tag).?.rect, "Examples-demo.png", .{});
+
+    // this works, but unsure it's what we want, so disable for now
+    //inline for (0..@typeInfo(demoKind).@"enum".fields.len) |i| {
+    //    const e = @as(demoKind, @enumFromInt(i));
+
+    //    try dvui.testing.moveTo("demo_button_" ++ @tagName(e));
+    //    try dvui.testing.click(.left);
+    //    try dvui.testing.settle(frame);
+
+    //    try t.saveImage(frame, dvui.tagGet(demo_window_tag).?.rect, "Examples-" ++ @tagName(e) ++ ".png", .{});
+
+    //    try dvui.testing.moveTo("dvui_demo_window_back");
+    //    try dvui.testing.click(.left);
+    //    try dvui.testing.settle(frame);
+    //}
+}
+
+test "Examples-basic_widgets.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try basicWidgets(box.data().id);
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-calculator.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 250, .h = 250 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try calculator();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-text_entry.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try textEntryWidgets(box.data().id);
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-styling.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 300 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try styling();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-layout.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 800 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try layout();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-text_layout.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try layoutText();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-plots.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 300 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try plots();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-reorderable.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 400, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try reorderLists();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-menus.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 300, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try menus();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-focus.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 300 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try focus();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-scrolling.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 400 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try scrolling(1);
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-scroll_canvas.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 300, .h = 400 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try scrollCanvas(1);
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-dialogs.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 400, .h = 300 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try dialogs(box.data().id);
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+
+    // Tab to the main window toast button
+    for (0..8) |_| {
+        try dvui.testing.pressKey(.tab, .none);
+        _ = try dvui.testing.step(frame);
+    }
+    try dvui.testing.pressKey(.enter, .none);
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-animations.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 400 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try animations();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+
+    // Tab to spinner expander and open it
+    for (0..4) |_| {
+        try dvui.testing.pressKey(.tab, .none);
+        _ = try dvui.testing.step(frame);
+    }
+    try dvui.testing.pressKey(.enter, .none);
+    _ = try dvui.testing.step(frame);
+
+    // Tab to easings expander and open it
+    try dvui.testing.pressKey(.tab, .lshift);
+    _ = try dvui.testing.step(frame);
+    try dvui.testing.pressKey(.enter, .none);
+    for (0..10) |_| {
+        _ = try dvui.testing.step(frame); // animation will never settle so run a fixed amount of frames
+    }
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-struct_ui.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 400, .h = 700 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try structUI();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-debugging.png" {
+    // This tests intentionally logs errors, which fails with the normal test runner.
+    // We skip this test instead of downgrading all log.err to log.warn as we usually
+    // want to fail if dvui logs errors (for duplicate id's or similar)
+    if (!dvui.testing.is_dvui_doc_gen) return error.SkipZigTest;
+
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try debuggingErrors();
+            return .ok;
+        }
+    }.frame;
+
+    // Tab to duplicate id expander and open it
+    for (0..5) |_| {
+        try dvui.testing.pressKey(.tab, .none);
+        _ = try dvui.testing.step(frame);
+    }
+    try dvui.testing.pressKey(.enter, .none);
+    _ = try dvui.testing.step(frame);
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-icon_browser.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 400, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try icon_browser();
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
+}
+
+test "Examples-themeEditor.png" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 400, .h = 500 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .{ .name = .fill_window } });
+            defer box.deinit();
+            try themeEditor();
+            return .ok;
+        }
+    }.frame;
+
+    // tab to a color editor expander and open it
+    try dvui.testing.pressKey(.tab, .none);
+    _ = try dvui.testing.step(frame);
+    try dvui.testing.pressKey(.tab, .none);
+    _ = try dvui.testing.step(frame);
+    try dvui.testing.pressKey(.tab, .none);
+    _ = try dvui.testing.step(frame);
+    try dvui.testing.pressKey(.tab, .none);
+    _ = try dvui.testing.step(frame);
+    try dvui.testing.pressKey(.tab, .none);
+    _ = try dvui.testing.step(frame);
+    try dvui.testing.pressKey(.enter, .none);
+
+    try dvui.testing.settle(frame);
+    try t.saveDocImage(@src(), .{}, frame);
 }

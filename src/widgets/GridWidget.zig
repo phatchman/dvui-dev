@@ -6,6 +6,7 @@ const dvui = @import("../dvui.zig");
 const Options = dvui.Options;
 const Rect = dvui.Rect;
 const Size = dvui.Size;
+const MaxSize = Options.MaxSize;
 const ScrollInfo = dvui.ScrollInfo;
 const WidgetData = dvui.WidgetData;
 const BoxWidget = dvui.BoxWidget;
@@ -264,7 +265,7 @@ pub const GridBodyWidget = struct {
     row_height: f32 = 0,
     row_height_this_frame: f32 = 0,
     min_size: ?Size = null,
-    max_size: ?Size = null,
+    max_size: ?MaxSize = null,
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridBodyWidget.InitOpts, opts: Options) GridBodyWidget {
         var self = GridBodyWidget{};
@@ -324,7 +325,7 @@ pub const GridBodyWidget = struct {
             var vbox = BoxWidget.init(src, .vertical, false, .{
                 .expand = .horizontal,
                 .min_size_content = .{ .h = self.invisible_height },
-                .max_size_content = .{ .h = self.invisible_height },
+                .max_size_content = .height(self.invisible_height),
             });
             try vbox.install();
             vbox.deinit();

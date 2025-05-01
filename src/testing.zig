@@ -1,6 +1,7 @@
 allocator: std.mem.Allocator,
 backend: *Backend,
 window: *Window,
+doc_image_dir: ?[]const u8,
 snapshot_dir: []const u8,
 
 snapshot_index: u8 = 0,
@@ -18,11 +19,7 @@ pub fn moveTo(tag: []const u8) !void {
 /// Moves the mouse to the provided absolute position
 pub fn moveToPoint(point: dvui.Point) !void {
     const cw = dvui.currentWindow();
-    const movement = point.diff(cw.mouse_pt);
-    // std.debug.print("Moving {}", .{movement});
-    if (movement.nonZero()) {
-        _ = try cw.addEventMouseMotion(movement.x, movement.y);
-    }
+    _ = try cw.addEventMouseMotion(point.x, point.y);
 }
 
 /// Presses and releases the button at the current mouse position
@@ -43,18 +40,16 @@ pub fn pressKey(code: dvui.enums.Key, mod: dvui.enums.Mod) !void {
     _ = try cw.addEventKey(.{ .code = code, .mod = mod, .action = .up });
 }
 
-// Assumes we are just after Window.begin
+/// Runs frames until `dvui.refresh` was not called.
+///
+/// Assumes we are just after `dvui.Window.begin`, and on return will be just
+/// after a future `dvui.Window.begin`.
 pub fn settle(frame: dvui.App.frameFunction) !void {
-    const cw = dvui.currentWindow();
-    if (try frame() == .close) return error.closed;
-
     for (0..100) |_| {
-        const wait_time = try cw.end(.{});
-        try cw.begin(cw.frame_time_ns + 100 * std.time.ns_per_ms);
+        const wait_time = try step(frame);
 
         if (wait_time == 0) {
             // need another frame, someone called refresh()
-            if (try frame() == .close) return error.closed;
             continue;
         }
 
@@ -64,9 +59,25 @@ pub fn settle(frame: dvui.App.frameFunction) !void {
     return error.unsettled;
 }
 
+/// Runs exactly one frame, returning the wait_time from `dvui.Window.end`.
+///
+/// Assumes we are just after `dvui.Window.begin`, and moves to just after the
+/// next `dvui.Window.begin`.
+///
+/// Useful when you know the frame will not settle, but you need the frame
+/// to handle events.
+pub fn step(frame: dvui.App.frameFunction) !?u32 {
+    const cw = dvui.currentWindow();
+    if (try frame() == .close) return error.closed;
+    const wait_time = try cw.end(.{});
+    try cw.begin(cw.frame_time_ns + 100 * std.time.ns_per_ms);
+    return wait_time;
+}
+
 pub const InitOptions = struct {
-    allocator: std.mem.Allocator = std.testing.allocator,
+    allocator: std.mem.Allocator = if (@import("builtin").is_test) std.testing.allocator else undefined,
     window_size: dvui.Size = .{ .w = 600, .h = 400 },
+    doc_image_dir: ?[]const u8 = null,
     snapshot_dir: []const u8 = "snapshots",
 };
 
@@ -92,6 +103,14 @@ pub fn init(options: InitOptions) !Self {
         },
     };
 
+    const img_dir = options.doc_image_dir orelse @import("build_options").doc_image_dir;
+
+    if (img_dir) |imgdir| {
+        std.fs.cwd().makePath(imgdir) catch |err| switch (err) {
+            else => return err,
+        };
+    }
+
     if (should_write_snapshots()) {
         // ensure snapshot directory exists
         // NOTE: do fs operation through cwd to handle relative and absolute paths
@@ -110,6 +129,7 @@ pub fn init(options: InitOptions) !Self {
         .allocator = options.allocator,
         .backend = backend,
         .window = window,
+        .doc_image_dir = img_dir,
         .snapshot_dir = options.snapshot_dir,
     };
 }
@@ -148,6 +168,40 @@ pub const SnapshotError = error{
     SnapshotsDidNotMatch,
 };
 
+/// Captures one frame and return the png data for that frame.
+///
+/// Captures the physical pixels in rect, or if null the entire OS window.
+///
+/// The returned data is allocated by `Self.allocator` and should be freed by the caller.
+pub fn capturePng(self: *Self, frame: dvui.App.frameFunction, rect: ?dvui.Rect) ![]const u8 {
+    var picture = dvui.Picture.start(rect orelse dvui.windowRectPixels()) orelse {
+        std.debug.print("Current backend does not support capturing images\n", .{});
+        return error.Unsupported;
+    };
+
+    // run the gui code
+    if (try frame() == .close) return error.closed;
+
+    // render the retained dialogs and deferred renders
+    _ = try dvui.currentWindow().endRendering(.{});
+
+    picture.stop();
+
+    // texture will be destroyed in picture.deinit() so grab pixels now
+    const png_data = try picture.png(self.allocator);
+
+    // draw texture and destroy
+    picture.deinit();
+
+    const cw = dvui.currentWindow();
+
+    _ = try cw.end(.{});
+    try cw.begin(cw.frame_time_ns + 100 * std.time.ns_per_ms);
+
+    return png_data;
+}
+const png_extension = ".png";
+
 /// Captures one frame and compares to an earilier captured frame, returning an error if they are not the same
 ///
 /// IMPORTANT: Snapshots are unstable and both backend and platform dependent. Changing any of these might fail the test.
@@ -163,7 +217,6 @@ pub const SnapshotError = error{
 pub fn snapshot(self: *Self, src: std.builtin.SourceLocation, frame: dvui.App.frameFunction) !void {
     if (should_ignore_snapshots()) return;
 
-    const png_extension = ".png";
     defer self.snapshot_index += 1;
     const filename = try std.fmt.allocPrint(self.allocator, "{s}-{s}-{d}" ++ png_extension, .{ src.file, src.fn_name, self.snapshot_index });
     defer self.allocator.free(filename);
@@ -177,26 +230,8 @@ pub fn snapshot(self: *Self, src: std.builtin.SourceLocation, frame: dvui.App.fr
     };
     defer dir.close();
 
-    // render the whole screen to a texture
-    var picture = dvui.Picture.start(dvui.windowRectPixels()) orelse {
-        std.debug.print("Current backend does not support capturing images\n", .{});
-        return;
-    };
-
-    // run the gui code
-    if (try frame() == .close) return error.closed;
-
-    const cw = dvui.currentWindow();
-    // render the retained dialogs and deferred renders
-    _ = try cw.endRendering(.{});
-
-    const texture = picture.stop();
-    // texture will be destroyed in Window.end() so grab pixels now
-    const png_data = try dvui.pngFromTexture(self.allocator, texture, .{});
+    const png_data = try self.capturePng(frame, null);
     defer self.allocator.free(png_data);
-
-    _ = try cw.end(.{});
-    try cw.begin(cw.frame_time_ns + 100 * std.time.ns_per_ms);
 
     const file = dir.openFile(filename, .{}) catch |err| switch (err) {
         std.fs.File.OpenError.FileNotFound => {
@@ -252,6 +287,67 @@ fn should_ignore_snapshots() bool {
 fn should_write_snapshots() bool {
     return !should_ignore_snapshots() and std.process.hasEnvVarConstant("DVUI_SNAPSHOT_WRITE");
 }
+
+/// If image_dir is not null, run a single frame, capture the physical pixels
+/// in rect, and write those as a png file to image_dir/filename_fmt.
+///
+/// If rect is null, capture the whole OS window.
+///
+/// The intended use is for automatically generating documentation images.
+pub fn saveImage(self: *Self, frame: dvui.App.frameFunction, rect: ?dvui.Rect, comptime filename_fmt: []const u8, fmt_args: anytype) !void {
+    if (self.doc_image_dir) |img_dir| {
+        const filename = try std.fmt.allocPrint(self.allocator, "{s}/" ++ filename_fmt, .{img_dir} ++ fmt_args);
+        std.debug.print("FILENAME: {s}\n", .{filename});
+        defer self.allocator.free(filename);
+
+        const png_data = try self.capturePng(frame, rect);
+        defer self.allocator.free(png_data);
+
+        try std.fs.cwd().writeFile(.{
+            .data = png_data,
+            .sub_path = filename,
+            .flags = .{},
+        });
+    }
+}
+
+/// Internal use only!
+///
+/// Generates and saves images for documentation. The test name is required to end with `.png` and are format strings evaluated at comptime.
+pub fn saveDocImage(self: *Self, comptime src: std.builtin.SourceLocation, comptime format_args: anytype, frame: dvui.App.frameFunction) !void {
+    if (!std.mem.endsWith(u8, src.fn_name, png_extension)) {
+        return error.SaveDocImageRequiresPNGExtensionInTestName;
+    }
+
+    if (!is_dvui_doc_gen) {
+        // Do nothing if we are not running with the doc_gen test runner.
+        // This means that the rest of the test is still performed and used as a normal dvui test.
+        return;
+    }
+
+    const test_prefix = "test.";
+    const filename = std.fmt.comptimePrint(src.fn_name[test_prefix.len..], format_args);
+
+    const png_data = try self.capturePng(frame, null);
+    defer self.allocator.free(png_data);
+
+    @import("root").dvui_image_doc_gen_dir.writeFile(.{
+        .data = png_data,
+        .sub_path = filename,
+        // set exclusive flag to error if two test generate an image with the same name
+        .flags = .{ .exclusive = true },
+    }) catch |err| {
+        if (err == std.fs.File.OpenError.PathAlreadyExists) {
+            std.debug.print("Error generating doc image: duplicated test name '{s}'\n", .{filename});
+            return error.DuplicateDocImageName;
+        } else {
+            return err;
+        }
+    };
+}
+
+/// Used internally for documentation generation
+pub const is_dvui_doc_gen = @hasDecl(@import("root"), "dvui_image_doc_gen_dir");
 
 const Self = @This();
 

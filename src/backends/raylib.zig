@@ -10,12 +10,11 @@ pub const c = @cImport({
 });
 
 pub const kind: dvui.enums.Backend = .raylib;
-pub fn description() [:0]const u8 {
-    return "Raylib";
-}
 
 pub const RaylibBackend = @This();
 pub const Context = *RaylibBackend;
+
+const log = std.log.scoped(.RaylibBackend);
 
 gpa: std.mem.Allocator = undefined,
 we_own_window: bool = false,
@@ -309,10 +308,10 @@ pub fn textureCreate(_: *RaylibBackend, pixels: [*]u8, width: u32, height: u32, 
     return dvui.Texture{ .ptr = @ptrFromInt(texid), .width = width, .height = height };
 }
 
-pub fn textureCreateTarget(self: *RaylibBackend, width: u32, height: u32, interpolation: dvui.enums.TextureInterpolation) !dvui.Texture {
+pub fn textureCreateTarget(self: *RaylibBackend, width: u32, height: u32, interpolation: dvui.enums.TextureInterpolation) !dvui.TextureTarget {
     const id = c.rlLoadFramebuffer(); // Load an empty framebuffer
     if (id == 0) {
-        dvui.log.debug("Raylib textureCreateTarget: rlLoadFramebuffer() failed\n", .{});
+        log.debug("textureCreateTarget: rlLoadFramebuffer() failed\n", .{});
         return error.TextureCreate;
     }
 
@@ -339,13 +338,13 @@ pub fn textureCreateTarget(self: *RaylibBackend, width: u32, height: u32, interp
 
     // Check if fbo is complete with attachments (valid)
     if (!c.rlFramebufferComplete(id)) {
-        dvui.log.debug("Raylib textureCreateTarget: rlFramebufferComplete() false\n", .{});
+        log.debug("textureCreateTarget: rlFramebufferComplete() false\n", .{});
         return error.TextureCreate;
     }
 
     try self.frame_buffers.put(texid, id);
 
-    const ret = dvui.Texture{ .ptr = @ptrFromInt(texid), .width = width, .height = height };
+    const ret = dvui.TextureTarget{ .ptr = @ptrFromInt(texid), .width = width, .height = height };
 
     self.renderTarget(ret);
     c.ClearBackground(c.BLANK);
@@ -354,9 +353,13 @@ pub fn textureCreateTarget(self: *RaylibBackend, width: u32, height: u32, interp
     return ret;
 }
 
+pub fn textureFromTarget(_: *RaylibBackend, texture: dvui.TextureTarget) dvui.Texture {
+    return .{ .ptr = texture.ptr, .width = texture.width, .height = texture.height };
+}
+
 /// Render future drawClippedTriangles() to the passed texture (or screen
 /// if null).
-pub fn renderTarget(self: *RaylibBackend, texture: ?dvui.Texture) void {
+pub fn renderTarget(self: *RaylibBackend, texture: ?dvui.TextureTarget) void {
     if (texture) |tex| {
         const texid = @intFromPtr(tex.ptr);
         var target: c.RenderTexture2D = undefined;
@@ -383,7 +386,7 @@ pub fn renderTarget(self: *RaylibBackend, texture: ?dvui.Texture) void {
     }
 }
 
-pub fn textureRead(_: *RaylibBackend, texture: dvui.Texture, pixels_out: [*]u8) error{TextureRead}!void {
+pub fn textureReadTarget(_: *RaylibBackend, texture: dvui.TextureTarget, pixels_out: [*]u8) error{TextureRead}!void {
     var t: c.Texture2D = undefined;
     t.id = @intCast(@intFromPtr(texture.ptr));
     t.width = @intCast(texture.width);
@@ -616,7 +619,7 @@ pub fn raylibMouseButtonToDvui(button: c_int) dvui.enums.Button {
         c.MOUSE_BUTTON_MIDDLE => .middle,
         c.MOUSE_BUTTON_RIGHT => .right,
         else => blk: {
-            dvui.log.debug("Raylib unknown button {}\n", .{button});
+            log.debug("unknown button {}\n", .{button});
             break :blk .six;
         },
     };
@@ -752,7 +755,7 @@ pub fn raylibKeyToDvui(key: c_int) dvui.enums.Key {
         c.KEY_BACK => .grave, //not sure if this is correct
 
         else => blk: {
-            dvui.log.debug("raylibKeymodToDvui unknown key{}\n", .{key});
+            log.debug("raylibKeymodToDvui unknown key{}\n", .{key});
             break :blk .unknown;
         },
     };
@@ -870,5 +873,6 @@ pub fn main() !void {
 }
 
 test {
+    //std.debug.print("raylib backend test\n", .{});
     std.testing.refAllDecls(@This());
 }

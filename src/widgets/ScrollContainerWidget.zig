@@ -29,7 +29,6 @@ si: *ScrollInfo = undefined,
 // those visual artifacts
 frame_viewport: Point = Point{},
 
-process_events: bool = true,
 prevClip: Rect = Rect{},
 
 nextVirtualSize: Size = Size{},
@@ -122,6 +121,11 @@ pub fn processEvents(self: *ScrollContainerWidget) void {
 }
 
 pub fn processVelocity(self: *ScrollContainerWidget) void {
+    // velocity is only for touch currently
+
+    // damp the current velocity
+    // exponential decay: v *= damping^secs_since
+    // tweak the damping so we brake harder as the velocity slows down
     if (!self.finger_down) {
         {
             const damping = 0.0001 + @min(1.0, @abs(self.si.velocity.x) / 50.0) * (0.7 - 0.0001);
@@ -148,9 +152,7 @@ pub fn processVelocity(self: *ScrollContainerWidget) void {
         }
     }
 
-    // damping is only for touch currently
-    // exponential decay: v *= damping^secs_since
-    // tweak the damping so we brake harder as the velocity slows down
+    // bounce back if we went too far
     {
         const max_scroll = self.si.scrollMax(.horizontal);
         if (self.si.viewport.x < 0) {
@@ -186,7 +188,7 @@ pub fn processVelocity(self: *ScrollContainerWidget) void {
         }
     }
 
-    // might have changed from events
+    // might have changed
     self.frame_viewport = self.si.viewport.topLeft();
     if (self.lock_visible) {
         self.frame_viewport = .{ .x = -10000, .y = -10000 };
@@ -537,9 +539,7 @@ pub fn processEventsAfter(self: *ScrollContainerWidget) void {
 }
 
 pub fn deinit(self: *ScrollContainerWidget) void {
-    if (self.process_events) {
-        self.processEventsAfter();
-    }
+    self.processEventsAfter();
 
     dvui.dataSet(null, self.wd.id, "_fv_id", self.first_visible_id);
     dvui.dataSet(null, self.wd.id, "_fv_offset", self.first_visible_offset);

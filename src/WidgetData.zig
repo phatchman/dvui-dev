@@ -103,6 +103,10 @@ pub fn register(self: *WidgetData) !void {
         }
 
         if (self.id == cw.debug_widget_id) {
+            if (cw.debug_widget_panic) {
+                @panic("Debug Window Panic");
+            }
+
             var min_size = Size{};
             if (dvui.minSizeGet(self.id)) |ms| {
                 min_size = ms;
@@ -115,6 +119,11 @@ pub fn register(self: *WidgetData) !void {
             // intersect our rect with the clip - we only want to outline
             // the visible part
             var outline_rect = rs.r.intersect(clipr);
+
+            // make sure something is visible
+            outline_rect.w = @max(outline_rect.w, 1);
+            outline_rect.h = @max(outline_rect.h, 1);
+
             if (cw.snap_to_pixels) {
                 outline_rect.x = @ceil(outline_rect.x) - 0.5;
                 outline_rect.y = @ceil(outline_rect.y) - 0.5;
@@ -226,8 +235,8 @@ pub fn minSizeMax(self: *WidgetData, s: Size) void {
 pub fn minSizeSetAndRefresh(self: *WidgetData) void {
     const msContent = self.options.max_size_contentGet();
     const max_size = self.options.padSize(msContent);
-    if (msContent.w != 0) self.min_size.w = @min(self.min_size.w, max_size.w);
-    if (msContent.h != 0) self.min_size.h = @min(self.min_size.h, max_size.h);
+    self.min_size.w = @min(self.min_size.w, max_size.w);
+    self.min_size.h = @min(self.min_size.h, max_size.h);
 
     if (dvui.minSizeGet(self.id)) |ms| {
         // If the size we got was exactly our previous min size then our min size

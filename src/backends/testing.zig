@@ -10,9 +10,6 @@ time: i128 = 0,
 clipboard: ?[]const u8 = null,
 
 pub const kind: dvui.enums.Backend = .testing;
-pub fn description() [:0]const u8 {
-    return "testing";
-}
 
 pub const TestingBackend = @This();
 pub const Context = *TestingBackend;
@@ -95,27 +92,31 @@ pub fn textureCreate(self: *TestingBackend, pixels: [*]u8, width: u32, height: u
 
 /// Create a texture that can be rendered to with renderTarget().  The
 /// returned pointer is what will later be passed to drawClippedTriangles.
-pub fn textureCreateTarget(_: *TestingBackend, _: u32, _: u32, _: dvui.enums.TextureInterpolation) error{ OutOfMemory, TextureCreate }!dvui.Texture {
+pub fn textureCreateTarget(_: *TestingBackend, _: u32, _: u32, _: dvui.enums.TextureInterpolation) error{ OutOfMemory, TextureCreate }!dvui.TextureTarget {
     return error.TextureCreate;
 }
 
 /// Read pixel data (RGBA) from texture into pixel.
-pub fn textureRead(_: *TestingBackend, texture: dvui.Texture, pixels: [*]u8) error{TextureRead}!void {
+pub fn textureReadTarget(_: *TestingBackend, texture: dvui.TextureTarget, pixels: [*]u8) error{TextureRead}!void {
     const ptr: [*]const u8 = @ptrCast(texture.ptr);
     @memcpy(pixels, ptr[0..(texture.width * texture.height * 4)]);
 }
 
 /// Destroy texture that was previously made with textureCreate() or
-/// textureCreateTarget().  After this call, this texture pointer will not
+/// textureFromTarget().  After this call, this texture pointer will not
 /// be used by dvui.
 pub fn textureDestroy(self: *TestingBackend, texture: dvui.Texture) void {
     const ptr: [*]const u8 = @ptrCast(texture.ptr);
     self.allocator.free(ptr[0..(texture.width * texture.height * 4)]);
 }
 
+pub fn textureFromTarget(_: *TestingBackend, texture: dvui.TextureTarget) dvui.Texture {
+    return .{ .ptr = texture.ptr, .width = texture.width, .height = texture.height };
+}
+
 /// Render future drawClippedTriangles() to the passed texture (or screen
 /// if null).
-pub fn renderTarget(_: *TestingBackend, _: ?dvui.Texture) void {}
+pub fn renderTarget(_: *TestingBackend, _: ?dvui.TextureTarget) void {}
 
 /// Get clipboard content (text only)
 pub fn clipboardText(self: *TestingBackend) error{OutOfMemory}![]const u8 {
@@ -145,6 +146,11 @@ pub fn refresh(_: *TestingBackend) void {}
 
 pub fn backend(self: *TestingBackend) dvui.Backend {
     return dvui.Backend.init(self, TestingBackend);
+}
+
+test {
+    //std.debug.print("testing backend test\n", .{});
+    std.testing.refAllDecls(@This());
 }
 
 pub const dvui = @import("dvui");
