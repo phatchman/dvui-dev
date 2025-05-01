@@ -105,6 +105,7 @@ var horizontal_scrolling = false;
 var sortable = true;
 var header_height: f32 = 0;
 var row_height: f32 = 0;
+var selectable = true;
 const ColumnSizing = enum {
     size_content,
     size_window,
@@ -275,12 +276,14 @@ fn gui_frame() !void {
             var sort_dir: dvui.GridHeaderWidget.SortDirection = undefined;
             var selection: dvui.GridHeaderWidget.SelectionState = undefined;
 
-            if (try dvui.gridHeadingCheckbox(@src(), header, &selection, headerCheckboxOptions())) {
-                for (cars[0..]) |*car| {
-                    switch (selection) {
-                        .select_all => car.selected = true,
-                        .select_none => car.selected = false,
-                        .unchanged => {},
+            if (selectable) {
+                if (try dvui.gridHeadingCheckbox(@src(), header, &selection, headerCheckboxOptions())) {
+                    for (cars[0..]) |*car| {
+                        switch (selection) {
+                            .select_all => car.selected = true,
+                            .select_none => car.selected = false,
+                            .unchanged => {},
+                        }
                     }
                 }
             }
@@ -330,8 +333,10 @@ fn gui_frame() !void {
             };
             //std.debug.print("first = {}, last = {}\n", .{ first, last });
 
-            const changed = try dvui.gridColumnCheckbox(@src(), body, Car, cars[first..last], "selected", rowCheckboxOptions());
-            if (changed) std.debug.print("selection changed\n", .{});
+            if (selectable) {
+                const changed = try dvui.gridColumnCheckbox(@src(), body, Car, cars[first..last], "selected", rowCheckboxOptions());
+                if (changed) std.debug.print("selection changed\n", .{});
+            }
             if (true) {
                 if (!use_iterator) {
                     try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions(30));
@@ -384,6 +389,7 @@ fn gui_frame() !void {
             }
         }
         _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
+        _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
         {
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
             defer hbox.deinit();

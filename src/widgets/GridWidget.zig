@@ -83,7 +83,7 @@ pub fn deinit(self: *GridWidget) void {
 }
 
 pub fn colWidthSet(self: *GridWidget, which: ColWidth.Owner, w: f32, col_num: usize, allow_body_updates: ?bool) !void {
-    if (col_num == 2) {
+    if (col_num == 99) {
         std.debug.print("colWidthSet {s}, {d}, {d}, {}\n", .{ @tagName(which), w, col_num, allow_body_updates orelse false });
     }
     if (col_num < self.col_widths.items.len) {
@@ -115,6 +115,9 @@ pub fn colWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: usiz
         if (which == col_width.owner or col_width.changed_this_frame) {
             //col_width.changed_this_frame = false; // TODO: This can't go here.
             //if (col_width.changed_this_frame) std.debug.print("Changed this frame\n", .{});
+            if (which == .body and !col_width.allow_body_updates) {
+                return col_width.width;
+            }
             return 0;
         }
         return col_width.width;
@@ -128,7 +131,7 @@ pub fn colMaxWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: u
     if (col_num < self.col_widths.items.len) {
         const col_width = &self.col_widths.items[col_num];
 
-        if (col_num == 2) {
+        if (col_num == 99) {
             std.debug.print("getting width: updated_allows = {}\n", .{col_width.allow_body_updates});
         }
         if (which == .body and !col_width.allow_body_updates) {
@@ -161,6 +164,7 @@ pub const GridHeaderWidget = struct {
     hbox: BoxWidget = undefined,
     header_hbox: BoxWidget = undefined,
     header_scroll: ScrollAreaWidget = undefined,
+    scroll_padding: BoxWidget = undefined,
     col_hbox: ?BoxWidget = null,
     grid: *GridWidget = undefined,
     col_number: usize = 0,
@@ -200,6 +204,7 @@ pub const GridHeaderWidget = struct {
     pub fn deinit(self: *GridHeaderWidget) void {
         self.header_hbox.deinit();
         self.header_scroll.deinit();
+        //self.scroll_padding.deinit();
 
         dvui.dataSet(null, self.data().id, "_height", self.height_this_frame);
         dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
@@ -211,6 +216,16 @@ pub const GridHeaderWidget = struct {
     pub fn install(self: *GridHeaderWidget) !void {
         try self.hbox.install();
         try self.hbox.drawBackground();
+        self.scroll_padding = BoxWidget.init(@src(), .vertical, false, .{
+            .min_size_content = .{ .w = 10 },
+            .expand = .vertical,
+            .gravity_x = 1.0,
+            .border = Rect.all(2),
+        });
+        try self.scroll_padding.install();
+        try self.scroll_padding.drawBackground();
+        self.scroll_padding.deinit();
+
         self.si.virtual_size.w = self.grid.si.virtual_size.w + 10; // 10 = scroll bar widget width
         self.si.virtual_size.h = self.grid.si.viewport.h;
         self.si.viewport.x = self.grid.si.viewport.x;
@@ -377,8 +392,8 @@ pub const GridBodyWidget = struct {
         if (opts.min_size_content) |min_size_content| {
             col_options.min_size_content = min_size_content;
         }
-        if (self.col_number == 2) {
-            //            std.debug.print("Col opts = {}\n", .{col_options});
+        if (self.col_number == 99) {
+            std.debug.print("Col opts = {}\n", .{col_options});
         }
         self.col_vbox = BoxWidget.init(src, .vertical, false, col_options);
         try self.col_vbox.?.install();
