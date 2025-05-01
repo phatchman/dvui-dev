@@ -258,7 +258,10 @@ fn gui_frame() !void {
     {
         var grid = try dvui.grid(
             @src(),
-            .{ .scroll_info = &scroll_info },
+            if (virtual_scrolling)
+                .{ .scroll_info = &scroll_info }
+            else
+                .{},
             //.{},
             .{
                 .expand = .both,

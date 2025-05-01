@@ -38,7 +38,7 @@ init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(ColWidth) = undefined,
 si: *dvui.ScrollInfo = undefined,
-si_store: dvui.ScrollInfo = undefined,
+si_store: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto },
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -61,6 +61,9 @@ pub fn install(self: *GridWidget) !void {
     if (self.init_opts.scroll_info) |si| {
         self.si = si;
     } else {
+        if (dvui.dataGet(null, self.data().id, "_si_store", ScrollInfo)) |*si| {
+            self.si_store = si.*;
+        }
         self.si = &self.si_store;
     }
 
@@ -74,6 +77,7 @@ pub fn data(self: *GridWidget) *WidgetData {
 
 pub fn deinit(self: *GridWidget) void {
     dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths.items[0..]);
+    dvui.dataSet(null, self.data().id, "_si_store", self.si_store);
     self.vbox.deinit();
 }
 
@@ -150,7 +154,6 @@ pub const GridHeaderWidget = struct {
 
         _ = init_opts;
         self.grid = grid;
-        std.debug.print("header si = {}\n", .{self.si});
         self.hbox = BoxWidget.init(src, .horizontal, false, options.override(.{ .expand = .horizontal }));
 
         if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
@@ -164,7 +167,6 @@ pub const GridHeaderWidget = struct {
         }
         if (dvui.dataGet(null, self.data().id, "_si2", ScrollInfo)) |*si| {
             self.si = si.*;
-            std.debug.print("Got si = {}\n", .{si});
         }
         //        self.min_size = opts.min_size_content;
         //        self.max_size = opts.max_size_content;
@@ -173,7 +175,6 @@ pub const GridHeaderWidget = struct {
     }
 
     pub fn deinit(self: *GridHeaderWidget) void {
-        std.debug.print("storing si1 = {}\n", .{self.si});
         self.header_hbox.deinit();
         self.header_scroll.deinit();
 
@@ -311,7 +312,6 @@ pub const GridBodyWidget = struct {
         }
         self.min_size = opts.min_size_content;
         self.max_size = opts.max_size_content;
-        std.debug.print("body si = {}\n", .{self.grid.si});
 
         return self;
     }
