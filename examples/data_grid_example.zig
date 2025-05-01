@@ -304,7 +304,7 @@ fn gui_frame() !void {
 
             const changed = try dvui.gridColumnCheckbox(@src(), body, Car, cars[first..last], "selected", rowCheckboxOptions());
             if (changed) std.debug.print("selection changed\n", .{});
-            if (false) {
+            if (true) {
                 if (!use_iterator) {
                     try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions(30));
                     try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", rowOptions(40));

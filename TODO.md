@@ -1,5 +1,6 @@
 Todos
 - [ ] Equal space, ratio, expanding column widths.
+- [ ] Header scrolling.
 
 
 Issues
