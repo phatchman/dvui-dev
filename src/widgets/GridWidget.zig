@@ -68,9 +68,11 @@ pub fn install(self: *GridWidget) !void {
         // TODO: Other options e.g. vertical bar etc? Scroll Area must do something similar?
         if (self.init_opts.horizontal) |horizontal| {
             self.si.horizontal = horizontal;
+            self.init_opts.horizontal = null;
         }
         if (self.init_opts.vertical) |vertical| {
             self.si.vertical = vertical;
+            self.init_opts.vertical = null;
         }
     }
     self.init_opts.scroll_info = self.si;
