@@ -955,6 +955,10 @@ pub const RenderCommand = struct {
             endcap_style: EndCapStyle,
             color: Color,
         },
+        triangles: struct {
+            tri: Triangles,
+            tex: ?Texture,
+        },
     },
 };
 
@@ -1048,6 +1052,19 @@ pub fn focusWidget(id: ?u32, subwindow_id: ?u32, event_num: ?u16) void {
             break;
         }
     }
+}
+
+/// Focuses the given widget id and sets `Window.last_focused_id_this_frame`.
+/// This should only be used by widgets that focuses themselves. If you are
+/// focusing another widget, use `focusWidget`
+///
+/// If you are doing this in response to an `Event`, you can pass that `Event`'s
+/// num to change the focus of any further `Event`s in the list.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn focusWidgetSelf(id: u32, event_num: ?u16) void {
+    currentWindow().last_focused_id_this_frame = id;
+    focusWidget(id, null, event_num);
 }
 
 /// Id of the focused widget (if any) in the focused subwindow.
@@ -1184,13 +1201,32 @@ pub fn pathFillConvex(path: []const Point, color: Color) !void {
         return;
     }
 
+    var triangles = try pathFillConvexTriangles(path);
+    defer triangles.deinit(cw.arena());
+    triangles.color(color);
+    try renderTriangles(triangles, null);
+}
+
+/// Generates triangles to fill path (must be convex).
+///
+/// Vertexes will have unset uv and color is alpha multiplied white fading to
+/// transparent at the edge.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn pathFillConvexTriangles(path: []const Point) !Triangles {
+    if (path.len < 3) {
+        return Triangles.empty;
+    }
+
+    const cw = currentWindow();
+
     var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), path.len * 2);
     defer vtx.deinit();
     const idx_count = (path.len - 2) * 3 + path.len * 6;
     var idx = try std.ArrayList(u16).initCapacity(cw.arena(), idx_count);
     defer idx.deinit();
-    const col = color.alphaMultiply();
-    const col_trans = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
+    const col: Color = .{};
+    const col_trans: Color = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     var bounds = Rect{}; // w and h are maxx and maxy for now
     bounds.x = std.math.floatMax(f32);
@@ -1255,10 +1291,7 @@ pub fn pathFillConvex(path: []const Point, color: Color) !void {
     bounds.w = bounds.w - bounds.x;
     bounds.h = bounds.h - bounds.y;
 
-    const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-    const clipr: ?Rect = if (bounds.clippedBy(clip_offset)) clip_offset else null;
-
-    cw.backend.drawClippedTriangles(null, vtx.items, idx.items, clipr);
+    return .{ .vertexes = try vtx.toOwnedSlice(), .indices = try idx.toOwnedSlice(), .bounds = bounds };
 }
 
 pub const EndCapStyle = enum {
@@ -1566,6 +1599,129 @@ pub fn pathStrokeRaw(path: []const Point, thickness: f32, color: Color, closed_i
     const clipr: ?Rect = if (bounds.clippedBy(clip_offset)) clip_offset else null;
 
     cw.backend.drawClippedTriangles(null, vtx.items, idx.items, clipr);
+}
+
+pub const Triangles = struct {
+    vertexes: []Vertex,
+    indices: []u16,
+    bounds: Rect,
+
+    pub const empty = Triangles{
+        .vertexes = &.{},
+        .indices = &.{},
+        .bounds = .{},
+    };
+
+    pub fn dupe(self: *Triangles, allocator: std.mem.Allocator) !Triangles {
+        return .{
+            .vertexes = try allocator.dupe(Vertex, self.vertexes),
+            .indices = try allocator.dupe(u16, self.indices),
+            .bounds = self.bounds,
+        };
+    }
+
+    pub fn deinit(self: *Triangles, allocator: std.mem.Allocator) void {
+        allocator.free(self.indices);
+        allocator.free(self.vertexes);
+    }
+
+    /// Multiply col into vertex colors.  col is converted to premultiplied alpha.
+    pub fn color(self: *Triangles, col: Color) void {
+        if (col.r == 0xff and col.g == 0xff and col.b == 0xff and col.a == 0xff)
+            return;
+
+        const ca = col.alphaMultiply();
+        for (self.vertexes) |*v| {
+            v.col = Color.multiply(v.col, ca);
+        }
+    }
+
+    /// Set uv coords of vertexes according to position in r (with r_uv coords
+    /// at corners), clamped to 0-1.
+    pub fn uvFromRectuv(self: *Triangles, r: Rect, r_uv: Rect) void {
+        for (self.vertexes) |*v| {
+            const xfrac = (v.pos.x - r.x) / r.w;
+            v.uv[0] = std.math.clamp(r_uv.x + xfrac * (r_uv.w - r_uv.x), 0, 1);
+
+            const yfrac = (v.pos.y - r.y) / r.h;
+            v.uv[1] = std.math.clamp(r_uv.y + yfrac * (r_uv.h - r_uv.y), 0, 1);
+        }
+    }
+
+    /// Rotate vertexes around origin by radians (positive clockwise).
+    pub fn rotate(self: *Triangles, origin: Point, radians: f32) void {
+        if (radians == 0) return;
+
+        const cos = @cos(radians);
+        const sin = @sin(radians);
+
+        for (self.vertexes) |*v| {
+            // get vector from origin to point
+            const d = v.pos.diff(origin);
+
+            // rotate vector
+            const rotated: Point = .{
+                .x = d.x * cos - d.y * sin,
+                .y = d.x * sin + d.y * cos,
+            };
+
+            v.pos = origin.plus(rotated);
+        }
+
+        // recalc bounds
+        var points: [4]Point = .{
+            self.bounds.topLeft(),
+            self.bounds.topRight(),
+            self.bounds.bottomRight(),
+            self.bounds.bottomLeft(),
+        };
+
+        for (&points) |*p| {
+            // get vector from origin to point
+            const d = p.diff(origin);
+
+            // rotate vector
+            const rotated: Point = .{
+                .x = d.x * cos - d.y * sin,
+                .y = d.x * sin + d.y * cos,
+            };
+
+            p.* = origin.plus(rotated);
+        }
+
+        self.bounds.x = @min(points[0].x, points[1].x, points[2].x, points[3].x);
+        self.bounds.y = @min(points[0].y, points[1].y, points[2].y, points[3].y);
+        self.bounds.w = @max(points[0].x, points[1].x, points[2].x, points[3].x);
+        self.bounds.w -= self.bounds.x;
+        self.bounds.h = @max(points[0].y, points[1].y, points[2].y, points[3].y);
+        self.bounds.h -= self.bounds.y;
+    }
+};
+
+pub fn renderTriangles(triangles: Triangles, tex: ?Texture) !void {
+    if (triangles.vertexes.len == 0) {
+        return;
+    }
+
+    if (dvui.clipGet().empty()) {
+        return;
+    }
+
+    const cw = currentWindow();
+
+    if (!cw.render_target.rendering) {
+        // FIXME: need to copy triangles here
+        const cmd = RenderCommand{ .snap = cw.snap_to_pixels, .clip = clipGet(), .cmd = .{ .triangles = .{ .tri = triangles, .tex = tex } } };
+
+        var sw = cw.subwindowCurrent();
+        try sw.render_cmds.append(cmd);
+        return;
+    }
+
+    const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
+    const clipr: ?Rect = if (triangles.bounds.clippedBy(clip_offset)) clip_offset else null;
+
+    cw.backend.drawClippedTriangles(tex, triangles.vertexes, triangles.indices, clipr);
 }
 
 /// Called by floating widgets to participate in subwindow stacking - the order
@@ -3501,9 +3657,9 @@ pub fn suggestion(te: *TextEntryWidget, init_opts: SuggestionInitOptions) !*Sugg
     var open_sug = init_opts.opened;
 
     if (init_opts.button) {
-        if (try dvui.buttonIcon(@src(), "combobox_triangle", entypo.chevron_small_down, .{}, .{ .expand = .ratio, .margin = dvui.Rect.all(2), .gravity_x = 1.0 })) {
+        if (try dvui.buttonIcon(@src(), "combobox_triangle", entypo.chevron_small_down, .{}, .{ .expand = .ratio, .margin = dvui.Rect.all(2), .gravity_x = 1.0, .tab_index = 0 })) {
             open_sug = true;
-            dvui.focusWidget(te.data().id, null, null);
+            dvui.focusWidgetSelf(te.data().id, null);
         }
     }
 
@@ -3551,7 +3707,17 @@ pub fn suggestion(te: *TextEntryWidget, init_opts: SuggestionInitOptions) !*Sugg
                         sug.activate_selected = true;
                     }
                 },
-                else => {},
+                else => {
+                    if (sug.willOpen() and e.evt.key.action == .down) {
+                        if (e.evt.key.matchBind("next_widget")) {
+                            e.handled = true;
+                            sug.close();
+                        } else if (e.evt.key.matchBind("prev_widget")) {
+                            e.handled = true;
+                            sug.close();
+                        }
+                    }
+                },
             }
         }
 
@@ -3567,26 +3733,40 @@ pub fn suggestion(te: *TextEntryWidget, init_opts: SuggestionInitOptions) !*Sugg
     return sug;
 }
 
-pub fn comboBox(src: std.builtin.SourceLocation, entries: []const []const u8, init_opts: TextEntryWidget.InitOptions, opts: Options) !*TextEntryWidget {
-    var te = try currentWindow().arena().create(TextEntryWidget);
-    te.* = dvui.TextEntryWidget.init(src, init_opts, opts);
-    try te.install();
+pub const ComboBox = struct {
+    te: *TextEntryWidget = undefined,
+    sug: *SuggestionWidget = undefined,
 
-    var sug = try dvui.suggestion(te, .{ .button = true });
-
-    if (try sug.dropped()) {
-        for (entries) |entry| {
-            if (try sug.addChoiceLabel(entry)) {
-                te.textSet(entry, false);
+    /// Returns index of entry if one was selected
+    pub fn entries(self: *ComboBox, items: []const []const u8) !?usize {
+        if (try self.sug.dropped()) {
+            for (items, 0..) |entry, i| {
+                if (try self.sug.addChoiceLabel(entry)) {
+                    self.te.textSet(entry, false);
+                    return i;
+                }
             }
         }
+        return null;
     }
 
-    sug.deinit();
+    pub fn deinit(self: *ComboBox) void {
+        self.sug.deinit();
+        self.te.deinit();
+    }
+};
 
+pub fn comboBox(src: std.builtin.SourceLocation, init_opts: TextEntryWidget.InitOptions, opts: Options) !*ComboBox {
+    var combo = try currentWindow().arena().create(ComboBox);
+    combo.te = try currentWindow().arena().create(TextEntryWidget);
+    combo.te.* = dvui.TextEntryWidget.init(src, init_opts, opts);
+    try combo.te.install();
+
+    combo.sug = try dvui.suggestion(combo.te, .{ .button = true });
     // suggestion forwards events to textEntry, so don't call te.processEvents()
-    try te.draw();
-    return te;
+    try combo.te.draw();
+
+    return combo;
 }
 
 pub var expander_defaults: Options = .{
@@ -4159,7 +4339,7 @@ pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, arg
                     e.handled = true;
 
                     // focus this widget for events after this one (starting with e.num)
-                    dvui.focusWidget(lwid, null, e.num);
+                    dvui.focusWidgetSelf(lwid, e.num);
                 } else if (me.action == .press and me.button.pointer()) {
                     e.handled = true;
                     dvui.captureMouse(lw.data());
@@ -4284,6 +4464,8 @@ pub const ImageInitOptions = struct {
     /// - both => fit in rect ignoring aspect ratio
     /// - ratio => fit in rect maintaining aspect ratio
     shrink: ?Options.Expand = null,
+
+    uv: Rect = .{ .w = 1, .h = 1 },
 };
 
 /// Show raster image.
@@ -4303,7 +4485,6 @@ pub fn image(src: std.builtin.SourceLocation, init_opts: ImageInitOptions, opts:
 
     var wd = WidgetData.init(src, .{}, options.override(.{ .min_size_content = size }));
     try wd.register();
-    try wd.borderAndBackground(.{});
 
     const cr = wd.contentRect();
     const ms = wd.options.min_size_contentGet();
@@ -4319,33 +4500,41 @@ pub fn image(src: std.builtin.SourceLocation, init_opts: ImageInitOptions, opts:
     }
     const g = wd.options.gravityGet();
     var rect = dvui.placeIn(cr, ms, e, g);
-    var doclip = false;
-    var old_clip: Rect = undefined;
 
     if (too_big and e != .ratio) {
         if (ms.w > cr.w and !e.isHorizontal()) {
-            doclip = true;
-
             rect.w = ms.w;
             rect.x -= g.x * (ms.w - cr.w);
         }
 
         if (ms.h > cr.h and !e.isVertical()) {
-            doclip = true;
-
             rect.h = ms.h;
             rect.y -= g.y * (ms.h - cr.h);
         }
     }
 
     const rs = wd.parent.screenRectScale(rect);
-    if (doclip) {
-        old_clip = dvui.clip(wd.contentRectScale().r);
+
+    var renderBackground: ?Color = if (wd.options.backgroundGet()) wd.options.color(.fill) else null;
+
+    if (wd.options.rotationGet() == 0.0) {
+        // This will be cleaned up soon - doing this crazy stuff so that the background has the same rect as the image
+        const wd_rect = wd.rect;
+        wd.rect_scale_cache = null;
+
+        wd.rect = rect;
+        try wd.borderAndBackground(.{});
+        renderBackground = null;
+
+        wd.rect = wd_rect;
+        wd.rect_scale_cache = wd.rectScale();
+    } else {
+        if (wd.options.borderGet().nonZero()) {
+            dvui.log.debug("image {x} can't render border while rotated\n", .{wd.id});
+        }
     }
-    try dvui.renderImage(init_opts.name, init_opts.bytes, rs, wd.options.rotationGet(), .{});
-    if (doclip) {
-        dvui.clipSet(old_clip);
-    }
+
+    try dvui.renderImage(init_opts.name, init_opts.bytes, rs, .{ .rotation = wd.options.rotationGet(), .corner_radius = wd.options.corner_radiusGet(), .uv = init_opts.uv, .background_color = renderBackground });
 
     wd.minSizeSetAndRefresh();
     wd.minSizeReportToParent();
@@ -4508,7 +4697,7 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
                 var p: ?Point = null;
                 if (me.action == .focus) {
                     e.handled = true;
-                    focusWidget(b.data().id, null, e.num);
+                    focusWidgetSelf(b.data().id, e.num);
                 } else if (me.action == .press and me.button.pointer()) {
                     // capture
                     captureMouse(b.data());
@@ -4740,7 +4929,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
             // don't want TextEntry to get focus
             if (e.evt == .mouse and e.evt.mouse.action == .focus) {
                 e.handled = true;
-                focusWidget(b.data().id, null, e.num);
+                focusWidgetSelf(b.data().id, e.num);
             }
 
             if (!e.handled) {
@@ -4791,7 +4980,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
                     var p: ?Point = null;
                     if (me.action == .focus) {
                         e.handled = true;
-                        focusWidget(b.data().id, null, e.num);
+                        focusWidgetSelf(b.data().id, e.num);
                     } else if (me.action == .press and me.button.pointer()) {
                         e.handled = true;
                         if (ctrl_down) {
@@ -5863,7 +6052,9 @@ pub fn renderTarget(args: RenderTarget) RenderTarget {
 pub const RenderTextureOptions = struct {
     rotation: f32 = 0,
     colormod: Color = .{},
-    uv: ?Rect = null,
+    corner_radius: Rect = .{},
+    uv: Rect = .{ .w = 1, .h = 1 },
+    background_color: ?Color = null,
     debug: bool = false,
 };
 
@@ -5881,81 +6072,33 @@ pub fn renderTexture(tex: Texture, rs: RectScale, opts: RenderTextureOptions) !v
         return;
     }
 
-    const uv: Rect = opts.uv orelse Rect{ .x = 0, .y = 0, .w = 1, .h = 1 };
-
     const r = rs.r.offsetNegPoint(cw.render_target.offset);
 
-    var vtx = try std.ArrayList(Vertex).initCapacity(cw.arena(), 4);
-    defer vtx.deinit();
-    var idx = try std.ArrayList(u16).initCapacity(cw.arena(), 6);
-    defer idx.deinit();
+    var path: std.ArrayList(dvui.Point) = .init(dvui.currentWindow().arena());
+    defer path.deinit();
 
-    const x: f32 = if (cw.snap_to_pixels) @round(r.x) else r.x;
-    const y: f32 = if (cw.snap_to_pixels) @round(r.y) else r.y;
+    try dvui.pathAddRect(&path, r, opts.corner_radius.scale(rs.s));
 
-    if (opts.debug) {
-        log.debug("renderTexture at {d} {d} {d}x{d} uv {}", .{ x, y, r.w, r.h, uv });
+    var triangles = try pathFillConvexTriangles(path.items);
+    defer triangles.deinit(cw.arena());
+
+    triangles.uvFromRectuv(r, opts.uv);
+    triangles.rotate(r.center(), opts.rotation);
+
+    if (opts.background_color) |bg_col| {
+        var back_tri = try triangles.dupe(cw.arena());
+        defer back_tri.deinit(cw.arena());
+
+        back_tri.color(bg_col);
+        try renderTriangles(back_tri, null);
     }
 
-    const xw = x + r.w;
-    const yh = y + r.h;
+    triangles.color(opts.colormod);
 
-    const midx = (x + xw) / 2;
-    const midy = (y + yh) / 2;
-
-    const rot = opts.rotation;
-
-    var v: Vertex = undefined;
-    v.pos.x = x;
-    v.pos.y = y;
-    v.col = opts.colormod.alphaMultiply();
-    v.uv[0] = uv.x;
-    v.uv[1] = uv.y;
-    if (rot != 0) {
-        v.pos.x = midx + (x - midx) * @cos(rot) - (y - midy) * @sin(rot);
-        v.pos.y = midy + (x - midx) * @sin(rot) + (y - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    v.pos.x = xw;
-    v.uv[0] = uv.w;
-    if (rot != 0) {
-        v.pos.x = midx + (xw - midx) * @cos(rot) - (y - midy) * @sin(rot);
-        v.pos.y = midy + (xw - midx) * @sin(rot) + (y - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    v.pos.y = yh;
-    v.uv[1] = uv.h;
-    if (rot != 0) {
-        v.pos.x = midx + (xw - midx) * @cos(rot) - (yh - midy) * @sin(rot);
-        v.pos.y = midy + (xw - midx) * @sin(rot) + (yh - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    v.pos.x = x;
-    v.uv[0] = uv.x;
-    if (rot != 0) {
-        v.pos.x = midx + (x - midx) * @cos(rot) - (yh - midy) * @sin(rot);
-        v.pos.y = midy + (x - midx) * @sin(rot) + (yh - midy) * @cos(rot);
-    }
-    try vtx.append(v);
-
-    // triangles must be counter-clockwise (y going down) to avoid backface culling
-    try idx.append(0);
-    try idx.append(2);
-    try idx.append(1);
-    try idx.append(0);
-    try idx.append(3);
-    try idx.append(2);
-
-    const clip_offset = clipGet().offsetNegPoint(cw.render_target.offset);
-    const clipr: ?Rect = if (r.clippedBy(clip_offset)) clip_offset else null;
-
-    cw.backend.drawClippedTriangles(tex, vtx.items, idx.items, clipr);
+    try renderTriangles(triangles, tex);
 }
 
-pub fn renderIcon(name: []const u8, tvg_bytes: []const u8, rs: RectScale, rotation: f32, colormod: Color) !void {
+pub fn renderIcon(name: []const u8, tvg_bytes: []const u8, rs: RectScale, opts: RenderTextureOptions) !void {
     if (rs.s == 0) return;
     if (clipGet().intersect(rs.r).empty()) return;
 
@@ -5965,7 +6108,7 @@ pub fn renderIcon(name: []const u8, tvg_bytes: []const u8, rs: RectScale, rotati
 
     const tce = iconTexture(name, tvg_bytes, @as(u32, @intFromFloat(ask_height))) catch return;
 
-    try renderTexture(tce.texture, rs, .{ .rotation = rotation, .colormod = colormod });
+    try renderTexture(tce.texture, rs, opts);
 }
 
 pub fn imageTexture(name: []const u8, image_bytes: []const u8) !TextureCacheEntry {
@@ -6016,12 +6159,12 @@ pub fn imageTexture(name: []const u8, image_bytes: []const u8) !TextureCacheEntr
     return entry;
 }
 
-pub fn renderImage(name: []const u8, image_bytes: []const u8, rs: RectScale, rotation: f32, colormod: Color) !void {
+pub fn renderImage(name: []const u8, image_bytes: []const u8, rs: RectScale, opts: RenderTextureOptions) !void {
     if (rs.s == 0) return;
     if (clipGet().intersect(rs.r).empty()) return;
 
     const tce = imageTexture(name, image_bytes) catch return;
-    try renderTexture(tce.texture, rs, .{ .rotation = rotation, .colormod = colormod });
+    try renderTexture(tce.texture, rs, opts);
 }
 
 /// Captures dvui drawing to part of the screen in a `Texture`.

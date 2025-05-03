@@ -55,6 +55,8 @@ var layout_border: Rect = Rect.all(0);
 var layout_padding: Rect = Rect.all(4);
 var layout_gravity_x: f32 = 0.5;
 var layout_gravity_y: f32 = 0.5;
+var layout_rotation: f32 = 0;
+var layout_corner_radius: Rect = Rect.all(5);
 var layout_flex_content_justify: dvui.FlexBoxWidget.ContentPosition = .center;
 var layout_expand: dvui.Options.Expand = .none;
 var show_dialog: bool = false;
@@ -1139,8 +1141,26 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
             "one", "two", "three", "four", "five", "six",
         };
 
-        var te = try dvui.comboBox(@src(), entries, .{}, .{});
-        te.deinit();
+        const combo = try dvui.comboBox(@src(), .{}, .{});
+
+        // filter suggestions to match the start of the entry
+        if (combo.te.text_changed) {
+            const arena = dvui.currentWindow().arena();
+            var filtered = try std.ArrayListUnmanaged([]const u8).initCapacity(arena, entries.len);
+            defer filtered.deinit(arena);
+            const filter_text = combo.te.getText();
+            for (entries) |entry| {
+                if (std.mem.startsWith(u8, entry, filter_text)) {
+                    filtered.appendAssumeCapacity(entry);
+                }
+            }
+            dvui.dataSetSlice(null, combo.te.data().id, "suggestions", filtered.items);
+        }
+
+        if (try combo.entries(dvui.dataGetSlice(null, combo.te.data().id, "suggestions", [][]const u8) orelse entries)) |index| {
+            dvui.log.debug("Combo entry index picked: {d}", .{index});
+        }
+        combo.deinit();
     }
 
     {
@@ -1148,6 +1168,54 @@ pub fn textEntryWidgets(demo_win_id: u32) !void {
         defer hbox.deinit();
 
         try dvui.label(@src(), "Suggest", .{}, .{ .gravity_y = 0.5 });
+
+        try left_alignment.spacer(@src(), 0);
+
+        var te = dvui.TextEntryWidget.init(@src(), .{}, .{ .max_size_content = .size(dvui.Options.sizeM(20, 1)) });
+        try te.install();
+
+        const entries: []const []const u8 = &.{
+            "one", "two", "three", "four", "five", "six",
+        };
+
+        var sug = try dvui.suggestion(&te, .{ .open_on_text_change = true });
+
+        // dvui.suggestion processes events so text entry should be updated
+        if (te.text_changed) {
+            const arena = dvui.currentWindow().arena();
+            var filtered = try std.ArrayListUnmanaged([]const u8).initCapacity(arena, entries.len);
+            defer filtered.deinit(arena);
+            const filter_text = te.getText();
+            for (entries) |entry| {
+                if (std.mem.startsWith(u8, entry, filter_text)) {
+                    filtered.appendAssumeCapacity(entry);
+                }
+            }
+            dvui.dataSetSlice(null, te.data().id, "suggestions", filtered.items);
+        }
+
+        const filtered = dvui.dataGetSlice(null, te.data().id, "suggestions", [][]const u8) orelse entries;
+        if (try sug.dropped()) {
+            for (filtered) |entry| {
+                if (try sug.addChoiceLabel(entry)) {
+                    te.textSet(entry, false);
+                    sug.close();
+                }
+            }
+        }
+
+        sug.deinit();
+
+        // suggestion forwards events to textEntry, so don't call te.processEvents()
+        try te.draw();
+        te.deinit();
+    }
+
+    {
+        var hbox = try dvui.box(@src(), .horizontal, .{});
+        defer hbox.deinit();
+
+        try dvui.label(@src(), "Suggest menu", .{}, .{ .gravity_y = 0.5 });
 
         try left_alignment.spacer(@src(), 0);
 
@@ -1373,8 +1441,11 @@ pub fn layout() !void {
         const Static = struct {
             var img: bool = false;
             var shrink: bool = false;
+            var background: bool = false;
+            var border: bool = false;
             var shrinkE: dvui.Options.Expand = .none;
             var size: Size = .{ .w = 16, .h = 16 };
+            var uv: Rect = .{ .w = 1, .h = 1 };
         };
 
         {
@@ -1395,6 +1466,8 @@ pub fn layout() !void {
                 _ = try dvui.sliderEntry(@src(), "H: {d:0.0}", .{ .value = &Static.size.h, .min = 1, .max = 280, .interval = 1 }, .{ .gravity_y = 0.5 });
 
                 _ = try dvui.checkbox(@src(), &Static.shrink, "Shrink", .{});
+                _ = try dvui.checkbox(@src(), &Static.background, "Background", .{});
+                _ = try dvui.checkbox(@src(), &Static.border, "Border", .{});
             }
 
             var opts: Options = .{ .border = Rect.all(1), .background = true, .min_size_content = .{ .w = 200, .h = 140 } };
@@ -1403,18 +1476,23 @@ pub fn layout() !void {
             }
 
             var o = try dvui.overlay(@src(), opts);
+            defer o.deinit();
+            const old_clip = dvui.clip(o.data().backgroundRectScale().r);
+            defer dvui.clipSet(old_clip);
 
-            const options: Options = .{ .gravity_x = layout_gravity_x, .gravity_y = layout_gravity_y, .expand = layout_expand };
+            const options: Options = .{ .gravity_x = layout_gravity_x, .gravity_y = layout_gravity_y, .expand = layout_expand, .rotation = layout_rotation, .corner_radius = layout_corner_radius };
             if (Static.img) {
-                _ = try dvui.image(@src(), .{ .name = "zig favicon", .bytes = zig_favicon, .shrink = if (Static.shrink) Static.shrinkE else null }, options.override(.{
+                _ = try dvui.image(@src(), .{ .name = "zig favicon", .bytes = zig_favicon, .shrink = if (Static.shrink) Static.shrinkE else null, .uv = Static.uv }, options.override(.{
                     .min_size_content = Static.size,
+                    .background = Static.background,
+                    .color_fill = .{ .color = dvui.themeGet().color_text },
+                    .border = if (Static.border) Rect.all(1) else null,
                 }));
             } else {
                 var buf: [128]u8 = undefined;
                 const label = try std.fmt.bufPrint(&buf, "{d:0.2},{d:0.2}", .{ layout_gravity_x, layout_gravity_y });
                 _ = try dvui.button(@src(), label, .{}, options);
             }
-            o.deinit();
         }
 
         {
@@ -1423,6 +1501,14 @@ pub fn layout() !void {
             try dvui.label(@src(), "Gravity", .{}, .{});
             _ = try dvui.sliderEntry(@src(), "X: {d:0.2}", .{ .value = &layout_gravity_x, .min = 0, .max = 1.0, .interval = 0.01 }, .{});
             _ = try dvui.sliderEntry(@src(), "Y: {d:0.2}", .{ .value = &layout_gravity_y, .min = 0, .max = 1.0, .interval = 0.01 }, .{});
+            try dvui.label(@src(), "Corner Radius", .{}, .{});
+            inline for (0.., @typeInfo(dvui.Rect).@"struct".fields) |i, field| {
+                _ = try dvui.sliderEntry(@src(), field.name ++ ": {d:0}", .{ .min = 0, .max = 200, .interval = 1, .value = &@field(layout_corner_radius, field.name) }, .{ .id_extra = i });
+            }
+            if (Static.img) {
+                try dvui.label(@src(), "Rotation", .{}, .{});
+                _ = try dvui.sliderEntry(@src(), "{d:0.2} radians", .{ .value = &layout_rotation, .min = std.math.pi * -2, .max = std.math.pi * 2, .interval = 0.01 }, .{});
+            }
         }
 
         {
@@ -1432,6 +1518,22 @@ pub fn layout() !void {
             inline for (std.meta.tags(dvui.Options.Expand)) |opt| {
                 if (try dvui.radio(@src(), layout_expand == opt, @tagName(opt), .{ .id_extra = @intFromEnum(opt) })) {
                     layout_expand = opt;
+                }
+            }
+
+            if (Static.img) {
+                try dvui.label(@src(), "UVs", .{}, .{});
+                if (try dvui.sliderEntry(@src(), "u0: {d:0.2}", .{ .min = 0, .max = 1, .value = &Static.uv.x }, .{})) {
+                    Static.uv.w = @max(Static.uv.w, Static.uv.x);
+                }
+                if (try dvui.sliderEntry(@src(), "u1: {d:0.2}", .{ .min = 0, .max = 1, .value = &Static.uv.w }, .{})) {
+                    Static.uv.x = @min(Static.uv.x, Static.uv.w);
+                }
+                if (try dvui.sliderEntry(@src(), "v0: {d:0.2}", .{ .min = 0, .max = 1, .value = &Static.uv.y }, .{})) {
+                    Static.uv.h = @max(Static.uv.h, Static.uv.y);
+                }
+                if (try dvui.sliderEntry(@src(), "v1: {d:0.2}", .{ .min = 0, .max = 1, .value = &Static.uv.h }, .{})) {
+                    Static.uv.y = @min(Static.uv.y, Static.uv.h);
                 }
             }
         }
@@ -2223,7 +2325,7 @@ pub fn focus() !void {
 
         // firstFrame must be called before te.deinit()
         if (dvui.firstFrame(te.data().id)) {
-            dvui.focusWidget(te.data().id, null, null);
+            dvui.focusWidgetSelf(te.data().id, null);
         }
 
         te.deinit();
@@ -2991,6 +3093,7 @@ pub fn dialogs(demo_win_id: u32) !void {
 pub fn animations() !void {
     const global = struct {
         var animation_choice: usize = 0;
+        var round_corners: bool = false;
         var center: bool = false;
         var easing_choice: usize = 0;
         var easing: *const dvui.easing.EasingFn = dvui.easing.linear;
@@ -3203,7 +3306,12 @@ pub fn animations() !void {
             break :blk @divTrunc(left, millis_per_frame);
         };
 
-        try dvui.label(@src(), "frame: {d}", .{frame}, .{});
+        {
+            var hbox = try dvui.box(@src(), .horizontal, .{});
+            defer hbox.deinit();
+            try dvui.label(@src(), "frame: {d}", .{frame}, .{});
+            _ = try dvui.checkbox(@src(), &global.round_corners, "Round Corners", .{});
+        }
 
         std.mem.rotate(u8, &pixels, @intCast(frame * 4));
 
@@ -3211,7 +3319,7 @@ pub fn animations() !void {
         dvui.textureDestroyLater(tex);
 
         var frame_box = try dvui.box(@src(), .horizontal, .{ .min_size_content = .{ .w = 50, .h = 50 } });
-        try dvui.renderTexture(tex, frame_box.data().contentRectScale(), .{});
+        try dvui.renderTexture(tex, frame_box.data().contentRectScale(), .{ .corner_radius = if (global.round_corners) dvui.Rect.all(10) else .{} });
         frame_box.deinit();
     }
 }

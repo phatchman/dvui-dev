@@ -1014,7 +1014,7 @@ pub fn begin(
     dvui.clipSet(self.rect_pixels);
 
     self.wd.rect = self.backend.windowSize().rect().scale(1.0 / self.content_scale);
-    self.natural_scale = self.rect_pixels.w / self.wd.rect.w;
+    self.natural_scale = if (self.wd.rect.w == 0) 1.0 else self.rect_pixels.w / self.wd.rect.w;
 
     //dvui.log.debug("window size {d} x {d} renderer size {d} x {d} scale {d}", .{ self.wd.rect.w, self.wd.rect.h, self.rect_pixels.w, self.rect_pixels.h, self.natural_scale });
 
@@ -1224,6 +1224,10 @@ pub fn renderCommands(self: *Self, queue: std.ArrayList(dvui.RenderCommand)) !vo
             .pathStroke => |ps| {
                 try dvui.pathStrokeRaw(ps.path, ps.thickness, ps.color, ps.closed, ps.endcap_style);
                 self.arena().free(ps.path);
+            },
+            .triangles => |t| {
+                try dvui.renderTriangles(t.tri, t.tex);
+                // FIXME: free the triangles?
             },
         }
     }
