@@ -25,11 +25,16 @@ pub var defaults: Options = .{
 pub const InitOpts = ScrollAreaWidget.InitOpts;
 
 const ColWidth = struct {
-    const Owner = enum { header, body };
-    owner: Owner,
-    width: f32,
-    changed_this_frame: bool,
-    allow_body_updates: bool,
+    const RowType = enum { header, body };
+    // Width to draw the header and body cols
+    w: f32,
+    last_updated_by: RowType,
+    // When col width is set by a header/body, ignore the next update from the body/header as its
+    // width will be 1 frame behind
+    ignore_next_update: bool,
+    // If width is controlled by header/body, then updates all from body/header are ignored.
+    // This is set when the header is styled to expand horizontally or has a fixed width.
+    controlled_by: ?RowType,
 };
 
 vbox: BoxWidget = undefined,
@@ -72,8 +77,6 @@ pub fn install(self: *GridWidget) !void {
         if (self.init_opts.vertical) |vertical| {
             self.si.vertical = vertical;
         }
-        //        std.debug.print("SCROLL OPTS = {}\n", .{self.si});
-        //        std.debug.print("INIT OPTS = {}\n", .{self.init_opts});
     }
     self.init_opts.scroll_info = self.si;
 
@@ -91,60 +94,92 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
-pub fn colWidthSet(self: *GridWidget, which: ColWidth.Owner, w: f32, col_num: usize, allow_body_updates: ?bool) !void {
+pub fn colWidthReport(self: *GridWidget, who: ColWidth.RowType, w: f32, col_num: usize, take_control: bool) !void {
     if (col_num == 99) {
-        std.debug.print("colWidthSet {s}, {d}, {d}, {}\n", .{ @tagName(which), w, col_num, allow_body_updates orelse false });
+        std.debug.print("colWidthReport({s}, {d}, {d}, {})\n", .{ @tagName(who), w, col_num, take_control });
     }
-    if (col_num < self.col_widths.items.len) {
-        const abu = allow_body_updates orelse self.col_widths.items[col_num].allow_body_updates;
-        if (which == .body and !self.col_widths.items[col_num].allow_body_updates) return; // TODO: So plan is that if the header has a .expand, then ignore updates from body and set both a min and max width on them.
 
-        if (self.col_widths.items[col_num].owner != which or !std.math.approxEqRel(f32, self.col_widths.items[col_num].width, w, 0.01)) {
-            if (self.col_widths.items[col_num].changed_this_frame) {
-                self.col_widths.items[col_num].changed_this_frame = false;
-                dvui.refresh(null, @src(), null);
-
-                return;
-            }
-            std.debug.print("{} on col {} changed width from {d} to {d}\n", .{ which, col_num, self.col_widths.items[col_num].width, w });
-            // If any col widths have changed, need to redraw.
-            dvui.refresh(null, @src(), null);
-            self.col_widths.items[col_num] = .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = abu };
-        }
-    } else {
-        std.debug.print("new\n", .{});
+    if (col_num >= self.col_widths.items.len) {
+        try self.col_widths.append(dvui.currentWindow().arena(), .{ .last_updated_by = who, .w = w, .ignore_next_update = true, .controlled_by = null });
         dvui.refresh(null, @src(), null);
-        try self.col_widths.append(dvui.currentWindow().arena(), .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = true });
+        return;
     }
+    const col_width = &self.col_widths.items[col_num];
+    if (col_num == 99) std.debug.print("PRE Col_width = {}\n", .{col_width});
+
+    defer if (col_num == 99) std.debug.print("POST Col_width = {}\n", .{col_width});
+
+    if (take_control) {
+        col_width.* = .{ .last_updated_by = who, .w = w, .ignore_next_update = true, .controlled_by = who };
+    }
+    const controlled_by = col_width.controlled_by orelse who;
+    if (col_width.ignore_next_update and col_width.controlled_by != controlled_by) {
+        // Ignore any changes from the header/body if the other changed the width last frame
+        col_width.ignore_next_update = false;
+        return;
+    } else if (!std.math.approxEqRel(f32, col_width.w, w, 0.01)) {
+        // Col width has changed.
+        col_width.* = .{ .last_updated_by = who, .w = w, .ignore_next_update = true, .controlled_by = null };
+        dvui.refresh(null, @src(), null);
+    } else {
+        // If no changes this frame, then resume updating col widths
+        col_width.ignore_next_update = false;
+    }
+
+    //    if (col_num < self.col_widths.items.len) {
+    //        const abu = allow_body_updates orelse self.col_widths.items[col_num].allow_body_updates;
+    //        if (which == .body and !self.col_widths.items[col_num].allow_body_updates) return; // TODO: So plan is that if the header has a .expand, then ignore updates from body and set both a min and max width on them.
+    //
+    //        if (self.col_widths.items[col_num].owner != which or !std.math.approxEqRel(f32, self.col_widths.items[col_num].width, w, 0.01)) {
+    //            if (self.col_widths.items[col_num].changed_this_frame) {
+    //                self.col_widths.items[col_num].changed_this_frame = false;
+    //                dvui.refresh(null, @src(), null);
+    //
+    //                return;
+    //            }
+    //            std.debug.print("{} on col {} changed width from {d} to {d}\n", .{ which, col_num, self.col_widths.items[col_num].width, w });
+    //            // If any col widths have changed, need to redraw.
+    //            dvui.refresh(null, @src(), null);
+    //            self.col_widths.items[col_num] = .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = abu };
+    //        }
+    //    } else {
+    //        std.debug.print("new\n", .{});
+    //        dvui.refresh(null, @src(), null);
+    //        try self.col_widths.append(dvui.currentWindow().arena(), .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = true });
+    //    }
 }
 
-pub fn colWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: usize) f32 {
-    if (col_num < self.col_widths.items.len) {
-        const col_width = &self.col_widths.items[col_num];
-        if (which == col_width.owner or col_width.changed_this_frame) {
-            //col_width.changed_this_frame = false; // TODO: This can't go here.
-            //if (col_width.changed_this_frame) std.debug.print("Changed this frame\n", .{});
-            if (which == .body and !col_width.allow_body_updates) {
-                return col_width.width;
-            }
-            return 0;
-        }
-        return col_width.width;
-    } else {
-        // TODO: This should log a debug message. mark in red etc.
+pub fn colMinWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) f32 {
+    if (col_num >= self.col_widths.items.len) {
         return 0;
     }
+    const col_width = &self.col_widths.items[col_num];
+    if (col_num == 99) {
+        std.debug.print("IN GET: {}\n", .{col_width});
+    }
+    const controlled_by = col_width.controlled_by orelse who;
+    if (controlled_by != who) {
+        return col_width.w;
+    } else if (col_width.last_updated_by == who) {
+        return 0;
+    } else {
+        return col_width.w;
+    }
 }
 
-pub fn colMaxWidthGet(self: *const GridWidget, which: ColWidth.Owner, col_num: usize) ?f32 {
+pub fn colMaxWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) ?f32 {
     if (col_num < self.col_widths.items.len) {
         const col_width = &self.col_widths.items[col_num];
 
         if (col_num == 99) {
-            std.debug.print("getting width: updated_allows = {}\n", .{col_width.allow_body_updates});
+            std.debug.print("getting width: updates_allowed = {}\n", .{col_width.controlled_by != null});
         }
-        if (which == .body and !col_width.allow_body_updates) {
-            return col_width.width;
+        // If column width is being fully controlled by header/body, then a max width is
+        // required on the body/header as the body/header might be wider than the controller.
+        if (col_width.controlled_by) |controller| {
+            if (controller != who) {
+                return col_width.w;
+            }
         }
     }
     return null;
@@ -254,7 +289,7 @@ pub const GridHeaderWidget = struct {
     pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation, opts: Options) !void {
         // Check if box is null. Log warning if not.
         // check not in_body. Log warning if not.
-        var min_width = self.grid.colWidthGet(.header, self.col_number);
+        var min_width = self.grid.colMinWidthGet(.header, self.col_number);
         const has_horizontal_expand = if (opts.expand) |expand| expand == .horizontal or expand == .vertical else false;
         if (has_horizontal_expand)
             min_width = 0;
@@ -280,14 +315,11 @@ pub const GridHeaderWidget = struct {
             const header_width = hbox.data().contentRect().w;
             const header_height = hbox.data().contentRect().h;
 
-            const min_width = self.grid.colWidthGet(.header, self.col_number);
-
-            const allow_body_updates = hbox.data().options.expand == null;
-            if (header_width > min_width or !allow_body_updates) {
-                self.grid.colWidthSet(.header, header_width, self.col_number, allow_body_updates) catch unreachable; // TODO: Don't want to throw from a de-init.
-                // TODO: Prolly do the refresh in the grid widget?
-                //dvui.refresh(null, @src(), null);
-            }
+            const control_width = switch (hbox.data().options.expand orelse .none) {
+                .horizontal, .both, .ratio => true,
+                else => false,
+            };
+            self.grid.colWidthReport(.header, header_width, self.col_number, control_width) catch unreachable; // TODO: Don't want to throw from a de-init.
 
             if (header_height > self.height_this_frame) {
                 self.height_this_frame = header_height;
@@ -390,8 +422,11 @@ pub const GridBodyWidget = struct {
     pub fn colBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation, opts: Options) !void {
         // Check if box is null. Log warning if not.
 
-        const min_width = self.grid.colWidthGet(.body, self.col_number);
+        const min_width = self.grid.colMinWidthGet(.body, self.col_number);
         const max_width = self.grid.colMaxWidthGet(.body, self.col_number);
+        if (self.col_number == 99) {
+            std.debug.print("Min width = {d}, max_width = {d}\n", .{ min_width, max_width orelse 0 });
+        }
 
         var col_options: Options = .{
             .min_size_content = .{ .w = min_width },
@@ -427,15 +462,7 @@ pub const GridBodyWidget = struct {
     pub fn colEnd(self: *GridBodyWidget) void {
         if (self.col_vbox) |*vbox| {
             const current_width = vbox.data().contentRect().w;
-            const min_width = self.grid.colWidthGet(.body, self.col_number);
-
-            if (current_width > min_width) {
-                // TODO: proll do this in GridWidget?
-                //dvui.refresh(null, @src(), null);
-                self.grid.colWidthSet(.body, current_width, self.col_number, null) catch unreachable; // TODO: Don't want to throw from a deinit.
-            }
-            // TODO: Testing
-            //self.grid.colWidthSet(current_width, self.col_number) catch unreachable; // TODO: Don't want to throw from a deinit.
+            self.grid.colWidthReport(.body, current_width, self.col_number, false) catch unreachable; // TODO: Don't want to throw from a deinit.
 
             vbox.deinit();
             self.col_vbox = null;
@@ -444,7 +471,7 @@ pub const GridBodyWidget = struct {
     }
 
     // Start a new cell.
-    // must be called before any widgets are createdf in the cell
+    // must be called before any widgets are created in the cell
     pub fn cellBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation) !void {
         self.row_hbox = BoxWidget.init(src, .horizontal, false, .{ .id_extra = self.cell_number, .expand = .both });
         try self.row_hbox.?.install();
@@ -466,14 +493,14 @@ pub const GridBodyWidget = struct {
 };
 
 /// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.
-/// GridVirtualScroller requires that a scroll_info has been passed to as an init_option
+/// GridVirtualScroller requires that a scroll_info has been passed as an init_option
 /// to the GridBodyWidget.
 pub const GridVirtualScroller = struct {
     pub const InitOpts = struct {
         // Total rows in the columns displayed
         total_rows: usize,
         // The number of rows before and after the visible scroll area to load.
-        // The larger the window, the smoother the scrolling, at the expense of more rows being rendered.
+        // Larger windows can result in smoother scrolling at the expense of more CPU resource per frame.
         window_size: usize = 1,
     };
     body: *GridBodyWidget,
