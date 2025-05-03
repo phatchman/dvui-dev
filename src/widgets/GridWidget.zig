@@ -102,7 +102,6 @@ fn colWidthReport(self: *GridWidget, who: ColWidth.RowType, w: f32, col_num: usi
     }
     const col_width = &self.col_widths.items[col_num];
     if (col_num == 99) std.debug.print("PRE Col_width = {}\n", .{col_width});
-
     defer if (col_num == 99) std.debug.print("POST Col_width = {}\n", .{col_width});
 
     if (take_control) {
@@ -128,9 +127,6 @@ fn colMinWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize
         return 0;
     }
     const col_width = &self.col_widths.items[col_num];
-    if (col_num == 99) {
-        std.debug.print("IN GET: {}\n", .{col_width});
-    }
     const controlled_by = col_width.controlled_by orelse who;
     if (controlled_by != who) {
         return col_width.w;
@@ -145,9 +141,6 @@ fn colMaxWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize
     if (col_num < self.col_widths.items.len) {
         const col_width = &self.col_widths.items[col_num];
 
-        if (col_num == 99) {
-            std.debug.print("getting width: updates_allowed = {}\n", .{col_width.controlled_by != null});
-        }
         // If column width is being fully controlled by header/body, then a max width is
         // required on the body/header as the body/header might be wider than the controller.
         if (col_width.controlled_by) |controller| {
@@ -228,7 +221,7 @@ pub const GridHeaderWidget = struct {
         try self.hbox.install();
         try self.hbox.drawBackground();
         self.scroll_padding = BoxWidget.init(@src(), .vertical, false, .{
-            .min_size_content = .{ .w = 10 },
+            .min_size_content = .{ .w = 10 }, // TODO: 10 = scroll bar widget width
             .expand = .vertical,
             .gravity_x = 1.0,
             .border = Rect.all(2),
@@ -299,10 +292,6 @@ pub const GridHeaderWidget = struct {
         self.col_number += 1;
     }
 
-    //    pub fn colWidthGet(self: *GridHeaderWidget) f32 {
-    //        return self.grid.colWidthGet(.header, self.col_number);
-    //    }
-
     /// Must be called from the column header when the current column's sort order has changed.
     pub fn sortChanged(self: *GridHeaderWidget) void {
         // If sorting on a new column, change current sort column to unsorted.
@@ -331,9 +320,8 @@ pub const GridBodyWidget = struct {
         // Must either provide .expand or .min_size_content for virtual scrolling to work.
         .expand = .vertical,
     };
-    pub const InitOpts = struct {
-        //        scroll_info: ?*ScrollInfo = null,
-    };
+    pub const InitOpts = struct {};
+
     grid: *GridWidget = undefined,
     scroll: ScrollAreaWidget = undefined,
     hbox: BoxWidget = undefined,
@@ -387,11 +375,6 @@ pub const GridBodyWidget = struct {
     /// Begin a new grid column
     /// must be called before any widgets are created in the column
     pub fn colBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation, opts: Options) !void {
-        // TODO: Will change this so that whoever is controlling the column width also
-        // provides the max size, rather than the user having to pass the same min and max width to
-        // both the header and body.
-        // We will then only support providing options to the header, to remove issue of the user
-        // providing different expand and content size options to the header vs the body.
 
         // TODO: Check if box is null. Log warning if not.
         const min_width = self.grid.colMinWidthGet(.body, self.col_number);
