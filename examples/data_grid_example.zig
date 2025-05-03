@@ -121,7 +121,10 @@ pub fn headerOptions() dvui.Options {
     var opts = switch (column_sizing) {
         .size_content => default_header_options,
         .size_window => default_header_options.override(.{ .expand = .horizontal }),
-        .fixed_width => default_header_options.override(.{ .min_size_content = .{ .w = fixed_width_w }, .max_size_content = .width(fixed_width_w) }),
+        .fixed_width => default_header_options.override(.{
+            .min_size_content = .{ .w = fixed_width_w },
+            .max_size_content = .width(fixed_width_w),
+        }),
     };
     if (header_height > 0) {
         if (opts.min_size_content) |*min_size_content| {
@@ -559,14 +562,6 @@ fn initCars() [num_cars]Car {
     }
     return result;
 }
-
-var other_data = blk: {
-    var tmp: [num_cars]usize = undefined;
-    for (0..num_cars) |i| {
-        tmp[i] = i;
-    }
-    break :blk tmp;
-};
 
 const some_cars = [_]Car{
     .{ .model = "Civic", .make = "Honda", .year = 2022, .mileage = 8500, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
