@@ -3904,32 +3904,17 @@ pub fn gridColumnFromSlice(
     }
 }
 
-// TODO: Currently unused.
-//fn cellValue(comptime T: type, value: T, field_name: ?[]const u8) cellValueResult(T, field_name) {
-//    return switch (@typeInfo(T)) {
-//        .pointer => cellValue(value.*),
-//        .@"struct" => CellV@TypeOf(@field(value, field_name.?)),
-//        .@"enum" => @tagName(value),
-//        .bool => if (value) "Y" else "N",
-//        else => value,
-//    };
-//}
-//
-//fn cellValueResult(comptime T: type, field_name: ?[]const u8) type {
-//    return switch (@typeInfo(T)) {
-//        .pointer => |ptr| ptr.child,
-//        .@"struct" => @FieldType(T, field_name.?),
-//        .@"enum" => []const u8,
-//        .bool => []const u8,
-//        else => T,
-//    };
-//}
+pub const GridColumnSelectAllState = enum {
+    select_all,
+    select_none,
+    unchanged,
+};
 
 /// A grid heading with a checkbox for select-all and select-none
 ///
 /// Returns true if the selection state has changed.
 /// selection - out parameter containing the current selection state.
-pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridHeaderWidget.SelectionState, opts: dvui.Options) !bool {
+pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, header: *GridHeaderWidget, selection: *GridColumnSelectAllState, opts: dvui.Options) !bool {
     const header_defaults: Options = .{
         .background = true,
         .color_fill = .{ .name = .fill_control },

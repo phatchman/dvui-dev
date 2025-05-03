@@ -1,8 +1,6 @@
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
-// TODO: The first 2 frames don't set the height correctly. Expect only the first frame would have an issue?
-
 const Options = dvui.Options;
 const Rect = dvui.Rect;
 const Size = dvui.Size;
@@ -16,9 +14,6 @@ const GridWidget = @This();
 pub var defaults: Options = .{
     .name = "GridWidget",
     .background = true,
-    // generally the top of a scroll area is against something flat (like
-    // window header), and the bottom is against something curved (bottom
-    // of a window)
     .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
 };
 
@@ -26,7 +21,7 @@ pub const InitOpts = ScrollAreaWidget.InitOpts;
 
 const ColWidth = struct {
     const RowType = enum { header, body };
-    // Width to draw the header and body cols
+    // Width of the header and body columns
     w: f32,
     last_updated_by: RowType,
     // When col width is set by a header/body, ignore the next update from the body/header as its
@@ -94,7 +89,7 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
-pub fn colWidthReport(self: *GridWidget, who: ColWidth.RowType, w: f32, col_num: usize, take_control: bool) !void {
+fn colWidthReport(self: *GridWidget, who: ColWidth.RowType, w: f32, col_num: usize, take_control: bool) !void {
     if (col_num == 99) {
         std.debug.print("colWidthReport({s}, {d}, {d}, {})\n", .{ @tagName(who), w, col_num, take_control });
     }
@@ -125,31 +120,9 @@ pub fn colWidthReport(self: *GridWidget, who: ColWidth.RowType, w: f32, col_num:
         // If no changes this frame, then resume updating col widths
         col_width.ignore_next_update = false;
     }
-
-    //    if (col_num < self.col_widths.items.len) {
-    //        const abu = allow_body_updates orelse self.col_widths.items[col_num].allow_body_updates;
-    //        if (which == .body and !self.col_widths.items[col_num].allow_body_updates) return; // TODO: So plan is that if the header has a .expand, then ignore updates from body and set both a min and max width on them.
-    //
-    //        if (self.col_widths.items[col_num].owner != which or !std.math.approxEqRel(f32, self.col_widths.items[col_num].width, w, 0.01)) {
-    //            if (self.col_widths.items[col_num].changed_this_frame) {
-    //                self.col_widths.items[col_num].changed_this_frame = false;
-    //                dvui.refresh(null, @src(), null);
-    //
-    //                return;
-    //            }
-    //            std.debug.print("{} on col {} changed width from {d} to {d}\n", .{ which, col_num, self.col_widths.items[col_num].width, w });
-    //            // If any col widths have changed, need to redraw.
-    //            dvui.refresh(null, @src(), null);
-    //            self.col_widths.items[col_num] = .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = abu };
-    //        }
-    //    } else {
-    //        std.debug.print("new\n", .{});
-    //        dvui.refresh(null, @src(), null);
-    //        try self.col_widths.append(dvui.currentWindow().arena(), .{ .owner = which, .width = w, .changed_this_frame = true, .allow_body_updates = true });
-    //    }
 }
 
-pub fn colMinWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) f32 {
+fn colMinWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) f32 {
     if (col_num >= self.col_widths.items.len) {
         return 0;
     }
@@ -167,7 +140,7 @@ pub fn colMinWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: u
     }
 }
 
-pub fn colMaxWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) ?f32 {
+fn colMaxWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) ?f32 {
     if (col_num < self.col_widths.items.len) {
         const col_width = &self.col_widths.items[col_num];
 
@@ -187,15 +160,12 @@ pub fn colMaxWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: u
 
 pub const GridHeaderWidget = struct {
     pub const InitOpts = struct {};
+
+    // Sort direction for a column
     pub const SortDirection = enum {
         unsorted,
         ascending,
         descending,
-    };
-    pub const SelectionState = enum {
-        select_all,
-        select_none,
-        unchanged,
     };
 
     pub var defaults: Options = .{
@@ -219,7 +189,6 @@ pub const GridHeaderWidget = struct {
     si: ScrollInfo = .{ .horizontal = .given, .vertical = .none },
 
     pub fn init(src: std.builtin.SourceLocation, grid: *GridWidget, init_opts: GridHeaderWidget.InitOpts, opts: Options) GridHeaderWidget {
-        // TODO: Check how other widgets do this initialization
         var self = GridHeaderWidget{};
         const options = GridHeaderWidget.defaults.override(opts);
 
@@ -239,8 +208,6 @@ pub const GridHeaderWidget = struct {
         if (dvui.dataGet(null, self.data().id, "_si2", ScrollInfo)) |*si| {
             self.si = si.*;
         }
-        //        self.min_size = opts.min_size_content;
-        //        self.max_size = opts.max_size_content;
 
         return self;
     }
@@ -248,7 +215,6 @@ pub const GridHeaderWidget = struct {
     pub fn deinit(self: *GridHeaderWidget) void {
         self.header_hbox.deinit();
         self.header_scroll.deinit();
-        //self.scroll_padding.deinit();
 
         dvui.dataSet(null, self.data().id, "_height", self.height_this_frame);
         dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
@@ -270,7 +236,7 @@ pub const GridHeaderWidget = struct {
         try self.scroll_padding.drawBackground();
         self.scroll_padding.deinit();
 
-        self.si.virtual_size.w = self.grid.si.virtual_size.w + 10; // 10 = scroll bar widget width
+        self.si.virtual_size.w = self.grid.si.virtual_size.w + 10; // TODO: 10 = scroll bar widget width
         self.si.virtual_size.h = self.grid.si.viewport.h;
         self.si.viewport.x = self.grid.si.viewport.x;
         self.header_scroll = ScrollAreaWidget.init(@src(), .{ .scroll_info = &self.si, .horizontal_bar = .hide, .vertical_bar = .hide }, .{ .expand = .horizontal });
@@ -332,9 +298,9 @@ pub const GridHeaderWidget = struct {
         self.col_number += 1;
     }
 
-    pub fn colWidthGet(self: *GridHeaderWidget) f32 {
-        return self.grid.colWidthGet(.header, self.col_number);
-    }
+    //    pub fn colWidthGet(self: *GridHeaderWidget) f32 {
+    //        return self.grid.colWidthGet(.header, self.col_number);
+    //    }
 
     /// Must be called from the column header when the current column's sort order has changed.
     pub fn sortChanged(self: *GridHeaderWidget) void {
