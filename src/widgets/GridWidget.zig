@@ -224,7 +224,7 @@ pub const GridHeaderWidget = struct {
             .min_size_content = .{ .w = 10 }, // TODO: 10 = scroll bar widget width
             .expand = .vertical,
             .gravity_x = 1.0,
-            .border = Rect.all(2),
+            .border = Rect.all(0),
         });
         try self.scroll_padding.install();
         try self.scroll_padding.drawBackground();

@@ -15,6 +15,7 @@
 - [ ] Remove the need to pass the same (or sometimes different) styling to the header vs the body.
 - [ ] Make column headers respect column width "ownership" so that .expand can be used on the body columns. 
 - [ ] Virtual scrolling with large row heights doesn't work well because of the way it snaps to the next visible row.
+- [ ] Grid header widget assumes vertical scroll bar width and that it will be displayed.
 
 ### Future
 * Some better visual indication that columns are sortable.
