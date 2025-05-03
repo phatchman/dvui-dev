@@ -101,7 +101,6 @@ const testing = false;
 
 var first_frame = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
-var use_iterator = false;
 var virtual_scrolling = true;
 var horizontal_scrolling = false;
 var sortable = true;
@@ -412,20 +411,10 @@ fn gui_frame() !void {
         }
         {
             if (try dvui.expander(@src(), "Populate From", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
-                if (try dvui.radio(@src(), !use_iterator, "Slice", .{})) {
-                    use_iterator = false;
+                if (try dvui.checkbox(@src(), &filter_grid, "Filter", .{})) {
+                    gpa.free(filtered_cars);
+                    filtered_cars = try filterCars(gpa, cars[0..], filterLongModels);
                 }
-                //                if (try dvui.radio(@src(), use_iterator, "Iterator", .{})) {
-                //                    use_iterator = true;
-                //                }
-                //                if (use_iterator) {
-                _ = try dvui.checkbox(@src(), &filter_grid, "Filter", .{});
-                //                selectable = false;
-                //if (filtered_cars) |fc| {
-                //    gpa.free(fc);
-                //}
-                //filtered_cars = try filterCars(gpa, cars[0..], filterLongModels);
-                //                }
             }
         }
     }
