@@ -3846,11 +3846,24 @@ pub fn gridColumnFromSlice(
     comptime fmt: []const u8,
     opts: dvui.Options,
 ) !void {
-    if (field_name) |_field_name| {
-        if (!@hasField(T, _field_name)) {
-            @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), _field_name }));
-        }
-    }
+    comptime var TypeToValidate = T;
+    comptime validate: switch (@typeInfo(T)) {
+        .pointer => |ptr| {
+            if (ptr.size != .one) @compileError("T cannot be an array, slice or vector");
+            if (@typeInfo(ptr.child) == .@"struct") {
+                TypeToValidate = ptr.child;
+                continue :validate @typeInfo(ptr.child);
+            }
+        },
+        .@"struct" => {
+            if (field_name) |_field_name| {
+                if (!@hasField(TypeToValidate, _field_name)) {
+                    @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), _field_name }));
+                }
+            } else @compileError("field_name must be supplied when T is a struct or pointer to a struct");
+        },
+        else => {},
+    };
 
     const label_defaults: Options = .{
         // .expand is required so that text labels can be centered.
@@ -3889,6 +3902,27 @@ pub fn gridColumnFromSlice(
         );
     }
 }
+
+// TODO: Currently unused.
+//fn cellValue(comptime T: type, value: T, field_name: ?[]const u8) cellValueResult(T, field_name) {
+//    return switch (@typeInfo(T)) {
+//        .pointer => cellValue(value.*),
+//        .@"struct" => CellV@TypeOf(@field(value, field_name.?)),
+//        .@"enum" => @tagName(value),
+//        .bool => if (value) "Y" else "N",
+//        else => value,
+//    };
+//}
+//
+//fn cellValueResult(comptime T: type, field_name: ?[]const u8) type {
+//    return switch (@typeInfo(T)) {
+//        .pointer => |ptr| ptr.child,
+//        .@"struct" => @FieldType(T, field_name.?),
+//        .@"enum" => []const u8,
+//        .bool => []const u8,
+//        else => T,
+//    };
+//}
 
 pub fn gridColumnFromIterator(
     src: std.builtin.SourceLocation,

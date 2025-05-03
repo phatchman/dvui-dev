@@ -16,5 +16,9 @@ Issues
 - [X] Need to add blank space for the "scrollbar width" in the header. Probably just always have it?
 - [ ] scrolling has started to becomine a bit "jumpy". Not sure what has changed here.
 
+Ideas
+* Some better visual indication that columns are sortable.
+* They way I've implemented filtering feels awkward. Any other suggestions welcomed.
+
 Notes
  - For fixed width columns need to pass the same min/max size to the header and the column.

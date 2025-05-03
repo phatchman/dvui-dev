@@ -22,9 +22,7 @@ pub var defaults: Options = .{
     .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
 };
 
-pub const InitOpts = struct {
-    scroll_info: ?*dvui.ScrollInfo = null,
-};
+pub const InitOpts = ScrollAreaWidget.InitOpts;
 
 const ColWidth = struct {
     const Owner = enum { header, body };
@@ -39,7 +37,7 @@ init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(ColWidth) = undefined,
 si: *dvui.ScrollInfo = undefined,
-si_store: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto },
+si_store: dvui.ScrollInfo = .{ .horizontal = .none, .vertical = .auto },
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -66,7 +64,18 @@ pub fn install(self: *GridWidget) !void {
             self.si_store = si.*;
         }
         self.si = &self.si_store;
+
+        // TODO: Other options e.g. vertical bar etc? Scroll Area must do something similar?
+        if (self.init_opts.horizontal) |horizontal| {
+            self.si.horizontal = horizontal;
+        }
+        if (self.init_opts.vertical) |vertical| {
+            self.si.vertical = vertical;
+        }
+        //        std.debug.print("SCROLL OPTS = {}\n", .{self.si});
+        //        std.debug.print("INIT OPTS = {}\n", .{self.init_opts});
     }
+    self.init_opts.scroll_info = self.si;
 
     try self.vbox.install();
     try self.vbox.drawBackground();
@@ -347,7 +356,7 @@ pub const GridBodyWidget = struct {
         _ = init_opts;
 
         self.grid = grid;
-        self.scroll = ScrollAreaWidget.init(src, .{ .scroll_info = self.grid.si }, options);
+        self.scroll = ScrollAreaWidget.init(src, self.grid.init_opts, options);
         // TODO: Somehow check that our parent is the Grid header.
         if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
             self.row_height = row_height;

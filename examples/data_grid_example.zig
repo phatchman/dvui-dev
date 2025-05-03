@@ -52,6 +52,8 @@ pub fn main() !void {
     // init dvui Window (maps onto a single OS window)
     var win = try dvui.Window.init(@src(), gpa, backend.backend(), .{});
     defer win.deinit();
+    filtered_cars = try filterCars(gpa, cars[0..], filterLongModels);
+    defer gpa.free(filtered_cars);
 
     main_loop: while (true) {
 
@@ -261,16 +263,25 @@ fn gui_frame() !void {
         scroll_info.horizontal = if (horizontal_scrolling) .auto else .none;
         var grid = try dvui.grid(
             @src(),
-            //            if (virtual_scrolling)
-            .{ .scroll_info = &scroll_info }, // TODO: Should only pass this for virtual scrolling.
-            //            else
-            //                .{},
+            if (virtual_scrolling)
+                .{
+                    .scroll_info = &scroll_info,
+                } // TODO: Should only pass this for virtual scrolling.
+            else
+                .{
+                    //.horizontal_bar = if (horizontal_scrolling) .auto else .hide,
+                    .horizontal = if (horizontal_scrolling) .auto else .none,
+                    .vertical = .auto,
+                    .vertical_bar = .show,
+                    //.vertical_bar = .show,
+                },
             .{
                 .expand = .both,
                 .background = true,
                 .max_size_content = .width(main_hbox.data().contentRect().w - 200),
             },
         );
+        //std.debug.print("init opts = {}\n", .{grid.init_opts});
         defer grid.deinit();
         {
             var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
@@ -323,8 +334,7 @@ fn gui_frame() !void {
         {
             var body = try dvui.gridBody(@src(), grid, .{}, .{ .expand = .both });
             defer body.deinit();
-            var cars_iterator: CarsIterator = .init(cars[0..], if (filter_grid) filterLongModels else null);
-            const row_count = if (use_iterator) cars_iterator.count() else cars.len;
+            const row_count = if (filter_grid) filtered_cars.len else cars.len;
             const first, const last = limits: {
                 if (virtual_scrolling) {
                     var scroller = dvui.GridWidget.GridVirtualScroller.init(body, .{ .total_rows = row_count, .window_size = 20 });
@@ -340,31 +350,21 @@ fn gui_frame() !void {
                 if (changed) std.debug.print("selection changed\n", .{});
             }
 
-            if (true) {
-                if (!use_iterator) {
-                    try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions(30));
-                    try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", rowOptions(40));
-                    try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", rowOptions(50));
-                    try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", rowOptions(60).override(.{ .gravity_x = 1.0 }));
-                    try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", rowOptions(70).override(.{ .gravity_x = 0.5 }));
-                    try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", rowOptions(80));
-                    //try dvui.gridColumnFromSlice(@src(), body, bool, selections[first..last], null, "{s}", .{});
-                    //try dvui.gridColumnFromSlice(@src(), body, usize, other_data[first..last], null, "{d}", .{});
-                } else {
-                    var iter = CarsIterator.init(cars[first..last], if (filter_grid) filterLongModels else null);
-                    try dvui.gridColumnFromIterator(@src(), body, &iter, "make", "{s}", rowOptions(20));
-                    iter.reset();
-                    try dvui.gridColumnFromIterator(@src(), body, &iter, "model", "{s}", rowOptions(20));
-                    iter.reset();
-                    try dvui.gridColumnFromIterator(@src(), body, &iter, "year", "{d}", rowOptions(20));
-                    iter.reset();
-                    try dvui.gridColumnFromIterator(@src(), body, &iter, "mileage", "{d}", rowOptions(20).override(.{ .gravity_x = 1.0 }));
-                    iter.reset();
-                    try dvui.gridColumnFromIterator(@src(), body, &iter, "condition", "{s}", rowOptions(20).override(.{ .gravity_x = 0.5 }));
-                    iter.reset();
-                    try dvui.gridColumnFromIterator(@src(), body, &iter, "description", "{s}", rowOptions(20));
-                }
-                //std.debug.print("VP = {}\n VS = {} first = {}, last = {}\n", .{ body.scroll.si.viewport, body.scroll.si.virtual_size, first, last });
+            if (!filter_grid) {
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions(30));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", rowOptions(40));
+                try customColumn(@src(), body, cars[first..last]);
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", rowOptions(50));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", rowOptions(60).override(.{ .gravity_x = 1.0 }));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", rowOptions(70).override(.{ .gravity_x = 0.5 }));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", rowOptions(80));
+            } else {
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "make", "{s}", rowOptions(30));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "model", "{s}", rowOptions(40));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "year", "{d}", rowOptions(50));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "mileage", "{d}", rowOptions(60).override(.{ .gravity_x = 1.0 }));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "condition", "{s}", rowOptions(70).override(.{ .gravity_x = 0.5 }));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "description", "{s}", rowOptions(80));
             }
         }
     }
@@ -372,7 +372,7 @@ fn gui_frame() !void {
         // Control panel
         var vbox = try dvui.box(@src(), .vertical, .{ .expand = .vertical, .min_size_content = .{ .w = 250 }, .max_size_content = .width(250) });
         defer vbox.deinit();
-        try dvui.labelNoFmt(@src(), "Control Panel", .{ .font_style = .caption_heading });
+        try dvui.labelNoFmt(@src(), "Control Panel", .{ .font_style = .title_2 });
         _ = try dvui.checkbox(@src(), &sortable, "sortable", .{});
         _ = try dvui.checkbox(@src(), &virtual_scrolling, "virtual scrolling", .{});
         if (try dvui.expander(@src(), "Column Layout", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
@@ -395,9 +395,7 @@ fn gui_frame() !void {
         if (column_sizing != .size_window) {
             _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
         }
-        if (!use_iterator) {
-            _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
-        }
+        _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
         {
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
             defer hbox.deinit();
@@ -421,13 +419,17 @@ fn gui_frame() !void {
                 if (try dvui.radio(@src(), !use_iterator, "Slice", .{})) {
                     use_iterator = false;
                 }
-                if (try dvui.radio(@src(), use_iterator, "Iterator", .{})) {
-                    use_iterator = true;
-                }
-                if (use_iterator) {
-                    _ = try dvui.checkbox(@src(), &filter_grid, "Filter", .{});
-                    selectable = false;
-                }
+                //                if (try dvui.radio(@src(), use_iterator, "Iterator", .{})) {
+                //                    use_iterator = true;
+                //                }
+                //                if (use_iterator) {
+                _ = try dvui.checkbox(@src(), &filter_grid, "Filter", .{});
+                //                selectable = false;
+                //if (filtered_cars) |fc| {
+                //    gpa.free(fc);
+                //}
+                //filtered_cars = try filterCars(gpa, cars[0..], filterLongModels);
+                //                }
             }
         }
     }
@@ -446,6 +448,21 @@ fn gui_frame() !void {
     // as well as maybe just wanting to format an enum differently.
     // For this they prob need to write their own column.it is quite easy to do now.
     // std.debug.print("FPS = {d}\n", .{dvui.FPS()});
+}
+
+fn customColumn(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, data: []Car) !void {
+    try body.colBegin(src, .{});
+    defer body.colEnd();
+
+    for (data, 0..) |*item, i| {
+        try body.cellBegin(@src());
+        defer body.cellEnd();
+        try dvui.label(@src(), "{d}", .{item.year}, .{
+            .id_extra = i,
+            .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
+            .expand = .horizontal,
+        });
+    }
 }
 
 const CarsIterator = struct {
@@ -492,6 +509,19 @@ const CarsIterator = struct {
 
 fn filterLongModels(car: *const Car) bool {
     return (car.model.len < 10);
+}
+
+var filtered_cars: []*Car = undefined;
+/// Filter the cars data based on the filter function: const fn (*const Car) bool
+/// caller is responsible for freeing the returned slice.
+fn filterCars(allocator: std.mem.Allocator, src: []Car, filter_fn: anytype) ![]*Car {
+    var result: std.ArrayListUnmanaged(*Car) = try .initCapacity(allocator, src.len);
+    for (src) |*car| {
+        if (filter_fn(car)) { // TODO: FIX
+            result.appendAssumeCapacity(car);
+        }
+    }
+    return result.toOwnedSlice(allocator);
 }
 
 fn sort(key: []const u8, direction: dvui.GridHeaderWidget.SortDirection) void {
