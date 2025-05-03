@@ -3921,6 +3921,8 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, header: *GridHeaderW
         .background = true,
         .color_fill = .{ .name = .fill_control },
         .margin = ButtonWidget.defaults.margin,
+        .expand = .vertical,
+        .gravity_y = 0.5,
     };
     const header_options = header_defaults.override(opts);
     try header.colBegin(src, opts);

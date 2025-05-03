@@ -332,7 +332,7 @@ fn gui_frame() !void {
             const row_count = if (filter_grid) filtered_cars.len else cars.len;
             const first, const last = limits: {
                 if (virtual_scrolling) {
-                    var scroller = dvui.GridWidget.GridVirtualScroller.init(body, .{ .total_rows = row_count, .window_size = 20 });
+                    var scroller = body.virtualScroller(.{ .total_rows = row_count, .window_size = 20 });
                     break :limits .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
                 } else {
                     break :limits .{ 0, row_count };
@@ -422,11 +422,13 @@ fn customColumn(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, dat
     for (data, 0..) |*item, i| {
         try body.cellBegin(@src());
         defer body.cellEnd();
-        try dvui.label(@src(), "{d}", .{item.year}, .{
+        // TODO: Consider moving the cell styling to cellBegin() instead of requring height / width to be set on each widget?
+        try dvui.label(@src(), "{d}", .{item.year}, rowOptions().override(.{
             .id_extra = i,
             .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
-            .expand = .horizontal,
-        });
+            .gravity_y = 0.5,
+            .expand = .both,
+        }));
     }
 }
 

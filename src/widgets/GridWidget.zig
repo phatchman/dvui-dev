@@ -65,7 +65,6 @@ pub fn install(self: *GridWidget) !void {
         }
         self.si = &self.si_store;
 
-        // TODO: Other options e.g. vertical bar etc? Scroll Area must do something similar?
         if (self.init_opts.horizontal) |horizontal| {
             self.si.horizontal = horizontal;
             self.init_opts.horizontal = null;
@@ -111,7 +110,7 @@ fn colWidthReport(self: *GridWidget, who: ColWidth.RowType, w: f32, col_num: usi
     }
     const controlled_by = col_width.controlled_by orelse who;
     if (col_width.ignore_next_update and col_width.controlled_by != controlled_by) {
-        // Ignore any changes from the header/body if the other changed the width last frame
+        // Ignore any changes from the header/body if the other one changed the width last frame
         col_width.ignore_next_update = false;
         return;
     } else if (!std.math.approxEqRel(f32, col_width.w, w, 0.01)) {
@@ -388,8 +387,13 @@ pub const GridBodyWidget = struct {
     /// Begin a new grid column
     /// must be called before any widgets are created in the column
     pub fn colBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation, opts: Options) !void {
-        // Check if box is null. Log warning if not.
+        // TODO: Will change this so that whoever is controlling the column width also
+        // provides the max size, rather than the user having to pass the same min and max width to
+        // both the header and body.
+        // We will then only support providing options to the header, to remove issue of the user
+        // providing different expand and content size options to the header vs the body.
 
+        // TODO: Check if box is null. Log warning if not.
         const min_width = self.grid.colMinWidthGet(.body, self.col_number);
         const max_width = self.grid.colMaxWidthGet(.body, self.col_number);
         if (self.col_number == 99) {
@@ -398,8 +402,7 @@ pub const GridBodyWidget = struct {
 
         var col_options: Options = .{
             .min_size_content = .{ .w = min_width },
-            .max_size_content = if (max_width) |mw| .width(mw) else opts.max_size_content, // TODO: Either always or never take width for the body
-            //.expand = opts.expand,
+            .max_size_content = if (max_width) |mw| .width(mw) else opts.max_size_content,
         };
         if (opts.min_size_content) |min_size_content| {
             col_options.min_size_content = min_size_content;
@@ -421,8 +424,6 @@ pub const GridBodyWidget = struct {
             try vbox.install();
             vbox.deinit();
         }
-        // TODO: So the issue is we can never shrink because we don't know the header vs body width.
-        // Is there a better way that just storing them separately?
     }
 
     /// End a new column
@@ -458,6 +459,10 @@ pub const GridBodyWidget = struct {
         }
         self.cell_number += 1;
     }
+
+    pub fn virtualScroller(self: *GridBodyWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
+        return GridVirtualScroller.init(self, init_opts);
+    }
 };
 
 /// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.
@@ -467,8 +472,8 @@ pub const GridVirtualScroller = struct {
     pub const InitOpts = struct {
         // Total rows in the columns displayed
         total_rows: usize,
-        // The number of rows before and after the visible scroll area to load.
-        // Larger windows can result in smoother scrolling at the expense of more CPU resource per frame.
+        // The number of rows to render before and after the visible scroll area.
+        // Larger windows can result in smoother scrolling but will take longer to render each frame.
         window_size: usize = 1,
     };
     body: *GridBodyWidget,

@@ -15,10 +15,13 @@ Issues
 - [ ] scrolling header and body simultaneously is not a smooth as I'd like.
 - [X] Need to add blank space for the "scrollbar width" in the header. Probably just always have it?
 - [ ] scrolling has started to becomine a bit "jumpy". Not sure what has changed here.
+- [ ] Issue with the scrolling override warnings for scrollinfo vs not.
+- [ ] Checkbox doesn;t expand to the full height of the header.
+- [ ] Remove the need to pass the same (or sometimes different) styling to the header vs the body.
+- [ ] Make column headers respect "ownership" so that .expand can be used on the body columns. 
+- [ ] Virtual scrolling with large row heights doesn't work well because of the way it snaps to the next visible row.
 
 Ideas
 * Some better visual indication that columns are sortable.
-* They way I've implemented filtering feels awkward. Any other suggestions welcomed.
 
 Notes
- - For fixed width columns need to pass the same min/max size to the header and the column.
