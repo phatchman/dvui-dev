@@ -3851,6 +3851,7 @@ pub fn gridColumnFromSlice(
         .pointer => |ptr| {
             if (ptr.size != .one) @compileError("T cannot be an array, slice or vector");
             if (@typeInfo(ptr.child) == .@"struct") {
+                // If pointer to struct then validate the child struct.
                 TypeToValidate = ptr.child;
                 continue :validate @typeInfo(ptr.child);
             }
@@ -3886,7 +3887,7 @@ pub fn gridColumnFromSlice(
                     else => @field(item, _field_name),
                 };
             } else {
-                // populate value directly from slice
+                // populate value directly from slice TODO: // This won't work with pointers to values. Would need to swich on TypeToValidate?
                 break :value switch (@typeInfo(T)) {
                     .@"enum" => @tagName(item),
                     .bool => if (item) "Y" else "N",
@@ -3923,64 +3924,6 @@ pub fn gridColumnFromSlice(
 //        else => T,
 //    };
 //}
-
-pub fn gridColumnFromIterator(
-    src: std.builtin.SourceLocation,
-    body: *GridBodyWidget,
-    iter: anytype,
-    comptime field_name: ?[]const u8,
-    comptime fmt: []const u8,
-    opts: dvui.Options,
-) !void {
-    // Make sure T is a ptr to a single.
-    const T = @TypeOf(iter.*);
-    if (!std.meta.hasMethod(T, "next")) {
-        @compileError(std.fmt.comptimePrint("{s} does not contain method next().", .{@typeName(T)}));
-    }
-    // TODO: Better type checking here.
-    //    if (field_name) |_field_name| {
-    //        if (!@hasField(@typeOf, _field_name)) {
-    //            @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), _field_name }));
-    //        }
-    //    }
-    const label_defaults: Options = .{
-        // .expand is required so that text labels can be centered.
-        .expand = .horizontal,
-    };
-    const label_opts = label_defaults.override(opts);
-
-    try body.colBegin(src, opts);
-    defer body.colEnd();
-    var id_extra: usize = 0;
-    while (iter.next()) |item| : (id_extra += 1) {
-        try body.cellBegin(@src());
-        defer body.cellEnd();
-        // TODO: Can prob clean this up so that return the field (either from the struct or value and then covert it a second step)
-        const cell_value = value: {
-            if (field_name) |_field_name| {
-                // populate value from struct field.
-                break :value switch (@typeInfo(@TypeOf(@field(item, _field_name)))) {
-                    .@"enum" => @tagName(@field(item, _field_name)),
-                    .bool => if (@field(item, _field_name)) "Y" else "N",
-                    else => @field(item, _field_name),
-                };
-            } else {
-                // populate value directly from slice
-                break :value switch (@typeInfo(T)) {
-                    .@"enum" => @tagName(item),
-                    .bool => if (item) "Y" else "N",
-                    else => item,
-                };
-            }
-        };
-        try label(
-            @src(),
-            fmt,
-            .{cell_value},
-            label_opts.override(.{ .id_extra = id_extra }),
-        );
-    }
-}
 
 /// A grid heading with a checkbox for select-all and select-none
 ///
