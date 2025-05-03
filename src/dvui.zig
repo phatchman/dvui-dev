@@ -3794,7 +3794,7 @@ pub fn gridHeading(src: std.builtin.SourceLocation, header: *GridHeaderWidget, h
     try separator(@src(), .{ .expand = .vertical });
 }
 
-/// Create a heading which allow the column to be sorted.
+/// Create a heading and allow the column to be sorted.
 ///
 /// Returns true if the sort direction has changed.
 /// sort_dir is an out parameter containing the current sort direction.
@@ -3803,15 +3803,15 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
     const icon_width = 27.5; // TODO: Is this really a const?
-    // TODO: Replace the 6 with defaults from some other widget?
-    const padding_opts: Options = .{ .padding = .{ .x = icon_width / 2.0, .w = icon_width / 2.0, .y = 6, .h = 6 } };
+    const padding = ButtonWidget.defaults.padding orelse Rect.all(6);
+
+    const padding_opts: Options = .{ .padding = .{ .x = icon_width / 2.0, .w = icon_width / 2.0, .y = padding.y, .h = padding.h } };
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
     };
     const heading_opts = heading_defaults.override(opts);
 
-    //std.debug.print("GHS opts = {}\n", .{opts});
     try header.colBegin(src, opts);
     defer header.colEnd();
 
@@ -3832,9 +3832,9 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
 /// Create a column from a slice
 ///
 /// If data is a slice of struct field_name must be supplied
-/// Enums are displayed as their tagName. fmt must be "{s}"
-/// Bools are displayed as Y or N. fmt must be "{s}"
-/// Other types are formatted as per the supplied fmt string.
+/// Enums are displayed as their @tagName and fmt must be "{s}"
+/// Bools are displayed as Y or N and fmt must be "{s}"
+/// Other types are formatted using the supplied fmt string.
 /// opts controls the label displayed in the grid cell.
 /// opts.id_extra is ignored.
 pub fn gridColumnFromSlice(
@@ -3846,14 +3846,17 @@ pub fn gridColumnFromSlice(
     comptime fmt: []const u8,
     opts: dvui.Options,
 ) !void {
+    // TODO: Support pointer to direct value.
     comptime var TypeToValidate = T;
     comptime validate: switch (@typeInfo(T)) {
         .pointer => |ptr| {
             if (ptr.size != .one) @compileError("T cannot be an array, slice or vector");
-            if (@typeInfo(ptr.child) == .@"struct") {
+            const child_type = @typeInfo(ptr.child);
+            if (child_type == .pointer) @compileError("T cannot be a pointer to a pointer");
+            if (child_type == .@"struct") {
                 // If pointer to struct then validate the child struct.
                 TypeToValidate = ptr.child;
-                continue :validate @typeInfo(ptr.child);
+                continue :validate child_type;
             }
         },
         .@"struct" => {
@@ -3872,7 +3875,6 @@ pub fn gridColumnFromSlice(
     };
     const label_opts = label_defaults.override(opts);
 
-    //std.debug.print("opts = {}\n", .{opts});
     try body.colBegin(src, opts);
     defer body.colEnd();
     for (data, 0..) |item, id_extra| {
@@ -3887,7 +3889,7 @@ pub fn gridColumnFromSlice(
                     else => @field(item, _field_name),
                 };
             } else {
-                // populate value directly from slice TODO: // This won't work with pointers to values. Would need to swich on TypeToValidate?
+                // populate value directly from slice
                 break :value switch (@typeInfo(T)) {
                     .@"enum" => @tagName(item),
                     .bool => if (item) "Y" else "N",

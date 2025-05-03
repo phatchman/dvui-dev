@@ -37,6 +37,7 @@ init_opts: InitOpts = undefined,
 options: Options = undefined,
 col_widths: std.ArrayListUnmanaged(ColWidth) = undefined,
 si: *dvui.ScrollInfo = undefined,
+// scroll used to keep header and body scrolling in sync
 si_store: dvui.ScrollInfo = .{ .horizontal = .none, .vertical = .auto },
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
@@ -50,7 +51,6 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         self.col_widths.appendSliceAssumeCapacity(col_widths);
     } else {
         self.col_widths = .empty;
-        // Refresh as body col width not set yet.
     }
     self.options = options;
     return self;

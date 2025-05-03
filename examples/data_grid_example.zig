@@ -338,7 +338,6 @@ fn gui_frame() !void {
                     break :limits .{ 0, row_count };
                 }
             };
-            //std.debug.print("first = {}, last = {}\n", .{ first, last });
 
             if (selectable) {
                 const changed = try dvui.gridColumnCheckbox(@src(), body, Car, cars[first..last], "selected", rowCheckboxOptions());
@@ -349,7 +348,6 @@ fn gui_frame() !void {
                 try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions());
                 try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", rowOptions());
                 try customColumn(@src(), body, cars[first..last]);
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "year", "{d}", rowOptions());
                 try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", rowOptions().override(.{ .gravity_x = 1.0 }));
                 try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", rowOptions().override(.{ .gravity_x = 0.5 }));
                 try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", rowOptions());
@@ -380,9 +378,6 @@ fn gui_frame() !void {
                 column_sizing = .size_window;
                 horizontal_scrolling = false;
             }
-            //            if (try dvui.radio(@src(), column_sizing == .size_ratio, "Size to window (ratio)", .{})) {
-            //                column_sizing = .size_ratio;
-            //            }
             if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
                 column_sizing = .fixed_width;
             }
@@ -418,21 +413,6 @@ fn gui_frame() !void {
             }
         }
     }
-    // Think about the alternative of 2 blank h/vboxes before and after the grid.
-
-    // OK So in one of the widgets, we need to:
-    // 1) Get the height of a single row. (Grid Widget knows this)
-    // 2) Get the viewport height. (Body Widget knows this)
-    // 3) Calc number of rows to display (From 1 and 2)
-    // 4) Calc starting display row.
-    // 5) In the display data column, get the start offset and number to display from some widget.
-    // 6) Only create labels for the needed rows.
-
-    // HMMM?
-    // What about derived values e.g. if it is supplied via a function?? Thinking of things like totals etc.
-    // as well as maybe just wanting to format an enum differently.
-    // For this they prob need to write their own column.it is quite easy to do now.
-    // std.debug.print("FPS = {d}\n", .{dvui.FPS()});
 }
 
 fn customColumn(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, data: []Car) !void {
@@ -450,6 +430,14 @@ fn customColumn(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, dat
     }
 }
 
+// TODO: Is it worth providing in-built support for iterator population?
+// the grid is laid out by column, so iterator would need to:
+// 1) Implement a count if virtual scrolling.
+// 2) Implement a reset of use multiple iterators to lay out each column
+// Currently filtering uses a slice of pointers instead of iterators, due to the
+// awkward interface.
+// At least for large array-based data sets, user can store values in a MultiArrayList
+// so that it is optimised for iterating through each colunm.
 const CarsIterator = struct {
     const FilterFN = *const fn (car: *const Car) bool;
     filter_fn: FilterFN = undefined,
@@ -492,14 +480,11 @@ const CarsIterator = struct {
     }
 };
 
-fn filterLongModels(car: *const Car) bool {
-    return (car.model.len < 10);
-}
-
 var filtered_cars: []*Car = undefined;
+
 /// Filter the cars data based on the filter function: const fn (*const Car) bool
 /// caller is responsible for freeing the returned slice.
-fn filterCars(allocator: std.mem.Allocator, src: []Car, filter_fn: anytype) ![]*Car {
+fn filterCars(allocator: std.mem.Allocator, src: []Car, filter_fn: fn (*Car) bool) ![]*Car {
     var result: std.ArrayListUnmanaged(*Car) = try .initCapacity(allocator, src.len);
     for (src) |*car| {
         if (filter_fn(car)) { // TODO: FIX
@@ -509,10 +494,17 @@ fn filterCars(allocator: std.mem.Allocator, src: []Car, filter_fn: anytype) ![]*
     return result.toOwnedSlice(allocator);
 }
 
+fn filterLongModels(car: *const Car) bool {
+    return (car.model.len < 10);
+}
+
 fn sort(key: []const u8, direction: dvui.GridHeaderWidget.SortDirection) void {
     switch (direction) {
-        .descending => std.mem.sort(Car, &cars, key, sortDesc),
-        else => std.mem.sort(Car, &cars, key, sortAsc),
+        .descending,
+        => std.mem.sort(Car, &cars, key, sortDesc),
+        .ascending,
+        .unsorted,
+        => std.mem.sort(Car, &cars, key, sortAsc),
     }
 }
 
@@ -522,7 +514,7 @@ fn sortAsc(key: []const u8, lhs: Car, rhs: Car) bool {
     if (std.mem.eql(u8, key, "Mileage")) return lhs.mileage < rhs.mileage;
     if (std.mem.eql(u8, key, "Condition")) return @intFromEnum(lhs.condition) < @intFromEnum(rhs.condition);
     if (std.mem.eql(u8, key, "Description")) return std.mem.lessThan(u8, lhs.description, rhs.description);
-
+    // default sort on Make
     return std.mem.lessThan(u8, lhs.make, rhs.make);
 }
 
@@ -533,20 +525,9 @@ fn sortDesc(key: []const u8, lhs: Car, rhs: Car) bool {
     if (std.mem.eql(u8, key, "Condition")) return @intFromEnum(rhs.condition) < @intFromEnum(lhs.condition);
     if (std.mem.eql(u8, key, "Description")) return std.mem.lessThan(u8, rhs.description, lhs.description);
 
+    // default sort on Make
     return std.mem.lessThan(u8, rhs.make, lhs.make);
 }
-
-// I don't think there is any way around making the selection bool part of the same struct as the data.
-// Because selection needs to be kept in sync with the data when sorting.
-// Otherwise you'd have to sort the selections in the same order as the
-// underlying data. This method is way simpler.
-//
-// But in theory you could make the checkbox column on a different datastructure to the rest of the data.
-// This might be useful if you aren't sorting. But if someone just wants an array of bool, how would that work as ther eif no name to pass to @field?
-// Maybe we can special-case for bools?
-// !!!!!
-// Yes all of the above works now in the PoC. Can either use a separate array of bools or have the bools as a field in the struct.
-// But need better syntax.
 
 const Car = struct {
     selected: bool = false,
@@ -596,10 +577,8 @@ const some_cars = [_]Car{
     .{ .model = "Charger", .make = "Dodge", .year = 2014, .mileage = 97000, .condition = .Fair, .description = "Goes fast, stops… usually." },
     .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .mileage = 142000, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
     .{ .model = "Mustang", .make = "Ford", .year = 2020, .mileage = 24000, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
-
     .{ .model = "CX-5", .make = "Mazda", .year = 2019, .mileage = 32000, .condition = .Excellent, .description = "Zoom zoom, but responsibly." },
     .{ .model = "Outback", .make = "Subaru", .year = 2017, .mileage = 61000, .condition = .Good, .description = "Always looks ready for a camping trip, even when it's not." },
-
     .{ .model = "Civic", .make = "Honda", .year = 2022, .mileage = 8500, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
     .{ .model = "Model 3", .make = "Tesla", .year = 2021, .mileage = 15000, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
     .{ .model = "Camry", .make = "Toyota", .year = 2018, .mileage = 43000, .condition = .Good, .description = "Reliable enough to make your toaster jealous." },
