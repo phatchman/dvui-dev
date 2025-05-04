@@ -1,21 +1,20 @@
 ### Todos
 
 ### Issues
-- [ ] Columns flash when sorting. Only the separator is shown. The label is blank for some reason.
-- [X] Headers never shrink when height shrinks
-- [ ] If headers are bigger than cols, then doesn't show grid data until next refresh.
-- [X] Sometimes there is an extra 1 row gap at the end of the grid in virtual scrolling mode.
-- [X] The above is because of "window size". It is leaving an 'x' row gap at the bootom of the grid. Is window_size even worth it? YES!
-- [ ] Is there a better name than window size for the scroller? It's not really a window size. It's a number of extra rows to draw above and below
-- [X] checkbox header doesn't resize properly. separator needs gravity of 1. doesnt look right in undortable headers.
+- [ ] Virtual scrolling is sometimes smooth and sometimes flickers by 1 row. 
+    - Likely some floating point rounding issue.
+    - Is less apparent when vsync = false
+    - Possibly resolved by not forcing the grid to scroll on full rows.
+- [ ] Virtual scrolling with large row heights doesn't work well because of the way it snaps to the next visible row.
 - [ ] scrolling header and body simultaneously is not a smooth as I'd like.
-- [X] Need to add blank space for the "scrollbar width" in the header. Probably just always have it?
-- [X] Issue with the scrolling override warnings for scrollinfo vs not.
+- [ ] Columns flash when sorting. Only the separator is shown and appears that label is not rendered or rendered with no label.
+- [ ] If headers are bigger than cols, then doesn't show grid data until next refresh.
+- [ ] Is there a better name than window size for the scroller? It's not really a window size. It's a number of extra rows to render above and below the visible rows.
 - [ ] Checkbox doesn't expand to the full height of the header.
 - [ ] Remove the need to pass the same (or sometimes different) styling to the header vs the body.
 - [ ] Make column headers respect column width "ownership" so that .expand can be used on the body columns. 
-- [ ] Virtual scrolling with large row heights doesn't work well because of the way it snaps to the next visible row.
-- [ ] Grid header widget assumes vertical scroll bar width and that it will be displayed.
+- [ ] Grid header widget assumes vertical scroll bar width is 10 and that it will always be displayed. 
+- [ ] Example needs to be added to Example.zig, rather than a stand-alone.
 
 ### Future
 * Some better visual indication that columns are sortable.

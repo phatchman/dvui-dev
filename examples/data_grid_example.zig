@@ -11,7 +11,7 @@ const window_icon_png = @embedFile("zig-favicon.png");
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
 
-const vsync = true;
+const vsync = false;
 const show_demo = true;
 var scale_val: f32 = 1.0;
 
@@ -97,9 +97,9 @@ pub fn main() !void {
         }
     }
 }
-const testing = false;
 
-var first_frame = true;
+const num_cars = 50_000;
+
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 var virtual_scrolling = true;
 var horizontal_scrolling = false;
@@ -181,7 +181,6 @@ pub fn rowCheckboxOptions() dvui.Options {
 fn gui_frame() !void {
     const backend = g_backend orelse return;
     _ = backend;
-    defer first_frame = false;
     {
         var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
         defer m.deinit();
@@ -189,73 +188,9 @@ fn gui_frame() !void {
         if (try dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{ .expand = .none })) |r| {
             var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
             defer fw.deinit();
-
-            if (try dvui.menuItemLabel(@src(), "Close Menu", .{}, .{}) != null) {
-                m.close();
-            }
-        }
-
-        if (try dvui.menuItemLabel(@src(), "Edit", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
-            defer fw.deinit();
-            _ = try dvui.menuItemLabel(@src(), "Dummy", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Long", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
         }
     }
-    if (testing) {
-        const local = struct {
-            var hsi: dvui.ScrollInfo = .{ .horizontal = .given, .vertical = .none };
-            var bsi: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto };
-        };
-        var outer_vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
-        defer outer_vbox.deinit();
-        {
-            var header_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .background = true });
-            defer header_hbox.deinit();
-            local.hsi.virtual_size.h = local.hsi.viewport.h;
-            local.hsi.virtual_size.w = local.bsi.virtual_size.w;
-            local.hsi.viewport.x = local.bsi.viewport.x;
-            //local.hsi.viewport.y = 0;
-            std.debug.print("hsi = {}\n", .{local.hsi});
-            std.debug.print("bsi = {}\n", .{local.bsi});
 
-            var header_scroll = try dvui.scrollArea(@src(), .{ .scroll_info = &local.hsi, .horizontal_bar = .hide }, .{ .expand = .horizontal });
-            defer header_scroll.deinit();
-            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
-            defer hbox.deinit();
-            _ = try dvui.button(@src(), "Heading 1111111111111111111111111", .{}, .{});
-            _ = try dvui.button(@src(), "Heading 2222222222222222222222222", .{}, .{});
-        }
-        {
-            var body_scroll = try dvui.scrollArea(@src(), .{ .scroll_info = &local.bsi }, .{});
-            defer body_scroll.deinit();
-            var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
-            defer outer_hbox.deinit();
-            {
-                var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
-                defer vb1.deinit();
-                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-                defer hbox.deinit();
-                try dvui.labelNoFmt(@src(), "Body 1111111111111111111111111", .{ .expand = .horizontal });
-            }
-            {
-                var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
-                defer vb1.deinit();
-                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-                defer hbox.deinit();
-                try dvui.labelNoFmt(@src(), "Body 2222222222222222222222222", .{ .expand = .horizontal });
-            }
-            //            {
-            //                var vb1 = try dvui.box(@src(), .vertical, .{ .expand = .both, .border = dvui.Rect.all(1) });
-            //                defer vb1.deinit();
-            //                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-            //                defer hbox.deinit();
-            //                try dvui.labelNoFmt(@src(), "Ahhhhhhh", .{ .expand = .horizontal });
-            //            }
-        }
-        return;
-    }
     var main_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
     {
@@ -335,7 +270,7 @@ fn gui_frame() !void {
             const row_count = if (filter_grid) filtered_cars.len else cars.len;
             const first, const last = limits: {
                 if (virtual_scrolling) {
-                    var scroller = body.virtualScroller(.{ .total_rows = row_count, .window_size = 20 });
+                    var scroller = body.virtualScroller(.{ .total_rows = row_count, .window_size = 0 });
                     break :limits .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
                 } else {
                     break :limits .{ 0, row_count };
@@ -549,7 +484,6 @@ const Car = struct {
 var selections: [num_cars]bool = @splat(false);
 
 var cars = initCars();
-const num_cars = 250;
 fn initCars() [num_cars]Car {
     comptime var result: [num_cars]Car = undefined;
     comptime {

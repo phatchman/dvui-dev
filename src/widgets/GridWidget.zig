@@ -279,7 +279,7 @@ pub const GridHeaderWidget = struct {
                 .horizontal, .both, .ratio => true,
                 else => false,
             };
-            self.grid.colWidthReport(.header, header_width, self.col_number, control_width) catch unreachable; // TODO: Don't want to throw from a de-init.
+            self.grid.colWidthReport(.header, header_width, self.col_number, control_width) catch {}; // Don't want to throw from a deinit.
 
             if (header_height > self.height_this_frame) {
                 self.height_this_frame = header_height;
@@ -344,7 +344,7 @@ pub const GridBodyWidget = struct {
 
         self.grid = grid;
         self.scroll = ScrollAreaWidget.init(src, self.grid.init_opts, options);
-        // TODO: Somehow check that our parent is the Grid header.
+
         if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
             self.row_height = row_height;
         }
@@ -414,7 +414,7 @@ pub const GridBodyWidget = struct {
     pub fn colEnd(self: *GridBodyWidget) void {
         if (self.col_vbox) |*vbox| {
             const current_width = vbox.data().contentRect().w;
-            self.grid.colWidthReport(.body, current_width, self.col_number, false) catch unreachable; // TODO: Don't want to throw from a deinit.
+            self.grid.colWidthReport(.body, current_width, self.col_number, false) catch {}; // Don't want to throw from a deinit.
 
             vbox.deinit();
             self.col_vbox = null;
