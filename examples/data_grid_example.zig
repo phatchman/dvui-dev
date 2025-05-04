@@ -11,11 +11,9 @@ const window_icon_png = @embedFile("zig-favicon.png");
 var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
 const gpa = gpa_instance.allocator();
 
-const vsync = false;
-const show_demo = true;
+const vsync = true;
 var scale_val: f32 = 1.0;
 
-var show_dialog_outside_frame: bool = false;
 var g_backend: ?Backend = null;
 var g_win: ?*dvui.Window = null;
 var filter_grid = false;
@@ -30,8 +28,6 @@ pub fn main() !void {
         _ = winapi.AttachConsole(0xFFFFFFFF);
     }
     std.log.info("SDL version: {}", .{Backend.getSDLVersion()});
-
-    dvui.Examples.show_demo_window = show_demo;
 
     defer if (gpa_instance.deinit() != .ok) @panic("Memory leak on exit!");
 
@@ -89,16 +85,10 @@ pub fn main() !void {
         // waitTime and beginWait combine to achieve variable framerates
         const wait_event_micros = win.waitTime(end_micros, null);
         backend.waitEventTimeout(wait_event_micros);
-
-        // Example of how to show a dialog from another thread (outside of win.begin/win.end)
-        if (show_dialog_outside_frame) {
-            show_dialog_outside_frame = false;
-            try dvui.dialog(@src(), .{}, .{ .window = &win, .modal = false, .title = "Dialog from Outside", .message = "This is a non modal dialog that was created outside win.begin()/win.end(), usually from another thread." });
-        }
     }
 }
 
-const num_cars = 50_000;
+const num_cars = 500;
 
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 var virtual_scrolling = true;
