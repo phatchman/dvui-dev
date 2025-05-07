@@ -3989,10 +3989,10 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
-        .min_size_content = null,
-        .max_size_content = null,
     };
-    const heading_opts = heading_defaults.override(opts);
+    var heading_opts = heading_defaults.override(opts);
+    heading_opts.min_size_content = null;
+    heading_opts.max_size_content = null;
 
     try header.colBegin(src, opts);
     defer header.colEnd();
@@ -4055,7 +4055,9 @@ pub fn gridColumnFromSlice(
         .min_size_content = null,
         .max_size_content = null,
     };
-    const label_opts = label_defaults.override(opts);
+    var label_opts = label_defaults.override(opts);
+    label_opts.min_size_content = null;
+    label_opts.max_size_content = null;
 
     try body.colBegin(src, opts);
     defer body.colEnd();
@@ -4106,7 +4108,9 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, header: *GridHeaderW
         .expand = .vertical,
         .gravity_y = 0.5,
     };
-    const header_options = header_defaults.override(opts);
+    var header_options = header_defaults.override(opts);
+    header_options.min_size_content = null;
+    header_options.max_size_content = null;
     try header.colBegin(src, opts);
     defer header.colEnd();
 
@@ -4136,7 +4140,7 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, header: *GridHeaderW
 /// If field_name is null, T must be a bool.
 /// Otherwise field_name must refer to a bool field within a struct.
 /// opts is used to style the checkbox.
-pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: ?[]const u8, opts: dvui.Options) !bool {
+pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, comptime T: type, data: []T, comptime field_name: ?[]const u8, _opts: dvui.Options) !bool {
     if (T != bool) {
         if (field_name) |_field_name| {
             if (!@hasField(T, _field_name)) {
@@ -4148,8 +4152,11 @@ pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, body: *dvui.GridBodyW
             @compileError("data must be of type []bool when field_name is null.");
         }
     }
+    var opts = _opts;
+    opts.max_size_content = null;
+    opts.min_size_content = null;
 
-    try body.colBegin(src, opts);
+    try body.colBegin(src, _opts);
     defer body.colEnd();
     const cell_defaults: Options = .{
         .gravity_x = 0.5,

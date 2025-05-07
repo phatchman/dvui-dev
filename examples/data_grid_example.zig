@@ -89,17 +89,26 @@ pub fn main() !void {
 }
 
 const ColumnLayoutEqualWidth = struct {
+    const InitOpts = struct {
+        // Space to reserve for fixed width columns
+        reserved_w: ?f32,
+        // Size to specified width. Otherwise sizes to width of parent grid.
+        content_w: ?f32,
+    };
     col_width: f32,
 
-    pub fn init(grid: *dvui.GridWidget, reserved_w: f32, num_cols: usize) ColumnLayoutEqualWidth {
+    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutEqualWidth.InitOpts, num_cols: usize) ColumnLayoutEqualWidth {
         const num_cols_f: f32 = @floatFromInt(num_cols);
+        const scroll_bar_w: f32 = 10; // Don't necessarily know if SB is showing?
+        const reserved_w: f32 = init_opts.reserved_w orelse 0;
+        const content_w: f32 = init_opts.content_w orelse grid.data().contentRect().w;
         return .{
-            .col_width = (grid.data().contentRect().w - reserved_w) / num_cols_f,
+            .col_width = (content_w - reserved_w - scroll_bar_w) / num_cols_f,
         };
     }
 
     pub fn nextHeaderColOption(self: *ColumnLayoutEqualWidth, opts: dvui.Options) dvui.Options {
-        // TODO: Santize the options or warn that opts are being ignored.
+        // TODO: Sanitize the options or warn that opts are being ignored.
         return opts.override(.{
             .min_size_content = .{ .w = self.col_width },
             .max_size_content = .width(self.col_width),
@@ -107,7 +116,6 @@ const ColumnLayoutEqualWidth = struct {
     }
 
     pub fn nextBodyColOption(self: *ColumnLayoutEqualWidth, opts: dvui.Options) dvui.Options {
-        // TODO: Santize the options or warn that opts are being ignored.
         return self.nextHeaderColOption(opts);
     }
 };
@@ -152,8 +160,8 @@ pub fn headerOptions() dvui.Options {
 
 pub fn headerCheckboxOptions() dvui.Options {
     return .{
-        .min_size_content = .{ .w = 34 },
-        .max_size_content = .width(34),
+        .min_size_content = .{ .w = 40 },
+        .max_size_content = .width(40),
     };
 }
 
@@ -216,7 +224,10 @@ fn gui_frame() !void {
                 .max_size_content = .width(main_hbox.data().contentRect().w - 200),
             },
         );
-        var layout = ColumnLayoutEqualWidth.init(grid, if (selectable) 60 else 0, 6);
+        var layout = ColumnLayoutEqualWidth.init(grid, .{
+            .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
+            .content_w = 1024,
+        }, 6);
         //std.debug.print("init opts = {}\n", .{grid.init_opts});
         defer grid.deinit();
         {
@@ -272,7 +283,7 @@ fn gui_frame() !void {
             const row_count = if (filter_grid) filtered_cars.len else cars.len;
             const first, const last = limits: {
                 if (virtual_scrolling) {
-                    var scroller = body.virtualScroller(.{ .total_rows = row_count, .window_size = 0 });
+                    var scroller = body.virtualScroller(.{ .total_rows = row_count, .window_size = 20 });
                     break :limits .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
                 } else {
                     break :limits .{ 0, row_count };
