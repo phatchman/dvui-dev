@@ -88,6 +88,30 @@ pub fn main() !void {
     }
 }
 
+const ColumnLayoutEqualWidth = struct {
+    col_width: f32,
+
+    pub fn init(grid: *dvui.GridWidget, reserved_w: f32, num_cols: usize) ColumnLayoutEqualWidth {
+        const num_cols_f: f32 = @floatFromInt(num_cols);
+        return .{
+            .col_width = (grid.data().contentRect().w - reserved_w) / num_cols_f,
+        };
+    }
+
+    pub fn nextHeaderColOption(self: *ColumnLayoutEqualWidth, opts: dvui.Options) dvui.Options {
+        // TODO: Santize the options or warn that opts are being ignored.
+        return opts.override(.{
+            .min_size_content = .{ .w = self.col_width },
+            .max_size_content = .width(self.col_width),
+        });
+    }
+
+    pub fn nextBodyColOption(self: *ColumnLayoutEqualWidth, opts: dvui.Options) dvui.Options {
+        // TODO: Santize the options or warn that opts are being ignored.
+        return self.nextHeaderColOption(opts);
+    }
+};
+
 const num_cars = 500;
 
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
@@ -127,15 +151,14 @@ pub fn headerOptions() dvui.Options {
 }
 
 pub fn headerCheckboxOptions() dvui.Options {
-    var opts = headerOptions();
-    if (opts.min_size_content) |*min_size_content| {
-        min_size_content.w = 0;
-    }
-    if (opts.max_size_content) |*max_size_content| {
-        max_size_content.w = 0;
-    }
-    opts.expand = .none;
-    return opts;
+    return .{
+        .min_size_content = .{ .w = 34 },
+        .max_size_content = .width(34),
+    };
+}
+
+pub fn rowCheckboxOptions() dvui.Options {
+    return headerCheckboxOptions();
 }
 
 pub fn rowOptions() dvui.Options {
@@ -152,18 +175,6 @@ pub fn rowOptions() dvui.Options {
             opts.min_size_content = .{ .h = row_height };
         }
     }
-    return opts;
-}
-
-pub fn rowCheckboxOptions() dvui.Options {
-    var opts = rowOptions();
-    if (opts.min_size_content) |*min_size_content| {
-        min_size_content.w = 0;
-    }
-    if (opts.max_size_content) |*max_size_content| {
-        max_size_content.w = 0;
-    }
-    opts.expand = .none;
     return opts;
 }
 
@@ -205,6 +216,7 @@ fn gui_frame() !void {
                 .max_size_content = .width(main_hbox.data().contentRect().w - 200),
             },
         );
+        var layout = ColumnLayoutEqualWidth.init(grid, if (selectable) 60 else 0, 6);
         //std.debug.print("init opts = {}\n", .{grid.init_opts});
         defer grid.deinit();
         {
@@ -226,31 +238,31 @@ fn gui_frame() !void {
             }
 
             if (sortable) {
-                if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, headerOptions())) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, layout.nextHeaderColOption(.{}))) {
                     sort("Make", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, headerOptions())) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, layout.nextHeaderColOption(.{}))) {
                     sort("Model", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, headerOptions())) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, layout.nextHeaderColOption(.{}))) {
                     sort("Year", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, headerOptions())) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, layout.nextHeaderColOption(.{}))) {
                     sort("Mileage", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, headerOptions())) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, layout.nextHeaderColOption(.{}))) {
                     sort("Condition", sort_dir);
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, headerOptions())) {
+                if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, layout.nextHeaderColOption(.{}))) {
                     sort("Description", sort_dir);
                 }
             } else {
-                try dvui.gridHeading(@src(), header, "Make", headerOptions());
-                try dvui.gridHeading(@src(), header, "Model", headerOptions());
-                try dvui.gridHeading(@src(), header, "Year", headerOptions());
-                try dvui.gridHeading(@src(), header, "Mileage", headerOptions());
-                try dvui.gridHeading(@src(), header, "Condition", headerOptions());
-                try dvui.gridHeading(@src(), header, "Description", headerOptions());
+                try dvui.gridHeading(@src(), header, "Make", layout.nextHeaderColOption(.{}));
+                try dvui.gridHeading(@src(), header, "Model", layout.nextHeaderColOption(.{}));
+                try dvui.gridHeading(@src(), header, "Year", layout.nextHeaderColOption(.{}));
+                try dvui.gridHeading(@src(), header, "Mileage", layout.nextHeaderColOption(.{}));
+                try dvui.gridHeading(@src(), header, "Condition", layout.nextHeaderColOption(.{}));
+                try dvui.gridHeading(@src(), header, "Description", layout.nextHeaderColOption(.{}));
             }
         }
 
@@ -273,19 +285,19 @@ fn gui_frame() !void {
             }
 
             if (!filter_grid) {
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", rowOptions());
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", rowOptions());
-                try customColumn(@src(), body, cars[first..last]);
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", rowOptions().override(.{ .gravity_x = 1.0 }));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", rowOptions().override(.{ .gravity_x = 0.5 }));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", rowOptions());
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", layout.nextBodyColOption(.{}));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", layout.nextBodyColOption(.{}));
+                try customColumn(@src(), body, cars[first..last], layout.nextBodyColOption(.{}));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", layout.nextBodyColOption(.{ .gravity_x = 1.0 }));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", layout.nextBodyColOption(.{ .gravity_x = 0.5 }));
+                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", layout.nextBodyColOption(.{}));
             } else {
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "make", "{s}", rowOptions());
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "model", "{s}", rowOptions());
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "year", "{d}", rowOptions());
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "mileage", "{d}", rowOptions().override(.{ .gravity_x = 1.0 }));
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "condition", "{s}", rowOptions().override(.{ .gravity_x = 0.5 }));
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "description", "{s}", rowOptions());
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "make", "{s}", layout.nextBodyColOption(.{}));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "model", "{s}", layout.nextBodyColOption(.{}));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "year", "{d}", layout.nextBodyColOption(.{}));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "mileage", "{d}", layout.nextBodyColOption(.{ .gravity_x = 1.0 }));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "condition", "{s}", layout.nextBodyColOption(.{ .gravity_x = 0.5 }));
+                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "description", "{s}", layout.nextBodyColOption(.{}));
             }
         }
     }
@@ -343,19 +355,21 @@ fn gui_frame() !void {
     }
 }
 
-fn customColumn(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, data: []Car) !void {
-    try body.colBegin(src, .{});
+fn customColumn(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, data: []Car, opts: dvui.Options) !void {
+    try body.colBegin(src, opts);
     defer body.colEnd();
 
+    // TODO: FIX this to have defaults then override. Actually fix this so you just specify column size
+    const label_opts = opts.override(.{ .min_size_content = null, .max_size_content = null });
     for (data, 0..) |*item, i| {
         try body.cellBegin(@src());
         defer body.cellEnd();
         // TODO: Consider moving the cell styling to cellBegin() instead of requring height / width to be set on each widget?
-        try dvui.label(@src(), "{d}", .{item.year}, rowOptions().override(.{
+        try dvui.label(@src(), "{d}", .{item.year}, label_opts.override(.{
             .id_extra = i,
             .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
             .gravity_y = 0.5,
-            .expand = .both,
+            //   .expand = .both,
         }));
     }
 }

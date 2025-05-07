@@ -249,19 +249,29 @@ pub const GridHeaderWidget = struct {
     pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation, opts: Options) !void {
         // Check if box is null. Log warning if not.
         // check not in_body. Log warning if not.
-        var min_width = self.grid.colMinWidthGet(.header, self.col_number);
-        const has_horizontal_expand = if (opts.expand) |expand| expand == .horizontal or expand == .vertical else false;
-        if (has_horizontal_expand)
-            min_width = 0;
-
-        var col_options: Options = .{
-            .min_size_content = .{ .w = min_width, .h = self.height },
+        //        var min_width = self.grid.colMinWidthGet(.header, self.col_number);
+        //        const has_horizontal_expand = if (opts.expand) |expand| expand == .horizontal or expand == .vertical else false;
+        //        if (has_horizontal_expand)
+        //            min_width = 0;
+        //
+        //        var col_options: Options = .{
+        //            .min_size_content = .{ .w = min_width, .h = self.height },
+        //            .max_size_content = opts.max_size_content,
+        //            .expand = opts.expand,
+        //            .border = Rect.all(1),
+        //        };
+        //        if (opts.min_size_content) |min_size_content| {
+        //            col_options.min_size_content = min_size_content;
+        //        }
+        const col_options: Options = .{
+            //  .border = Rect.all(1),
+            .min_size_content = opts.min_size_content,
             .max_size_content = opts.max_size_content,
-            .expand = opts.expand,
         };
-        if (opts.min_size_content) |min_size_content| {
-            col_options.min_size_content = min_size_content;
+        if (self.col_number == 99) {
+            std.debug.print("HEADER Col opts = {}\n", .{col_options});
         }
+
         self.col_hbox = BoxWidget.init(src, .horizontal, false, col_options);
         try self.col_hbox.?.install();
         try self.col_hbox.?.drawBackground();
@@ -377,21 +387,28 @@ pub const GridBodyWidget = struct {
     pub fn colBegin(self: *GridBodyWidget, src: std.builtin.SourceLocation, opts: Options) !void {
 
         // TODO: Check if box is null. Log warning if not.
-        const min_width = self.grid.colMinWidthGet(.body, self.col_number);
-        const max_width = self.grid.colMaxWidthGet(.body, self.col_number);
-        if (self.col_number == 99) {
-            std.debug.print("Min width = {d}, max_width = {d}\n", .{ min_width, max_width orelse 0 });
-        }
+        //const min_width = self.grid.colMinWidthGet(.body, self.col_number);
+        //const max_width = self.grid.colMaxWidthGet(.body, self.col_number);
+        //if (self.col_number == 99) {
+        //    std.debug.print("BODYMin width = {d}, max_width = {d}\n", .{ min_width, max_width orelse 0 });
+        //}
 
-        var col_options: Options = .{
-            .min_size_content = .{ .w = min_width },
-            .max_size_content = if (max_width) |mw| .width(mw) else opts.max_size_content,
+        //        var col_options: Options = .{
+        //            .min_size_content = .{ .w = min_width },
+        //            .max_size_content = if (max_width) |mw| .width(mw) else opts.max_size_content,
+        //            .border = Rect.all(1),
+        //        };
+        //        if (opts.min_size_content) |min_size_content| {
+        //            col_options.min_size_content = min_size_content;
+        //        }
+        const col_options: Options = .{
+            //.border = Rect.all(1),
+            .min_size_content = opts.min_size_content,
+            .max_size_content = opts.max_size_content,
         };
-        if (opts.min_size_content) |min_size_content| {
-            col_options.min_size_content = min_size_content;
-        }
+
         if (self.col_number == 99) {
-            std.debug.print("Col opts = {}\n", .{col_options});
+            std.debug.print("BODY Col opts = {}\n", .{col_options});
         }
         self.col_vbox = BoxWidget.init(src, .vertical, false, col_options);
         try self.col_vbox.?.install();

@@ -3989,6 +3989,8 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
+        .min_size_content = null,
+        .max_size_content = null,
     };
     const heading_opts = heading_defaults.override(opts);
 
@@ -4004,7 +4006,7 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     if (sort_changed) {
         header.sortChanged();
     }
-    try separator(@src(), .{ .expand = .vertical });
+    try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
     dir.* = header.sort_direction;
     return sort_changed;
 }
@@ -4050,8 +4052,8 @@ pub fn gridColumnFromSlice(
     };
 
     const label_defaults: Options = .{
-        // .expand is required so that text labels can be centered.
-        .expand = .horizontal,
+        .min_size_content = null,
+        .max_size_content = null,
     };
     const label_opts = label_defaults.override(opts);
 
@@ -4116,6 +4118,7 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, header: *GridHeaderW
         selected = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
         clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5, .gravity_x = 0.5 });
         dvui.dataSet(null, hbox.data().id, "_selected", selected);
+        //std.debug.print("{d}\n", .{hbox.data().contentRect().w});
     }
     try dvui.separator(@src(), .{ .expand = .vertical });
 
