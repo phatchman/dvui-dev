@@ -89,7 +89,7 @@ pub fn main() !void {
 }
 
 const ColumnLayout = union(enum) {
-    equal_with: ColumnLayoutEqualWidth,
+    equal_width: ColumnLayoutEqualWidth,
     proportional: ColumnLayoutProportional,
 
     pub fn nextHeaderColOption(self: *ColumnLayout, opts: dvui.Options) dvui.Options {
@@ -212,34 +212,33 @@ var header_height: f32 = 0;
 var row_height: f32 = 0;
 var selectable = true;
 const ColumnSizing = enum {
-    size_content,
-    size_window,
-    fixed_width,
+    equal_width,
+    proportional,
 };
-var column_sizing: ColumnSizing = .size_content;
+var column_sizing: ColumnSizing = .equal_width;
 
 const fixed_width_w: f32 = 50;
-pub fn headerOptions() dvui.Options {
-    const default_header_options: dvui.Options = .{};
-
-    var opts = switch (column_sizing) {
-        .size_content => default_header_options,
-        .size_window => default_header_options.override(.{ .expand = .horizontal }),
-        .fixed_width => default_header_options.override(.{
-            .min_size_content = .{ .w = fixed_width_w },
-            .max_size_content = .width(fixed_width_w),
-        }),
-    };
-    if (header_height > 0) {
-        if (opts.min_size_content) |*min_size_content| {
-            min_size_content.h = header_height;
-        } else {
-            opts.min_size_content = .{ .h = header_height };
-        }
-    }
-    return opts;
-}
-
+//pub fn headerOptions() dvui.Options {
+//    const default_header_options: dvui.Options = .{};
+//
+//    var opts = switch (column_sizing) {
+//        .size_content => default_header_options,
+//        .size_window => default_header_options.override(.{ .expand = .horizontal }),
+//        .fixed_width => default_header_options.override(.{
+//            .min_size_content = .{ .w = fixed_width_w },
+//            .max_size_content = .width(fixed_width_w),
+//        }),
+//    };
+//    if (header_height > 0) {
+//        if (opts.min_size_content) |*min_size_content| {
+//            min_size_content.h = header_height;
+//        } else {
+//            opts.min_size_content = .{ .h = header_height };
+//        }
+//    }
+//    return opts;
+//}
+//
 pub fn headerCheckboxOptions() dvui.Options {
     return .{
         .min_size_content = .{ .w = 40 },
@@ -251,22 +250,22 @@ pub fn rowCheckboxOptions() dvui.Options {
     return headerCheckboxOptions();
 }
 
-pub fn rowOptions() dvui.Options {
-    const default_row_options: dvui.Options = .{};
-    var opts = switch (column_sizing) {
-        .size_content => default_row_options,
-        .size_window => default_row_options.override(.{ .expand = .horizontal }),
-        .fixed_width => default_row_options.override(.{ .min_size_content = .{ .w = fixed_width_w }, .max_size_content = .width(fixed_width_w) }),
-    };
-    if (row_height > 0) {
-        if (opts.min_size_content) |*min_size_content| {
-            min_size_content.h = row_height;
-        } else {
-            opts.min_size_content = .{ .h = row_height };
-        }
-    }
-    return opts;
-}
+//pub fn rowOptions() dvui.Options {
+//    const default_row_options: dvui.Options = .{};
+//    var opts = switch (column_sizing) {
+//        .size_content => default_row_options,
+//        .size_window => default_row_options.override(.{ .expand = .horizontal }),
+//        .fixed_width => default_row_options.override(.{ .min_size_content = .{ .w = fixed_width_w }, .max_size_content = .width(fixed_width_w) }),
+//    };
+//    if (row_height > 0) {
+//        if (opts.min_size_content) |*min_size_content| {
+//            min_size_content.h = row_height;
+//        } else {
+//            opts.min_size_content = .{ .h = row_height };
+//        }
+//    }
+//    return opts;
+//}
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
@@ -306,19 +305,20 @@ fn gui_frame() !void {
                 .max_size_content = .width(main_hbox.data().contentRect().w - 200),
             },
         );
-        //        var layout = ColumnLayoutEqualWidth.init(grid, .{
-        //            .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
-        //            .content_w = 1024,
-        //        }, 6);
-        var layout: ColumnLayout = .{
-            .proportional = ColumnLayoutProportional.init(
+        const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
+        var layout: ColumnLayout = switch (column_sizing) {
+            .equal_width => .{ .equal_width = ColumnLayoutEqualWidth.init(grid, .{
+                .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
+                .content_w = content_w,
+            }, 6) },
+            .proportional => .{ .proportional = ColumnLayoutProportional.init(
                 grid,
                 .{
                     .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
-                    .content_w = 1024,
+                    .content_w = content_w,
                 },
                 &.{ 10, 15, 20, 40, 15, 55 },
-            ),
+            ) },
         };
         defer grid.deinit();
         {
@@ -413,20 +413,17 @@ fn gui_frame() !void {
         if (try dvui.expander(@src(), "Column Layout", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
             var inner_vbox = try dvui.box(@src(), .vertical, .{ .margin = .{ .x = 10 } });
             defer inner_vbox.deinit();
-            if (try dvui.radio(@src(), column_sizing == .size_content, "Size to content", .{})) {
-                column_sizing = .size_content;
+            if (try dvui.radio(@src(), column_sizing == .equal_width, "Equal Spacing", .{})) {
+                column_sizing = .equal_width;
             }
-            if (try dvui.radio(@src(), column_sizing == .size_window, "Size to window", .{})) {
-                column_sizing = .size_window;
-                horizontal_scrolling = false;
+            if (try dvui.radio(@src(), column_sizing == .proportional, "Proportional", .{})) {
+                column_sizing = .proportional;
             }
-            if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
-                column_sizing = .fixed_width;
-            }
+            //            if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
+            //                column_sizing = .fixed_width;
+            //            }
         }
-        if (column_sizing != .size_window) {
-            _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
-        }
+        _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
         _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
         {
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
