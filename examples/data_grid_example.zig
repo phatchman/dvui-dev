@@ -88,6 +88,88 @@ pub fn main() !void {
     }
 }
 
+const ColumnLayout = union(enum) {
+    equal_with: ColumnLayoutEqualWidth,
+    proportional: ColumnLayoutProportional,
+
+    pub fn nextHeaderColOption(self: *ColumnLayout, opts: dvui.Options) dvui.Options {
+        switch (self.*) {
+            inline else => |*s| return s.nextHeaderColOption(opts),
+        }
+    }
+
+    pub fn nextBodyColOption(self: *ColumnLayout, opts: dvui.Options) dvui.Options {
+        switch (self.*) {
+            inline else => |*s| return s.nextBodyColOption(opts),
+        }
+    }
+};
+
+pub fn sumSlice(T: type, slice: []const T) T {
+    var total: T = 0;
+    for (slice) |value| {
+        total += value;
+    }
+    return total;
+}
+
+const ColumnLayoutProportional = struct {
+    const InitOpts = struct {
+        // Space to reserve for fixed width columns
+        reserved_w: ?f32 = null,
+        // Size to specified width. Otherwise sizes to width of parent grid.
+        content_w: ?f32 = null,
+    };
+    initial_w: []const f32,
+    initial_total_w: f32,
+    available_w: f32,
+    num_cols: usize,
+    current_header_col: usize,
+    current_body_col: usize,
+
+    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutProportional.InitOpts, comptime initial_widths: []const f32) ColumnLayoutProportional {
+        const scroll_bar_w: f32 = 10; // Don't necessarily know if SB is showing?
+        const reserved_w: f32 = init_opts.reserved_w orelse 0;
+        const available: f32 = init_opts.content_w orelse grid.data().contentRect().w;
+        const initial_total_w = sumSlice(f32, initial_widths);
+        return .{
+            .initial_w = initial_widths,
+            .initial_total_w = initial_total_w,
+            .available_w = available - reserved_w - scroll_bar_w,
+            .num_cols = initial_widths.len,
+            .current_header_col = 0,
+            .current_body_col = 0,
+        };
+    }
+
+    pub fn nextHeaderColOption(self: *ColumnLayoutProportional, opts: dvui.Options) dvui.Options {
+        // TODO: Sanitize the options or warn that opts are being ignored.
+        const result = self.colOption(opts, self.current_header_col);
+        self.current_header_col += 1;
+        return result;
+    }
+
+    pub fn nextBodyColOption(self: *ColumnLayoutProportional, opts: dvui.Options) dvui.Options {
+        const result = self.colOption(opts, self.current_body_col);
+        self.current_body_col += 1;
+        return result;
+    }
+
+    fn colOption(self: *ColumnLayoutProportional, opts: dvui.Options, col_num: usize) dvui.Options {
+        if (col_num < self.initial_w.len) {
+            const ratio: f32 = self.initial_w[col_num] / self.initial_total_w;
+            const w: f32 = ratio * self.available_w;
+            return opts.override(.{
+                .min_size_content = .{ .w = w },
+                .max_size_content = .width(w),
+            });
+        } else {
+            // TODO: Probable return an error?
+            return .{};
+        }
+    }
+};
+
 const ColumnLayoutEqualWidth = struct {
     const InitOpts = struct {
         // Space to reserve for fixed width columns
@@ -224,11 +306,20 @@ fn gui_frame() !void {
                 .max_size_content = .width(main_hbox.data().contentRect().w - 200),
             },
         );
-        var layout = ColumnLayoutEqualWidth.init(grid, .{
-            .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
-            .content_w = 1024,
-        }, 6);
-        //std.debug.print("init opts = {}\n", .{grid.init_opts});
+        //        var layout = ColumnLayoutEqualWidth.init(grid, .{
+        //            .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
+        //            .content_w = 1024,
+        //        }, 6);
+        var layout: ColumnLayout = .{
+            .proportional = ColumnLayoutProportional.init(
+                grid,
+                .{
+                    .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
+                    .content_w = 1024,
+                },
+                &.{ 10, 15, 20, 40, 15, 55 },
+            ),
+        };
         defer grid.deinit();
         {
             var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
