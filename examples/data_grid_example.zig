@@ -306,15 +306,16 @@ fn gui_frame() !void {
             },
         );
         const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
+        const reserved_w: f32 = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0;
         var layout: ColumnLayout = switch (column_sizing) {
             .equal_width => .{ .equal_width = ColumnLayoutEqualWidth.init(grid, .{
-                .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
+                .reserved_w = reserved_w,
                 .content_w = content_w,
             }, 6) },
             .proportional => .{ .proportional = ColumnLayoutProportional.init(
                 grid,
                 .{
-                    .reserved_w = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0,
+                    .reserved_w = reserved_w,
                     .content_w = content_w,
                 },
                 &.{ 10, 15, 20, 40, 15, 55 },
