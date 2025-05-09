@@ -203,7 +203,7 @@ const ColumnLayoutEqualWidth = struct {
 };
 
 const num_cars = 500;
-
+pub const testing = true;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 var virtual_scrolling = true;
 var horizontal_scrolling = false;
@@ -216,29 +216,9 @@ const ColumnSizing = enum {
     proportional,
 };
 var column_sizing: ColumnSizing = .equal_width;
+const prev_height: f32 = 0;
 
 const fixed_width_w: f32 = 50;
-//pub fn headerOptions() dvui.Options {
-//    const default_header_options: dvui.Options = .{};
-//
-//    var opts = switch (column_sizing) {
-//        .size_content => default_header_options,
-//        .size_window => default_header_options.override(.{ .expand = .horizontal }),
-//        .fixed_width => default_header_options.override(.{
-//            .min_size_content = .{ .w = fixed_width_w },
-//            .max_size_content = .width(fixed_width_w),
-//        }),
-//    };
-//    if (header_height > 0) {
-//        if (opts.min_size_content) |*min_size_content| {
-//            min_size_content.h = header_height;
-//        } else {
-//            opts.min_size_content = .{ .h = header_height };
-//        }
-//    }
-//    return opts;
-//}
-//
 pub fn headerCheckboxOptions() dvui.Options {
     return .{
         .min_size_content = .{ .w = 40 },
@@ -250,22 +230,15 @@ pub fn rowCheckboxOptions() dvui.Options {
     return headerCheckboxOptions();
 }
 
-//pub fn rowOptions() dvui.Options {
-//    const default_row_options: dvui.Options = .{};
-//    var opts = switch (column_sizing) {
-//        .size_content => default_row_options,
-//        .size_window => default_row_options.override(.{ .expand = .horizontal }),
-//        .fixed_width => default_row_options.override(.{ .min_size_content = .{ .w = fixed_width_w }, .max_size_content = .width(fixed_width_w) }),
-//    };
-//    if (row_height > 0) {
-//        if (opts.min_size_content) |*min_size_content| {
-//            min_size_content.h = row_height;
-//        } else {
-//            opts.min_size_content = .{ .h = row_height };
-//        }
-//    }
-//    return opts;
-//}
+pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.Options) !dvui.Rect {
+    var lw = dvui.LabelWidget.initNoFmt(src, str, opts);
+    try lw.install();
+    lw.processEvents();
+    try lw.draw();
+    const rect = lw.data().rect;
+    lw.deinit();
+    return rect;
+}
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
@@ -280,6 +253,53 @@ fn gui_frame() !void {
             defer fw.deinit();
         }
     }
+    if (testing == true) {
+        var outer_vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
+        defer outer_vbox.deinit();
+        {
+            var scroll = try dvui.scrollArea(@src(), .{ .horizontal = .auto }, .{ .expand = .both });
+            defer scroll.deinit();
+            {
+                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+                defer hbox.deinit();
+                {
+                    var vbox = try dvui.box(@src(), .vertical, .{
+                        .expand = .vertical,
+                        .min_size_content = .{ .w = 150 },
+                        .max_size_content = .width(50),
+                        .border = dvui.Rect.all(1),
+                    });
+                    defer vbox.deinit();
+                    try dvui.labelNoFmt(@src(), "Body1", .{});
+                }
+                {
+                    var vbox = try dvui.box(@src(), .vertical, .{
+                        .expand = .vertical,
+                        .min_size_content = .{ .w = 150 },
+                        .max_size_content = .width(50),
+                        .border = dvui.Rect.all(1),
+                    });
+                    defer vbox.deinit();
+                    try dvui.labelNoFmt(@src(), "Header 2", .{ .rect = .{ .h = 27.5, .w = 150, .x = 0, .y = 0 } });
+                    var hb = try dvui.box(@src(), .horizontal, .{ .expand = .both });
+                    defer hb.deinit();
+                    var rect = try labelNoFmt(@src(), "Body2.1", .{ .rect = .{ .h = 27.5, .w = 150, .y = 27.5 } });
+                    rect = try labelNoFmt(@src(), "Body2.2", .{ .rect = .{ .h = 27.5, .w = 150, .y = 27.5 + rect.h } });
+                }
+                {
+                    var vbox = try dvui.box(@src(), .vertical, .{
+                        .expand = .vertical,
+                        .min_size_content = .{ .w = 550 },
+                        .max_size_content = .width(550),
+                        .border = dvui.Rect.all(1),
+                    });
+                    defer vbox.deinit();
+                    try dvui.labelNoFmt(@src(), "Body3", .{});
+                }
+            }
+        }
+        return;
+    }
 
     var main_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
@@ -290,14 +310,12 @@ fn gui_frame() !void {
             if (virtual_scrolling)
                 .{
                     .scroll_info = &scroll_info,
-                } // TODO: Should only pass this for virtual scrolling.
+                }
             else
                 .{
-                    //.horizontal_bar = if (horizontal_scrolling) .auto else .hide,
                     .horizontal = if (horizontal_scrolling) .auto else .none,
                     .vertical = .auto,
                     .vertical_bar = .show,
-                    //.vertical_bar = .show,
                 },
             .{
                 .expand = .both,

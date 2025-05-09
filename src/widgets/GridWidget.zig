@@ -247,22 +247,6 @@ pub const GridHeaderWidget = struct {
     /// Start a new column heading.
     /// must be called before any widgets are created.
     pub fn colBegin(self: *GridHeaderWidget, src: std.builtin.SourceLocation, opts: Options) !void {
-        // Check if box is null. Log warning if not.
-        // check not in_body. Log warning if not.
-        //        var min_width = self.grid.colMinWidthGet(.header, self.col_number);
-        //        const has_horizontal_expand = if (opts.expand) |expand| expand == .horizontal or expand == .vertical else false;
-        //        if (has_horizontal_expand)
-        //            min_width = 0;
-        //
-        //        var col_options: Options = .{
-        //            .min_size_content = .{ .w = min_width, .h = self.height },
-        //            .max_size_content = opts.max_size_content,
-        //            .expand = opts.expand,
-        //            .border = Rect.all(1),
-        //        };
-        //        if (opts.min_size_content) |min_size_content| {
-        //            col_options.min_size_content = min_size_content;
-        //        }
         const col_options: Options = .{
             //  .border = Rect.all(1),
             .min_size_content = opts.min_size_content,
@@ -505,7 +489,8 @@ pub const GridVirtualScroller = struct {
         return @min(first_row_in_viewport - self.window_size, self.total_rows);
     }
 
-    /// Return the first row within the visible scroll area, plus the window size.
+    /// Return the last row within the visible scroll area, plus the window size.
+    /// TODO: This doesn't return the last row. It returns the last row + 1? Or at least it needs to for first..last to work.
     pub fn rowLastRendered(self: *const GridVirtualScroller) usize {
         if (self.body.row_height < 1) {
             return 1;
