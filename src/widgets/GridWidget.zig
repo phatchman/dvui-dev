@@ -33,51 +33,42 @@ const ColWidth = struct {
 };
 
 vbox: BoxWidget = undefined,
+hbox: BoxWidget = undefined,
+scroll: ScrollAreaWidget = undefined,
 init_opts: InitOpts = undefined,
-options: Options = undefined,
-col_widths: std.ArrayListUnmanaged(ColWidth) = undefined,
-si: *dvui.ScrollInfo = undefined,
-// scroll used to keep header and body scrolling in sync
-si_store: dvui.ScrollInfo = .{ .horizontal = .none, .vertical = .auto },
+num_cols: f32 = undefined,
+current_col: ?BoxWidget = null,
+current_cell: ?BoxWidget = null,
+next_row_y: f32 = 0,
+last_height: f32 = 0,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
     self.init_opts = init_opts;
     const options = defaults.override(opts);
     self.vbox = BoxWidget.init(src, .vertical, false, options);
-
-    if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []ColWidth)) |col_widths| {
-        try self.col_widths.ensureTotalCapacity(dvui.currentWindow().arena(), col_widths.len);
-        self.col_widths.appendSliceAssumeCapacity(col_widths);
-    } else {
-        self.col_widths = .empty;
+    if (dvui.dataGet(null, self.data().id, "_last_height", f32)) |last_height| {
+        self.last_height = last_height;
     }
-    self.options = options;
+    // TODO: Assumes a scroll_info
+    //self.init_opts.scroll_info.?.virtual_size.h = @max(self.last_height, self.init_opts.scroll_info.?.viewport.h);
+    //std.debug.print("Viewport h = {d}, last_h = {d}\n", .{ self.init_opts.scroll_info.?.virtual_size.h, self.last_height });
+
+    //    self.options = options;
     return self;
 }
 
 pub fn install(self: *GridWidget) !void {
-    if (self.init_opts.scroll_info) |si| {
-        self.si = si;
-    } else {
-        if (dvui.dataGet(null, self.data().id, "_si_store", ScrollInfo)) |*si| {
-            self.si_store = si.*;
-        }
-        self.si = &self.si_store;
-
-        if (self.init_opts.horizontal) |horizontal| {
-            self.si.horizontal = horizontal;
-            self.init_opts.horizontal = null;
-        }
-        if (self.init_opts.vertical) |vertical| {
-            self.si.vertical = vertical;
-            self.init_opts.vertical = null;
-        }
-    }
-    self.init_opts.scroll_info = self.si;
-
     try self.vbox.install();
     try self.vbox.drawBackground();
+
+    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts, .{ .expand = .both });
+    try self.scroll.install();
+
+    // Lay out columns horizontally.
+    self.hbox = BoxWidget.init(@src(), .horizontal, false, .{ .expand = .both });
+    try self.hbox.install();
+    try self.hbox.drawBackground();
 }
 
 pub fn data(self: *GridWidget) *WidgetData {
@@ -85,71 +76,86 @@ pub fn data(self: *GridWidget) *WidgetData {
 }
 
 pub fn deinit(self: *GridWidget) void {
-    dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths.items[0..]);
-    dvui.dataSet(null, self.data().id, "_si_store", self.si_store);
+    dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
+    self.hbox.deinit();
+    self.scroll.deinit();
     self.vbox.deinit();
 }
 
-fn colWidthReport(self: *GridWidget, who: ColWidth.RowType, w: f32, col_num: usize, take_control: bool) !void {
-    if (col_num == 99) {
-        std.debug.print("colWidthReport({s}, {d}, {d}, {})\n", .{ @tagName(who), w, col_num, take_control });
-    }
+pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !void {
+    // TODO: Should this take styling options?
+    // TODO: Check current col is null or else error.
+    self.current_col = BoxWidget.init(src, .vertical, false, .{
+        .expand = .vertical,
+        .min_size_content = .{ .w = col_width, .h = self.last_height },
+        .max_size_content = .width(col_width),
+        .border = Rect.all(1),
+        .color_border = .{ .color = try dvui.Color.fromHex("#ff0000".*) },
+    });
+    try self.current_col.?.install();
+    try self.current_col.?.drawBackground();
+    self.next_row_y = 0;
+}
 
-    if (col_num >= self.col_widths.items.len) {
-        try self.col_widths.append(dvui.currentWindow().arena(), .{ .last_updated_by = who, .w = w, .ignore_next_update = true, .controlled_by = null });
-        dvui.refresh(null, @src(), null);
-        return;
-    }
-    const col_width = &self.col_widths.items[col_num];
-    if (col_num == 99) std.debug.print("PRE Col_width = {}\n", .{col_width});
-    defer if (col_num == 99) std.debug.print("POST Col_width = {}\n", .{col_width});
-
-    if (take_control) {
-        col_width.* = .{ .last_updated_by = who, .w = w, .ignore_next_update = true, .controlled_by = who };
-    }
-    const controlled_by = col_width.controlled_by orelse who;
-    if (col_width.ignore_next_update and col_width.controlled_by != controlled_by) {
-        // Ignore any changes from the header/body if the other one changed the width last frame
-        col_width.ignore_next_update = false;
-        return;
-    } else if (!std.math.approxEqRel(f32, col_width.w, w, 0.01)) {
-        // Col width has changed.
-        col_width.* = .{ .last_updated_by = who, .w = w, .ignore_next_update = true, .controlled_by = null };
-        dvui.refresh(null, @src(), null);
+pub fn colEnd(self: *GridWidget) void {
+    if (self.current_col) |*current_col| {
+        std.debug.print("Current Col = {}\n", .{current_col.data().rect});
+        current_col.deinit();
+        self.current_col = null;
     } else {
-        // If no changes this frame, then resume updating col widths
-        col_width.ignore_next_update = false;
+        // TODO: Some sort of error.
+    }
+    std.debug.print("Scroll info = {}\n", .{self.scroll.si});
+}
+
+pub fn headerCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui.Options) !void {
+    // TODO: Safety checks
+    _ = opts; // TODO: Chose which opts to take.
+    const y = self.scroll.si.viewport.y - 1.0;
+    const parent_rect = self.current_col.?.data().backgroundRect();
+
+    self.current_cell = BoxWidget.init(src, .horizontal, false, .{
+        .expand = .horizontal,
+        .rect = .{ .x = parent_rect.x, .y = y, .w = parent_rect.w },
+        .color_fill = .{ .name = .fill_window },
+        //        .margin = Rect.all(0),
+        //        .padding = Rect.all(0),
+        .background = true,
+        .border = Rect.all(1),
+        .color_border = .{ .color = try dvui.Color.fromHex("#0000ff".*) },
+    });
+    try self.current_cell.?.install();
+    try self.current_cell.?.drawBackground(); // TODO: These background draws prob not required?
+}
+
+pub fn headerCellEnd(self: *GridWidget) void {
+    if (self.current_cell) |*current_cell| {
+        self.next_row_y += current_cell.data().rect.h;
+        current_cell.deinit();
+        self.current_cell = null;
     }
 }
 
-fn colMinWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) f32 {
-    if (col_num >= self.col_widths.items.len) {
-        return 0;
-    }
-    const col_width = &self.col_widths.items[col_num];
-    const controlled_by = col_width.controlled_by orelse who;
-    if (controlled_by != who) {
-        return col_width.w;
-    } else if (col_width.last_updated_by == who) {
-        return 0;
-    } else {
-        return col_width.w;
-    }
+pub fn bodyCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !void {
+    // TODO: Safety checks
+    _ = opts; // TODO: Chose which opts to take.
+    const parent_rect = self.current_col.?.data().contentRect();
+
+    self.current_cell = BoxWidget.init(src, .horizontal, false, .{
+        .id_extra = row_num,
+        .expand = .horizontal,
+        .rect = .{ .x = parent_rect.x, .y = self.next_row_y, .w = parent_rect.w },
+    });
+    try self.current_cell.?.install();
+    try self.current_cell.?.drawBackground(); // TODO: These background draws prob not required?
 }
 
-fn colMaxWidthGet(self: *const GridWidget, who: ColWidth.RowType, col_num: usize) ?f32 {
-    if (col_num < self.col_widths.items.len) {
-        const col_width = &self.col_widths.items[col_num];
-
-        // If column width is being fully controlled by header/body, then a max width is
-        // required on the body/header as the body/header might be wider than the controller.
-        if (col_width.controlled_by) |controller| {
-            if (controller != who) {
-                return col_width.w;
-            }
-        }
+pub fn bodyCellEnd(self: *GridWidget) void {
+    if (self.current_cell) |*current_cell| {
+        self.next_row_y += current_cell.data().rect.h;
+        current_cell.deinit();
+        self.current_cell = null;
     }
-    return null;
 }
 
 pub const GridHeaderWidget = struct {
@@ -199,7 +205,7 @@ pub const GridHeaderWidget = struct {
         if (dvui.dataGet(null, self.data().id, "_height", f32)) |height| {
             self.height = height;
         }
-        if (dvui.dataGet(null, self.data().id, "_si2", ScrollInfo)) |*si| {
+        if (dvui.dataGet(null, self.data().id, "_si", ScrollInfo)) |*si| {
             self.si = si.*;
         }
 
@@ -213,7 +219,7 @@ pub const GridHeaderWidget = struct {
         dvui.dataSet(null, self.data().id, "_height", self.height_this_frame);
         dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
         dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
-        dvui.dataSet(null, self.data().id, "_si2", self.si);
+        dvui.dataSet(null, self.data().id, "_si", self.si);
         self.hbox.deinit();
     }
 

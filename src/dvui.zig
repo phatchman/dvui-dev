@@ -3979,7 +3979,7 @@ pub fn gridHeading(src: std.builtin.SourceLocation, header: *GridHeaderWidget, h
 /// Returns true if the sort direction has changed.
 /// sort_dir is an out parameter containing the current sort direction.
 /// opts controls the styling for the button label used for the heading.
-pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderWidget, heading: []const u8, dir: *GridHeaderWidget.SortDirection, opts: dvui.Options) !bool {
+pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, dir: *GridHeaderWidget.SortDirection, opts: dvui.Options) !bool {
     const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
     const icon_width = 27.5; // TODO: Is this really a const?
@@ -3989,25 +3989,30 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
+        .background = true, // TODO:
     };
     var heading_opts = heading_defaults.override(opts);
     heading_opts.min_size_content = null;
     heading_opts.max_size_content = null;
 
-    try header.colBegin(src, opts);
-    defer header.colEnd();
+    try g.headerCellBegin(src, .{}); // TODO: handle opts
+    defer g.headerCellEnd();
+    //    try header.colBegin(src, opts);
+    //    defer header.colEnd();
 
-    const sort_changed = switch (header.colSortOrder()) {
+    const sort_changed = switch (GridHeaderWidget.SortDirection.unsorted) { //switch (g.colSortOrder()) {
         .unsorted => try button(@src(), heading, .{ .draw_focus = false }, padding_opts.override(heading_opts)),
         .ascending => try buttonLabelAndIcon(@src(), heading, icon_ascending, .{ .draw_focus = false }, heading_opts),
         .descending => try buttonLabelAndIcon(@src(), heading, icon_descending, .{ .draw_focus = false }, heading_opts),
     };
 
-    if (sort_changed) {
-        header.sortChanged();
-    }
+    // TODO:
+    //    if (sort_changed) {
+    //        header.sortChanged();
+    //    }
     try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
-    dir.* = header.sort_direction;
+    //dir.* = header.sort_direction;
+    dir.* = .unsorted;
     return sort_changed;
 }
 
@@ -4021,7 +4026,7 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, header: *GridHeaderW
 /// opts.id_extra is ignored.
 pub fn gridColumnFromSlice(
     src: std.builtin.SourceLocation,
-    body: *GridBodyWidget,
+    g: *GridWidget,
     comptime T: type,
     data: []const T,
     comptime field_name: ?[]const u8,
@@ -4059,11 +4064,11 @@ pub fn gridColumnFromSlice(
     label_opts.min_size_content = null;
     label_opts.max_size_content = null;
 
-    try body.colBegin(src, opts);
-    defer body.colEnd();
-    for (data, 0..) |item, id_extra| {
-        try body.cellBegin(@src());
-        defer body.cellEnd();
+    //    try body.colBegin(src, opts);
+    //    defer body.colEnd();
+    for (data, 0..) |item, row_num| {
+        try g.bodyCellBegin(src, row_num, opts);
+        defer g.bodyCellEnd();
         const cell_value = value: {
             if (field_name) |_field_name| {
                 // populate value from struct field.
@@ -4085,7 +4090,8 @@ pub fn gridColumnFromSlice(
             @src(),
             fmt,
             .{cell_value},
-            label_opts.override(.{ .id_extra = id_extra }),
+            label_opts,
+            //            label_opts.override(.{ .id_extra = id_extra }),
         );
     }
 }

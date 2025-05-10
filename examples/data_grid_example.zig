@@ -203,14 +203,14 @@ const ColumnLayoutEqualWidth = struct {
 };
 
 const num_cars = 500;
-pub const testing = true;
-pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
-var virtual_scrolling = true;
+pub const testing = false;
+pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto };
+var virtual_scrolling = false;
 var horizontal_scrolling = false;
 var sortable = true;
 var header_height: f32 = 0;
 var row_height: f32 = 0;
-var selectable = true;
+var selectable = false;
 const ColumnSizing = enum {
     equal_width,
     proportional,
@@ -253,7 +253,7 @@ fn gui_frame() !void {
             defer fw.deinit();
         }
     }
-    if (testing == true) {
+    if (testing) {
         var outer_vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
         defer outer_vbox.deinit();
         {
@@ -280,11 +280,17 @@ fn gui_frame() !void {
                         .border = dvui.Rect.all(1),
                     });
                     defer vbox.deinit();
-                    try dvui.labelNoFmt(@src(), "Header 2", .{ .rect = .{ .h = 27.5, .w = 150, .x = 0, .y = 0 } });
+                    var rect = try labelNoFmt(@src(), "Header 2", .{ .rect = .{ .h = 27.5, .w = 150, .x = 0, .y = 0 } });
                     var hb = try dvui.box(@src(), .horizontal, .{ .expand = .both });
                     defer hb.deinit();
-                    var rect = try labelNoFmt(@src(), "Body2.1", .{ .rect = .{ .h = 27.5, .w = 150, .y = 27.5 } });
-                    rect = try labelNoFmt(@src(), "Body2.2", .{ .rect = .{ .h = 27.5, .w = 150, .y = 27.5 + rect.h } });
+                    var y_pos: f32 = rect.h;
+                    rect = try labelNoFmt(@src(), "Body2.1", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
+                    y_pos += rect.h;
+                    rect = try labelNoFmt(@src(), "Body2.2", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
+                    y_pos += rect.h;
+                    rect = try labelNoFmt(@src(), "Body2.3", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
+                    y_pos += rect.h;
+                    rect = try labelNoFmt(@src(), "Body2.4", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
                 }
                 {
                     var vbox = try dvui.box(@src(), .vertical, .{
@@ -307,7 +313,7 @@ fn gui_frame() !void {
         scroll_info.horizontal = if (horizontal_scrolling) .auto else .none;
         var grid = try dvui.grid(
             @src(),
-            if (virtual_scrolling)
+            if (virtual_scrolling or true)
                 .{
                     .scroll_info = &scroll_info,
                 }
@@ -341,52 +347,79 @@ fn gui_frame() !void {
         };
         defer grid.deinit();
         {
-            var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
-            defer header.deinit();
+            //            var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
+            //            defer header.deinit();
             var sort_dir: dvui.GridHeaderWidget.SortDirection = undefined;
-            var selection: dvui.GridColumnSelectAllState = undefined;
-
-            if (selectable) {
-                if (try dvui.gridHeadingCheckbox(@src(), header, &selection, headerCheckboxOptions())) {
-                    for (cars[0..]) |*car| {
-                        switch (selection) {
-                            .select_all => car.selected = true,
-                            .select_none => car.selected = false,
-                            .unchanged => {},
-                        }
-                    }
-                }
-            }
-
+            //            var selection: dvui.GridColumnSelectAllState = undefined;
+            //`            if (false) {
+            //`                if (selectable) {
+            //`                    if (try dvui.gridHeadingCheckbox(@src(), header, &selection, headerCheckboxOptions())) {
+            //`                        for (cars[0..]) |*car| {
+            //`                            switch (selection) {
+            //`                                .select_all => car.selected = true,
+            //`                                .select_none => car.selected = false,
+            //`                                .unchanged => {},
+            //`                            }
+            //`                        }
+            //`                    }
+            //`                }
+            //`            }
             if (sortable) {
-                if (try dvui.gridHeadingSortable(@src(), header, "Make", &sort_dir, layout.nextHeaderColOption(.{}))) {
-                    sort("Make", sort_dir);
+                {
+                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer grid.colEnd();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
+                        sort("Make", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
                 }
-                if (try dvui.gridHeadingSortable(@src(), header, "Model", &sort_dir, layout.nextHeaderColOption(.{}))) {
-                    sort("Model", sort_dir);
-                }
-                if (try dvui.gridHeadingSortable(@src(), header, "Year", &sort_dir, layout.nextHeaderColOption(.{}))) {
-                    sort("Year", sort_dir);
-                }
-                if (try dvui.gridHeadingSortable(@src(), header, "Mileage", &sort_dir, layout.nextHeaderColOption(.{}))) {
-                    sort("Mileage", sort_dir);
-                }
-                if (try dvui.gridHeadingSortable(@src(), header, "Condition", &sort_dir, layout.nextHeaderColOption(.{}))) {
-                    sort("Condition", sort_dir);
-                }
-                if (try dvui.gridHeadingSortable(@src(), header, "Description", &sort_dir, layout.nextHeaderColOption(.{}))) {
-                    sort("Description", sort_dir);
-                }
-            } else {
-                try dvui.gridHeading(@src(), header, "Make", layout.nextHeaderColOption(.{}));
-                try dvui.gridHeading(@src(), header, "Model", layout.nextHeaderColOption(.{}));
-                try dvui.gridHeading(@src(), header, "Year", layout.nextHeaderColOption(.{}));
-                try dvui.gridHeading(@src(), header, "Mileage", layout.nextHeaderColOption(.{}));
-                try dvui.gridHeading(@src(), header, "Condition", layout.nextHeaderColOption(.{}));
-                try dvui.gridHeading(@src(), header, "Description", layout.nextHeaderColOption(.{}));
-            }
+                //{
+                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                //    defer grid.colEnd();
+                //    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
+                //        sort("Model", sort_dir);
+                //    }
+                //}
+                //{
+                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                //    defer grid.colEnd();
+                //    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
+                //        sort("Year", sort_dir);
+                //    }
+                //}
+                //{
+                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                //    defer grid.colEnd();
+                //
+                //    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
+                //        sort("Mileage", sort_dir);
+                //    }
+                //}
+                //{
+                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                //    defer grid.colEnd();
+                //
+                //    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
+                //        sort("Condition", sort_dir);
+                //    }
+                //}
+                //{
+                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                //    defer grid.colEnd();
+                //    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
+                //        sort("Description", sort_dir);
+                //   }
+                //}
+            } // else if (false) {
+            //   try dvui.gridHeading(@src(), header, "Make", layout.nextHeaderColOption(.{}));
+            //   try dvui.gridHeading(@src(), header, "Model", layout.nextHeaderColOption(.{}));
+            //   try dvui.gridHeading(@src(), header, "Year", layout.nextHeaderColOption(.{}));
+            //   try dvui.gridHeading(@src(), header, "Mileage", layout.nextHeaderColOption(.{}));
+            //   try dvui.gridHeading(@src(), header, "Condition", layout.nextHeaderColOption(.{}));
+            //   try dvui.gridHeading(@src(), header, "Description", layout.nextHeaderColOption(.{}));
+            //}
         }
-
+        if (false) // TODO: Keep scope
         {
             var body = try dvui.gridBody(@src(), grid, .{}, .{ .expand = .both });
             defer body.deinit();
