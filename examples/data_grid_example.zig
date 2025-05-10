@@ -361,7 +361,7 @@ fn gui_frame() !void {
         {
             //            var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
             //            defer header.deinit();
-            var sort_dir: dvui.GridHeaderWidget.SortDirection = undefined;
+            var sort_dir: dvui.GridWidget.SortDirection = undefined;
             //            var selection: dvui.GridColumnSelectAllState = undefined;
             //`            if (false) {
             //`                if (selectable) {
@@ -387,9 +387,9 @@ fn gui_frame() !void {
                 }
                 {
                     try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                    try dvui.labelNoFmt(@src(), "here", .{});
                     defer grid.colEnd();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
+                        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
                         sort("Model", sort_dir);
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
@@ -615,7 +615,7 @@ fn filterLongModels(car: *const Car) bool {
     return (car.model.len < 10);
 }
 
-fn sort(key: []const u8, direction: dvui.GridHeaderWidget.SortDirection) void {
+fn sort(key: []const u8, direction: dvui.GridWidget.SortDirection) void {
     switch (direction) {
         .descending,
         => std.mem.sort(Car, &cars, key, sortDesc),
