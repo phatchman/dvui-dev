@@ -233,6 +233,7 @@ pub fn rowCheckboxOptions() dvui.Options {
 pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.Options) !dvui.Rect {
     var lw = dvui.LabelWidget.initNoFmt(src, str, opts);
     try lw.install();
+    std.debug.print("clip = {}\n", .{dvui.clipGet()});
     lw.processEvents();
     try lw.draw();
     const rect = lw.data().rect;
@@ -284,7 +285,10 @@ fn gui_frame() !void {
                     var hb = try dvui.box(@src(), .horizontal, .{ .expand = .both });
                     defer hb.deinit();
                     var y_pos: f32 = rect.h;
+                    //                    const r = dvui.clip(.{ .h = 27.5, .w = 150, .y = y_pos });
+                    std.debug.print("clip = {}\n", .{dvui.clipGet()});
                     rect = try labelNoFmt(@src(), "Body2.1", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
+                    //                    dvui.clipSet(r);
                     y_pos += rect.h;
                     rect = try labelNoFmt(@src(), "Body2.2", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
                     y_pos += rect.h;

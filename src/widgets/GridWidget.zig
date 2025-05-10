@@ -41,6 +41,7 @@ current_col: ?BoxWidget = null,
 current_cell: ?BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
+header_rect: Rect = .{},
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -99,13 +100,11 @@ pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f
 
 pub fn colEnd(self: *GridWidget) void {
     if (self.current_col) |*current_col| {
-        std.debug.print("Current Col = {}\n", .{current_col.data().rect});
         current_col.deinit();
         self.current_col = null;
     } else {
         // TODO: Some sort of error.
     }
-    std.debug.print("Scroll info = {}\n", .{self.scroll.si});
 }
 
 pub fn headerCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui.Options) !void {
@@ -131,30 +130,64 @@ pub fn headerCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, opts:
 pub fn headerCellEnd(self: *GridWidget) void {
     if (self.current_cell) |*current_cell| {
         self.next_row_y += current_cell.data().rect.h;
+        self.header_rect = current_cell.data().rect;
         current_cell.deinit();
         self.current_cell = null;
     }
+}
+
+fn intersect_y(lhs: Rect, rhs: Rect) bool {
+    return ((lhs.y >= rhs.y and lhs.y <= rhs.y + rhs.h) or
+        (lhs.y + lhs.h >= rhs.y and lhs.y + lhs.h <= rhs.y + rhs.h));
 }
 
 pub fn bodyCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !void {
     // TODO: Safety checks
     _ = opts; // TODO: Chose which opts to take.
     const parent_rect = self.current_col.?.data().contentRect();
+    var cell_rect: Rect = .{ .x = parent_rect.x, .y = self.next_row_y, .w = parent_rect.w, .h = 37.5 }; // TODO: .h
+    //    if (intersect_y(cell_rect, self.header_rect)) {
+    //        std.debug.print("{} intersects with {}\n", .{ cell_rect, self.header_rect });
+    //        cell_rect.h = cell_rect.y - self.header_rect.y + cell_rect.h;
+    //        cell_rect.y = self.header_rect.y + self.header_rect.h;
+    //        cell_rect.h = 0;
+    //        cell_rect.y = 0;
+    //        std.debug.print("NEW RECT {}\n", .{cell_rect});
+    //    }
+    if (intersect_y(cell_rect, self.header_rect)) {
+        std.debug.print("{} intersects with {}\n", .{ cell_rect, self.header_rect });
+        //        clip_rect = dvui.clip(.{ .x = 0, .y = -37.5, .w = 100, .h = 37.5 });
+        const shrinkage = cell_rect.y - self.header_rect.y;
+        cell_rect.h -= shrinkage;
+        cell_rect.y += shrinkage;
+    }
 
     self.current_cell = BoxWidget.init(src, .horizontal, false, .{
         .id_extra = row_num,
         .expand = .horizontal,
-        .rect = .{ .x = parent_rect.x, .y = self.next_row_y, .w = parent_rect.w },
+        .rect = cell_rect,
     });
+
     try self.current_cell.?.install();
     try self.current_cell.?.drawBackground(); // TODO: These background draws prob not required?
+
+    if (intersect_y(cell_rect, self.header_rect)) {
+        std.debug.print("{} intersects with {}\n", .{ cell_rect, self.header_rect });
+        //        clip_rect = dvui.clip(.{ .x = 0, .y = -37.5, .w = 100, .h = 37.5 });
+    }
 }
+var clip_rect: ?Rect = null;
 
 pub fn bodyCellEnd(self: *GridWidget) void {
     if (self.current_cell) |*current_cell| {
         self.next_row_y += current_cell.data().rect.h;
         current_cell.deinit();
         self.current_cell = null;
+    }
+    if (clip_rect) |cr| {
+        std.debug.print("Restoring previous clip rect\n", .{});
+        dvui.clipSet(cr);
+        clip_rect = null;
     }
 }
 
