@@ -28,19 +28,6 @@ pub const InitOpts = struct {
     col_info: ?[]f32,
 };
 
-const ColWidth = struct {
-    const RowType = enum { header, body };
-    // Width of the header and body columns
-    w: f32,
-    last_updated_by: RowType,
-    // When col width is set by a header/body, ignore the next update from the body/header as its
-    // width will be 1 frame behind
-    ignore_next_update: bool,
-    // If width is controlled by header/body, then updates all from body/header are ignored.
-    // This is set when the header is styled to expand horizontally or has a fixed width.
-    controlled_by: ?RowType,
-};
-
 vbox: BoxWidget = undefined,
 hbox: BoxWidget = undefined,
 scroll: ScrollAreaWidget = undefined,
