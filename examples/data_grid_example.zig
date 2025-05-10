@@ -214,6 +214,7 @@ var selectable = false;
 const ColumnSizing = enum {
     equal_width,
     proportional,
+    col_info,
 };
 var column_sizing: ColumnSizing = .equal_width;
 const prev_height: f32 = 0;
@@ -241,8 +242,11 @@ pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.O
     return rect;
 }
 
+var col_info: [6]f32 = .{ 20, 30, 40, 50, 60, 70 };
+
 // both dvui and SDL drawing
 fn gui_frame() !void {
+    std.debug.print("frame\n", .{});
     const backend = g_backend orelse return;
     _ = backend;
     {
@@ -319,7 +323,8 @@ fn gui_frame() !void {
             @src(),
             if (virtual_scrolling or true)
                 .{
-                    .scroll_info = &scroll_info,
+                    .scroll_opts = .{ .scroll_info = &scroll_info },
+                    .col_info = if (column_sizing == .col_info) &col_info else null,
                 }
             else
                 .{
@@ -330,13 +335,16 @@ fn gui_frame() !void {
             .{
                 .expand = .both,
                 .background = true,
-                .max_size_content = .width(main_hbox.data().contentRect().w - 200),
+                .max_size_content = .width(main_hbox.data().contentRect().w - 250),
+                // TODO: Why is this 250 and not 200? I think the control panel is 250 wide now
+                // But if I make this 200, the grid walks it's way from -250 to -200 on startup
             },
         );
         const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
-        const reserved_w: f32 = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0;
+        const reserved_w: f32 = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0; // TODO: This is the scroll bar width
         var layout: ColumnLayout = switch (column_sizing) {
-            .equal_width => .{ .equal_width = ColumnLayoutEqualWidth.init(grid, .{
+            // TODO: col_info should have a dummy one.
+            .col_info, .equal_width => .{ .equal_width = ColumnLayoutEqualWidth.init(grid, .{
                 .reserved_w = reserved_w,
                 .content_w = content_w,
             }, 6) },
@@ -377,43 +385,49 @@ fn gui_frame() !void {
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
                 }
-                //{
-                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                //    defer grid.colEnd();
-                //    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
-                //        sort("Model", sort_dir);
-                //    }
-                //}
-                //{
-                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                //    defer grid.colEnd();
-                //    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
-                //        sort("Year", sort_dir);
-                //    }
-                //}
-                //{
-                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                //    defer grid.colEnd();
-                //
-                //    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
-                //        sort("Mileage", sort_dir);
-                //    }
-                //}
-                //{
-                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                //    defer grid.colEnd();
-                //
-                //    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
-                //        sort("Condition", sort_dir);
-                //    }
-                //}
-                //{
-                //    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                //    defer grid.colEnd();
-                //    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
-                //        sort("Description", sort_dir);
-                //   }
-                //}
+                {
+                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    try dvui.labelNoFmt(@src(), "here", .{});
+                    defer grid.colEnd();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
+                        sort("Model", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
+                }
+                {
+                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer grid.colEnd();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
+                        sort("Year", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "year", "{d}", .{ .gravity_x = 1.0 });
+                }
+                {
+                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer grid.colEnd();
+
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
+                        sort("Mileage", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
+                }
+                {
+                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer grid.colEnd();
+
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
+                        sort("Condition", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
+                }
+                {
+                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer grid.colEnd();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
+                        sort("Description", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{});
+                }
             } // else if (false) {
             //   try dvui.gridHeading(@src(), header, "Make", layout.nextHeaderColOption(.{}));
             //   try dvui.gridHeading(@src(), header, "Model", layout.nextHeaderColOption(.{}));
@@ -475,6 +489,10 @@ fn gui_frame() !void {
             if (try dvui.radio(@src(), column_sizing == .proportional, "Proportional", .{})) {
                 column_sizing = .proportional;
             }
+            if (try dvui.radio(@src(), column_sizing == .col_info, "col_info", .{})) {
+                column_sizing = .col_info;
+            }
+
             //            if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
             //                column_sizing = .fixed_width;
             //            }

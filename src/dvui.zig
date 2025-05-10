@@ -4059,6 +4059,7 @@ pub fn gridColumnFromSlice(
     const label_defaults: Options = .{
         .min_size_content = null,
         .max_size_content = null,
+        .expand = .horizontal,
     };
     var label_opts = label_defaults.override(opts);
     label_opts.min_size_content = null;

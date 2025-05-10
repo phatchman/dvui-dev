@@ -17,7 +17,10 @@ pub var defaults: Options = .{
     .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
 };
 
-pub const InitOpts = ScrollAreaWidget.InitOpts;
+pub const InitOpts = struct {
+    scroll_opts: ?ScrollAreaWidget.InitOpts,
+    col_info: ?[]f32,
+};
 
 const ColWidth = struct {
     const RowType = enum { header, body };
@@ -42,6 +45,7 @@ current_cell: ?BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
 header_rect: Rect = .{},
+col_num: usize = 0,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -63,11 +67,14 @@ pub fn install(self: *GridWidget) !void {
     try self.vbox.install();
     try self.vbox.drawBackground();
 
-    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts, .{ .expand = .both });
+    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .expand = .both });
     try self.scroll.install();
 
     // Lay out columns horizontally.
-    self.hbox = BoxWidget.init(@src(), .horizontal, false, .{ .expand = .both });
+    self.hbox = BoxWidget.init(@src(), .horizontal, false, .{
+        .expand = .both,
+        .border = Rect.all(1),
+    });
     try self.hbox.install();
     try self.hbox.drawBackground();
 }
@@ -83,13 +90,29 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
+// TODO: Decide whether this takes a width or an Option or both.
+// The option should be used for background colours for the column, borders etc. (Keep in mind the border will include the header)
 pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !void {
     // TODO: Should this take styling options?
     // TODO: Check current col is null or else error.
+
+    // Width comes from init_opts.col_opts or from col_width.
+    const w = width: {
+        if (self.init_opts.col_info) |col_info| {
+            if (self.col_num < col_info.len) {
+                break :width col_info[self.col_num];
+            } else {
+                break :width col_width;
+            }
+        } else {
+            break :width col_width;
+        }
+    };
+
     self.current_col = BoxWidget.init(src, .vertical, false, .{
         .expand = .vertical,
-        .min_size_content = .{ .w = col_width, .h = self.last_height },
-        .max_size_content = .width(col_width),
+        .min_size_content = .{ .w = w, .h = self.last_height },
+        .max_size_content = .width(w),
         .border = Rect.all(1),
         .color_border = .{ .color = try dvui.Color.fromHex("#ff0000".*) },
     });
@@ -99,12 +122,18 @@ pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f
 }
 
 pub fn colEnd(self: *GridWidget) void {
+    if (clip_rect) |cr| {
+        dvui.clipSet(cr);
+        clip_rect = null;
+    }
+
     if (self.current_col) |*current_col| {
         current_col.deinit();
         self.current_col = null;
     } else {
         // TODO: Some sort of error.
     }
+    self.col_num += 1;
 }
 
 pub fn headerCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui.Options) !void {
@@ -115,7 +144,7 @@ pub fn headerCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, opts:
 
     self.current_cell = BoxWidget.init(src, .horizontal, false, .{
         .expand = .horizontal,
-        .rect = .{ .x = parent_rect.x, .y = y, .w = parent_rect.w },
+        .rect = .{ .x = 0, .y = y, .w = parent_rect.w },
         .color_fill = .{ .name = .fill_window },
         //        .margin = Rect.all(0),
         //        .padding = Rect.all(0),
@@ -136,45 +165,26 @@ pub fn headerCellEnd(self: *GridWidget) void {
     }
 }
 
-fn intersect_y(lhs: Rect, rhs: Rect) bool {
-    return ((lhs.y >= rhs.y and lhs.y <= rhs.y + rhs.h) or
-        (lhs.y + lhs.h >= rhs.y and lhs.y + lhs.h <= rhs.y + rhs.h));
-}
-
 pub fn bodyCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !void {
-    // TODO: Safety checks
     _ = opts; // TODO: Chose which opts to take.
     const parent_rect = self.current_col.?.data().contentRect();
-    var cell_rect: Rect = .{ .x = parent_rect.x, .y = self.next_row_y, .w = parent_rect.w, .h = 37.5 }; // TODO: .h
-    //    if (intersect_y(cell_rect, self.header_rect)) {
-    //        std.debug.print("{} intersects with {}\n", .{ cell_rect, self.header_rect });
-    //        cell_rect.h = cell_rect.y - self.header_rect.y + cell_rect.h;
-    //        cell_rect.y = self.header_rect.y + self.header_rect.h;
-    //        cell_rect.h = 0;
-    //        cell_rect.y = 0;
-    //        std.debug.print("NEW RECT {}\n", .{cell_rect});
-    //    }
-    if (intersect_y(cell_rect, self.header_rect)) {
-        std.debug.print("{} intersects with {}\n", .{ cell_rect, self.header_rect });
-        //        clip_rect = dvui.clip(.{ .x = 0, .y = -37.5, .w = 100, .h = 37.5 });
-        const shrinkage = cell_rect.y - self.header_rect.y;
-        cell_rect.h -= shrinkage;
-        cell_rect.y += shrinkage;
-    }
+    const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w };
 
     self.current_cell = BoxWidget.init(src, .horizontal, false, .{
         .id_extra = row_num,
-        .expand = .horizontal,
+        //        .expand = .both,
         .rect = cell_rect,
     });
 
     try self.current_cell.?.install();
     try self.current_cell.?.drawBackground(); // TODO: These background draws prob not required?
 
-    if (intersect_y(cell_rect, self.header_rect)) {
-        std.debug.print("{} intersects with {}\n", .{ cell_rect, self.header_rect });
-        //        clip_rect = dvui.clip(.{ .x = 0, .y = -37.5, .w = 100, .h = 37.5 });
+    //    if (intersect_y(cell_rect, self.header_rect)) {
+    if (clip_rect == null) {
+        clip_rect = dvui.clipGet();
+        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = 80 }));
     }
+    //    }
 }
 var clip_rect: ?Rect = null;
 
@@ -183,11 +193,6 @@ pub fn bodyCellEnd(self: *GridWidget) void {
         self.next_row_y += current_cell.data().rect.h;
         current_cell.deinit();
         self.current_cell = null;
-    }
-    if (clip_rect) |cr| {
-        std.debug.print("Restoring previous clip rect\n", .{});
-        dvui.clipSet(cr);
-        clip_rect = null;
     }
 }
 
