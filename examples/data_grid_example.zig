@@ -378,16 +378,16 @@ fn gui_frame() !void {
             //`            }
             if (sortable) {
                 {
-                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                    defer grid.colEnd();
+                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
                         sort("Make", sort_dir);
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
                 }
                 {
-                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                    defer grid.colEnd();
+                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
                         std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
                         sort("Model", sort_dir);
@@ -395,16 +395,16 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
                 }
                 {
-                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                    defer grid.colEnd();
+                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
                         sort("Year", sort_dir);
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "year", "{d}", .{ .gravity_x = 1.0 });
                 }
                 {
-                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                    defer grid.colEnd();
+                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
                         sort("Mileage", sort_dir);
@@ -412,8 +412,8 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
                 }
                 {
-                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                    defer grid.colEnd();
+                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
                         sort("Condition", sort_dir);
@@ -421,8 +421,8 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
                 }
                 {
-                    try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
-                    defer grid.colEnd();
+                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
                         sort("Description", sort_dir);
                     }

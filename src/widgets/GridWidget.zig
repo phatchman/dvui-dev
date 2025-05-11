@@ -33,14 +33,14 @@ hbox: BoxWidget = undefined,
 scroll: ScrollAreaWidget = undefined,
 init_opts: InitOpts = undefined,
 num_cols: f32 = undefined,
-current_col: ?BoxWidget = null,
-current_cell: ?BoxWidget = null,
+current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
 header_rect: Rect = .{},
-col_num: usize = 0,
+col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
+clip_rect: ?Rect = null,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -57,11 +57,6 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         self.sort_direction = sort_direction;
     }
 
-    // TODO: Assumes a scroll_info
-    //self.init_opts.scroll_info.?.virtual_size.h = @max(self.last_height, self.init_opts.scroll_info.?.viewport.h);
-    //std.debug.print("Viewport h = {d}, last_h = {d}\n", .{ self.init_opts.scroll_info.?.virtual_size.h, self.last_height });
-
-    //    self.options = options;
     return self;
 }
 
@@ -86,6 +81,7 @@ pub fn data(self: *GridWidget) *WidgetData {
 }
 
 pub fn deinit(self: *GridWidget) void {
+    self.resetClip();
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
@@ -97,9 +93,17 @@ pub fn deinit(self: *GridWidget) void {
 
 // TODO: Decide whether this takes a width or an Option or both.
 // The option should be used for background colours for the column, borders etc. (Keep in mind the border will include the header)
-pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !void {
+pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !*BoxWidget {
     // TODO: Should this take styling options?
     // TODO: Check current col is null or else error.
+    self.resetClip();
+    self.current_col = null;
+    if (self.col_num == std.math.maxInt(usize)) {
+        self.col_num = 0;
+    } else {
+        self.col_num += 1;
+    }
+    self.next_row_y = 0;
 
     // Width comes from init_opts.col_opts or from col_width.
     const w = width: {
@@ -114,91 +118,85 @@ pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f
         }
     };
 
-    self.current_col = BoxWidget.init(src, .vertical, false, .{
+    var col = try dvui.currentWindow().arena().create(BoxWidget);
+    col.* = BoxWidget.init(src, .vertical, false, .{
         .expand = .vertical,
         .min_size_content = .{ .w = w, .h = self.last_height },
         .max_size_content = .width(w),
         .border = Rect.all(1),
         .color_border = .{ .color = try dvui.Color.fromHex("#ff0000".*) },
     });
-    try self.current_col.?.install();
-    try self.current_col.?.drawBackground();
-    self.next_row_y = 0;
+    try col.install();
+    try col.drawBackground();
+    self.current_col = col;
+    return col;
 }
 
-pub fn colEnd(self: *GridWidget) void {
-    if (clip_rect) |cr| {
+fn resetClip(self: *GridWidget) void {
+    if (self.clip_rect) |cr| {
         dvui.clipSet(cr);
-        clip_rect = null;
+        self.clip_rect = null;
     }
-
-    if (self.current_col) |*current_col| {
-        current_col.deinit();
-        self.current_col = null;
-    } else {
-        // TODO: Some sort of error.
-    }
-    self.col_num += 1;
 }
 
-pub fn headerCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui.Options) !void {
+//pub fn colEnd(self: *GridWidget) void {
+//    if (self.clip_rect) |cr| {
+//        dvui.clipSet(cr);
+//        self.clip_rect = null;
+//    }
+//
+//    if (self.current_col) |*current_col| {
+//        current_col.deinit();
+//        self.current_col = null;
+//    } else {
+//        // TODO: Some sort of error.
+//    }
+//    self.col_num += 1;
+//}
+
+pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui.Options) !*BoxWidget {
     // TODO: Safety checks
     _ = opts; // TODO: Chose which opts to take.
     const y = self.scroll.si.viewport.y - 1.0;
     const parent_rect = self.current_col.?.data().backgroundRect();
 
-    self.current_cell = BoxWidget.init(src, .horizontal, false, .{
-        .expand = .horizontal,
+    //    self.resetClip();
+
+    var cell = try dvui.currentWindow().arena().create(BoxWidget);
+    cell.* = BoxWidget.init(src, .horizontal, false, .{
+        .expand = .horizontal, // TODO: Both?
         .rect = .{ .x = 0, .y = y, .w = parent_rect.w },
-        .color_fill = .{ .name = .fill_window },
-        //        .margin = Rect.all(0),
-        //        .padding = Rect.all(0),
-        .background = true,
+        //        .color_fill = .{ .name = .fill_window },
+        //        .background = true,
         .border = Rect.all(1),
         .color_border = .{ .color = try dvui.Color.fromHex("#0000ff".*) },
     });
-    try self.current_cell.?.install();
-    try self.current_cell.?.drawBackground(); // TODO: These background draws prob not required?
+    try cell.install();
+    try cell.drawBackground(); // TODO: These background draws prob not required?
+    self.next_row_y += cell.data().rect.h;
+    self.header_rect = cell.data().rect;
+    return cell;
 }
 
-pub fn headerCellEnd(self: *GridWidget) void {
-    if (self.current_cell) |*current_cell| {
-        self.next_row_y += current_cell.data().rect.h;
-        self.header_rect = current_cell.data().rect;
-        current_cell.deinit();
-        self.current_cell = null;
-    }
-}
-
-pub fn bodyCellBegin(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !void {
-    _ = opts; // TODO: Chose which opts to take.
+pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !*BoxWidget {
+    _ = opts; // TODO: Choose which opts to take.
     const parent_rect = self.current_col.?.data().contentRect();
     const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w };
-
-    self.current_cell = BoxWidget.init(src, .horizontal, false, .{
+    var cell = try dvui.currentWindow().arena().create(BoxWidget);
+    cell.* = BoxWidget.init(src, .horizontal, false, .{
         .id_extra = row_num,
-        //        .expand = .both,
         .rect = cell_rect,
     });
 
-    try self.current_cell.?.install();
-    try self.current_cell.?.drawBackground(); // TODO: These background draws prob not required?
+    try cell.install();
+    try cell.drawBackground(); // TODO: These background draws prob not required?
+    self.next_row_y += cell.data().rect.h;
 
-    //    if (intersect_y(cell_rect, self.header_rect)) {
-    if (clip_rect == null) {
-        clip_rect = dvui.clipGet();
-        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = 80 }));
+    if (self.clip_rect == null) {
+        self.clip_rect = dvui.clipGet();
+        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = 80 })); // TODO: This should be scaled header height.
     }
-    //    }
-}
-var clip_rect: ?Rect = null;
-
-pub fn bodyCellEnd(self: *GridWidget) void {
-    if (self.current_cell) |*current_cell| {
-        self.next_row_y += current_cell.data().rect.h;
-        current_cell.deinit();
-        self.current_cell = null;
-    }
+    return cell;
 }
 
 pub fn sortChanged(self: *GridWidget) void {
@@ -209,18 +207,13 @@ pub fn sortChanged(self: *GridWidget) void {
     }
     // If new sort column, then ascending, otherwise opposite of current sort.
     self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
-    std.debug.print("sort changed for {} is {s}\n", .{ self.col_num, @tagName(self.sort_direction) });
 }
 
 /// Returns the sort order for the current header.
 pub fn colSortOrder(self: *const GridWidget) SortDirection {
     if (self.col_num == self.sort_col_number) {
-        //        std.debug.print("sort order for {} is {s}\n", .{ self.col_num, @tagName(self.sort_direction) });
-
         return self.sort_direction;
     } else {
-        //      std.debug.print("sort order for {} is {s}\n", .{ self.col_num, @tagName(.unsorted) });
-
         return .unsorted;
     }
 }

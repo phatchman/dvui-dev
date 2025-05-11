@@ -3979,8 +3979,8 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, head
     heading_opts.min_size_content = null;
     heading_opts.max_size_content = null;
 
-    try g.headerCellBegin(src, .{}); // TODO: handle opts
-    defer g.headerCellEnd();
+    var cell = try g.headerCell(src, .{}); // TODO: handle opts
+    defer cell.deinit();
 
     const sort_changed = switch (g.colSortOrder()) {
         .unsorted => try button(@src(), heading, .{ .draw_focus = false }, padding_opts.override(heading_opts)),
@@ -4048,8 +4048,8 @@ pub fn gridColumnFromSlice(
     //    try body.colBegin(src, opts);
     //    defer body.colEnd();
     for (data, 0..) |item, row_num| {
-        try g.bodyCellBegin(src, row_num, opts);
-        defer g.bodyCellEnd();
+        var cell = try g.bodyCell(src, row_num, opts);
+        defer cell.deinit();
         const cell_value = value: {
             if (field_name) |_field_name| {
                 // populate value from struct field.
