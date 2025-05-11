@@ -4098,8 +4098,8 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
     var header_options = header_defaults.override(opts);
     header_options.min_size_content = null;
     header_options.max_size_content = null;
-    try g.headerCellBegin(src, opts);
-    defer g.headerCellEnd();
+    var cell = try g.headerCell(src, opts);
+    defer cell.deinit();
 
     var clicked = false;
     var selected = false;
@@ -4150,8 +4150,8 @@ pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
 
     var selection_changed = false;
     for (data, 0..) |*item, i| {
-        g.bodyCellBegin(src, i, .{}); // TODO: Sort out opts.
-        defer g.bodyCellEnd();
+        var cell = try g.bodyCell(src, i, .{}); // TODO: Sort out opts.
+        defer cell.deinit();
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
         const was_selected = is_selected.*;
         _ = try dvui.checkbox(@src(), is_selected, null, cell_defaults.override(opts));

@@ -198,8 +198,9 @@ pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.O
     return rect;
 }
 
-const default_col_info: [6]f32 = .{ 20, 30, 40, 50, 60, 70 };
-var col_info: [default_col_info.len]f32 = default_col_info;
+const col_info_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
+const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -50, -60, -70 };
+var col_info: [col_info_default.len]f32 = col_info_default;
 
 const ColumnLayoutDummy = struct {
     fn nextHeaderColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
@@ -286,12 +287,14 @@ fn gui_frame() !void {
     defer main_hbox.deinit();
     {
         scroll_info.horizontal = if (horizontal_scrolling) .auto else .none;
+        const start_idx: usize = if (selectable) 0 else 1;
+
         var grid = try dvui.grid(
             @src(),
             if (virtual_scrolling or true)
                 .{
                     .scroll_opts = .{ .scroll_info = &scroll_info },
-                    .col_info = &col_info, // TODO: Implement a non-col_info version
+                    .col_info = col_info[start_idx..], // TODO: Implement a non-col_info version
                 }
             else
                 .{
@@ -303,25 +306,27 @@ fn gui_frame() !void {
                 .expand = .both,
                 .background = true,
                 .max_size_content = .width(main_hbox.data().contentRect().w - 250),
-                // TODO: Why is this 250 and not 200? I think the control panel is 250 wide now
+                // TODO: Why is this 250 and not 200? I think the control panel should only be 200 wide.
                 // But if I make this 200, the grid walks it's way from -250 to -200 on startup
             },
         );
         defer grid.deinit();
         const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
         //        ColumnLayoutEqualWidth.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+        std.debug.print("start idx = {}\n", .{start_idx});
         switch (column_sizing) {
             .equal_width => {
                 col_info = @splat(-1);
-                ColumnLayoutEqualWidth.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+                col_info[0] = col_info_default[0];
+                ColumnLayoutEqualWidth.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
             },
             .proportional => {
-                @memcpy(&col_info, &[6]f32{ -10.0, -15.0, -20.0, -40.0, -15.0, -55.0 });
-                ColumnLayoutProportional.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+                @memcpy(col_info[start_idx..], col_info_proportional[start_idx..]);
+                ColumnLayoutProportional.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
             },
-            .col_info => @memcpy(&col_info, &default_col_info),
+            .col_info => @memcpy(col_info[start_idx..], col_info_default[start_idx..]),
         }
-        ColumnLayoutProportional.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+        ColumnLayoutProportional.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
         std.debug.print("col_info = {d}\n", .{col_info});
         var layout = ColumnLayoutDummy{};
         //const reserved_w: f32 = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0; // TODO: This is the scroll bar width
@@ -344,20 +349,24 @@ fn gui_frame() !void {
             //            var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
             //            defer header.deinit();
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
-            //            var selection: dvui.GridColumnSelectAllState = undefined;
-            //`            if (false) {
-            //`                if (selectable) {
-            //`                    if (try dvui.gridHeadingCheckbox(@src(), header, &selection, headerCheckboxOptions())) {
-            //`                        for (cars[0..]) |*car| {
-            //`                            switch (selection) {
-            //`                                .select_all => car.selected = true,
-            //`                                .select_none => car.selected = false,
-            //`                                .unchanged => {},
-            //`                            }
-            //`                        }
-            //`                    }
-            //`                }
-            //`            }
+            var selection: dvui.GridColumnSelectAllState = undefined;
+            if (selectable) {
+                var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                defer col.deinit();
+
+                if (try dvui.gridHeadingCheckbox(@src(), grid, &selection, headerCheckboxOptions())) {
+                    for (cars[0..]) |*car| {
+                        switch (selection) {
+                            .select_all => car.selected = true,
+                            .select_none => car.selected = false,
+                            .unchanged => {},
+                        }
+                    }
+                }
+
+                const changed = try dvui.gridColumnCheckbox(@src(), grid, Car, cars[0..], "selected", rowCheckboxOptions());
+                if (changed) std.debug.print("selection changed\n", .{});
+            }
             if (sortable) {
                 {
                     var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
