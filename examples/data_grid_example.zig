@@ -329,25 +329,7 @@ fn gui_frame() !void {
         ColumnLayoutProportional.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
         std.debug.print("col_info = {d}\n", .{col_info});
         var layout = ColumnLayoutDummy{};
-        //const reserved_w: f32 = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0; // TODO: This is the scroll bar width
-        //        var layout: ColumnLayout = switch (column_sizing) {
-        //            // TODO: col_info should have a dummy one.
-        //            .col_info, .equal_width => .{ .equal_width = ColumnLayoutEqualWidth.init(grid, .{
-        //                .reserved_w = reserved_w,
-        //                .content_w = content_w,
-        //            }, 6) },
-        //            .proportional => .{ .proportional = ColumnLayoutProportional.init(
-        //                grid,
-        //                .{
-        //                    .reserved_w = reserved_w,
-        //                    .content_w = content_w,
-        //                },
-        //                &.{ 10, 15, 20, 40, 15, 55 },
-        //            ) },
-        //        };
         {
-            //            var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
-            //            defer header.deinit();
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
             if (selectable) {
@@ -392,7 +374,6 @@ fn gui_frame() !void {
                         sort("Year", sort_dir);
                     }
                     try customColumn(@src(), grid, cars[0..], layout.nextHeaderColOption(.{}));
-                    //try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "year", "{d}", .{ .gravity_x = 1.0 });
                 }
                 {
                     var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
@@ -485,6 +466,7 @@ fn gui_frame() !void {
                 column_sizing = .col_info;
             }
 
+            // TODO: Add per-column sizing.
             //            if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
             //                column_sizing = .fixed_width;
             //            }
