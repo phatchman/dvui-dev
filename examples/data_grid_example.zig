@@ -378,7 +378,7 @@ fn gui_frame() !void {
             //`            }
             if (sortable) {
                 {
-                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
                         sort("Make", sort_dir);
@@ -386,7 +386,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
                 }
                 {
-                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
                         std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
@@ -395,15 +395,16 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
                 }
                 {
-                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
                         sort("Year", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "year", "{d}", .{ .gravity_x = 1.0 });
+                    try customColumn(@src(), grid, cars[0..], layout.nextHeaderColOption(.{}));
+                    //try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "year", "{d}", .{ .gravity_x = 1.0 });
                 }
                 {
-                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
                     defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
@@ -412,7 +413,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
                 }
                 {
-                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
                     defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
@@ -421,7 +422,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
                 }
                 {
-                    var col = try grid.colBegin(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
                         sort("Description", sort_dir);
@@ -528,15 +529,15 @@ fn gui_frame() !void {
     }
 }
 
-fn customColumn(src: std.builtin.SourceLocation, body: *dvui.GridBodyWidget, data: []Car, opts: dvui.Options) !void {
-    try body.colBegin(src, opts);
-    defer body.colEnd();
+fn customColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car, opts: dvui.Options) !void {
+    var col = try g.column(src, opts.max_size_contentGet().w);
+    defer col.deinit();
 
     // TODO: FIX this to have defaults then override. Actually fix this so you just specify column size
     const label_opts = opts.override(.{ .min_size_content = null, .max_size_content = null });
     for (data, 0..) |*item, i| {
-        try body.cellBegin(@src());
-        defer body.cellEnd();
+        var cell = try g.bodyCell(@src(), i, opts);
+        defer cell.deinit();
         // TODO: Consider moving the cell styling to cellBegin() instead of requring height / width to be set on each widget?
         try dvui.label(@src(), "{d}", .{item.year}, label_opts.override(.{
             .id_extra = i,

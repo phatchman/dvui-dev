@@ -93,7 +93,7 @@ pub fn deinit(self: *GridWidget) void {
 
 // TODO: Decide whether this takes a width or an Option or both.
 // The option should be used for background colours for the column, borders etc. (Keep in mind the border will include the header)
-pub fn colBegin(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !*BoxWidget {
+pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !*BoxWidget {
     // TODO: Should this take styling options?
     // TODO: Check current col is null or else error.
     self.resetClip();
@@ -138,21 +138,6 @@ fn resetClip(self: *GridWidget) void {
         self.clip_rect = null;
     }
 }
-
-//pub fn colEnd(self: *GridWidget) void {
-//    if (self.clip_rect) |cr| {
-//        dvui.clipSet(cr);
-//        self.clip_rect = null;
-//    }
-//
-//    if (self.current_col) |*current_col| {
-//        current_col.deinit();
-//        self.current_col = null;
-//    } else {
-//        // TODO: Some sort of error.
-//    }
-//    self.col_num += 1;
-//}
 
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui.Options) !*BoxWidget {
     // TODO: Safety checks
