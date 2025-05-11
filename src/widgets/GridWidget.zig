@@ -81,7 +81,7 @@ pub fn data(self: *GridWidget) *WidgetData {
 }
 
 pub fn deinit(self: *GridWidget) void {
-    self.resetClip();
+    self.clipReset();
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
@@ -96,7 +96,7 @@ pub fn deinit(self: *GridWidget) void {
 pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !*BoxWidget {
     // TODO: Should this take styling options?
     // TODO: Check current col is null or else error.
-    self.resetClip();
+    self.clipReset();
     self.current_col = null;
     if (self.col_num == std.math.maxInt(usize)) {
         self.col_num = 0;
@@ -117,6 +117,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32
             break :width col_width;
         }
     };
+    std.debug.print("Width for {d} is {d}\n", .{ self.col_num, w });
 
     var col = try dvui.currentWindow().arena().create(BoxWidget);
     col.* = BoxWidget.init(src, .vertical, false, .{
@@ -132,7 +133,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32
     return col;
 }
 
-fn resetClip(self: *GridWidget) void {
+fn clipReset(self: *GridWidget) void {
     if (self.clip_rect) |cr| {
         dvui.clipSet(cr);
         self.clip_rect = null;
@@ -177,6 +178,8 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     try cell.drawBackground(); // TODO: These background draws prob not required?
     self.next_row_y += cell.data().rect.h;
 
+    // TODO: Should be able to change the clipping to fix issue where
+    // text overflows the column boundaries for 1 frame.
     if (self.clip_rect == null) {
         self.clip_rect = dvui.clipGet();
         dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = 80 })); // TODO: This should be scaled header height.

@@ -115,90 +115,81 @@ pub fn sumSlice(T: type, slice: []const T) T {
 
 const ColumnLayoutProportional = struct {
     const InitOpts = struct {
-        // Space to reserve for fixed width columns
-        reserved_w: ?f32 = null,
+        // Positive values are treated as fixed width columns
+        // Negative values are treated as a ratio.
+        initial_w: []f32,
         // Size to specified width. Otherwise sizes to width of parent grid.
         content_w: ?f32 = null,
     };
-    initial_w: []const f32,
-    initial_total_w: f32,
-    available_w: f32,
-    num_cols: usize,
-    current_header_col: usize,
-    current_body_col: usize,
 
-    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutProportional.InitOpts, comptime initial_widths: []const f32) ColumnLayoutProportional {
+    // TODO: Probably remove init_opts and make these params?
+    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutProportional.InitOpts) void {
         const scroll_bar_w: f32 = 10; // Don't necessarily know if SB is showing?
-        const reserved_w: f32 = init_opts.reserved_w orelse 0;
-        const available: f32 = init_opts.content_w orelse grid.data().contentRect().w;
-        const initial_total_w = sumSlice(f32, initial_widths);
-        return .{
-            .initial_w = initial_widths,
-            .initial_total_w = initial_total_w,
-            .available_w = available - reserved_w - scroll_bar_w,
-            .num_cols = initial_widths.len,
-            .current_header_col = 0,
-            .current_body_col = 0,
+        const content_w: f32 = init_opts.content_w orelse grid.data().contentRect().w;
+
+        const reserved_w, const ratio_w: f32 = blk: {
+            var res_width: f32 = 0;
+            var total_ratio_w: f32 = 0;
+            for (init_opts.initial_w) |w| {
+                if (w <= 0) {
+                    total_ratio_w += -w;
+                } else {
+                    res_width += w;
+                }
+            }
+            break :blk .{ res_width, total_ratio_w };
         };
-    }
-
-    pub fn nextHeaderColOption(self: *ColumnLayoutProportional, opts: dvui.Options) dvui.Options {
-        // TODO: Sanitize the options or warn that opts are being ignored.
-        const result = self.colOption(opts, self.current_header_col);
-        self.current_header_col += 1;
-        return result;
-    }
-
-    pub fn nextBodyColOption(self: *ColumnLayoutProportional, opts: dvui.Options) dvui.Options {
-        const result = self.colOption(opts, self.current_body_col);
-        self.current_body_col += 1;
-        return result;
-    }
-
-    fn colOption(self: *ColumnLayoutProportional, opts: dvui.Options, col_num: usize) dvui.Options {
-        if (col_num < self.initial_w.len) {
-            const ratio: f32 = self.initial_w[col_num] / self.initial_total_w;
-            const w: f32 = ratio * self.available_w;
-            return opts.override(.{
-                .min_size_content = .{ .w = w },
-                .max_size_content = .width(w),
-            });
-        } else {
-            // TODO: Probable return an error?
-            return .{};
+        const available_w = content_w - reserved_w - scroll_bar_w;
+        for (init_opts.initial_w) |*w| {
+            if (w.* <= 0) {
+                w.* = -w.* / ratio_w * available_w;
+            }
         }
+    }
+};
+
+const ColumnLayoutDummy = struct {
+    fn nextHeaderColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
+        return opts.override(.{ .max_size_content = .width(0) });
+    }
+
+    fn nextBodyColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
+        return opts.override(.{ .max_size_content = .width(0) });
     }
 };
 
 const ColumnLayoutEqualWidth = struct {
     const InitOpts = struct {
-        // Space to reserve for fixed width columns
-        reserved_w: ?f32,
+        // Positive widths are treated as fixed width columns.
+        // Zero and negative widths are laid out as equal width
+        initial_w: []f32,
         // Size to specified width. Otherwise sizes to width of parent grid.
         content_w: ?f32,
     };
-    col_width: f32,
 
-    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutEqualWidth.InitOpts, num_cols: usize) ColumnLayoutEqualWidth {
-        const num_cols_f: f32 = @floatFromInt(num_cols);
-        const scroll_bar_w: f32 = 10; // Don't necessarily know if SB is showing?
-        const reserved_w: f32 = init_opts.reserved_w orelse 0;
-        const content_w: f32 = init_opts.content_w orelse grid.data().contentRect().w;
-        return .{
-            .col_width = (content_w - reserved_w - scroll_bar_w) / num_cols_f,
+    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutEqualWidth.InitOpts) void {
+        const num_cols: f32, const reserved_w: f32 = blk: {
+            var col_count: usize = 0;
+            var res_width: f32 = 0;
+            for (init_opts.initial_w) |w| {
+                if (w <= 0) {
+                    col_count += 1;
+                } else {
+                    res_width += w;
+                }
+            }
+            break :blk .{ @floatFromInt(col_count), res_width };
         };
-    }
 
-    pub fn nextHeaderColOption(self: *ColumnLayoutEqualWidth, opts: dvui.Options) dvui.Options {
-        // TODO: Sanitize the options or warn that opts are being ignored.
-        return opts.override(.{
-            .min_size_content = .{ .w = self.col_width },
-            .max_size_content = .width(self.col_width),
-        });
-    }
+        const scroll_bar_w: f32 = 10; // Don't necessarily know if SB is showing?
+        const content_w: f32 = init_opts.content_w orelse grid.data().contentRect().w;
+        const col_width = (content_w - reserved_w - scroll_bar_w) / num_cols;
 
-    pub fn nextBodyColOption(self: *ColumnLayoutEqualWidth, opts: dvui.Options) dvui.Options {
-        return self.nextHeaderColOption(opts);
+        for (init_opts.initial_w) |*w| {
+            if (w.* <= 0) {
+                w.* = col_width;
+            }
+        }
     }
 };
 
@@ -318,13 +309,15 @@ fn gui_frame() !void {
     var main_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
     {
+        col_info = @splat(-1);
+
         scroll_info.horizontal = if (horizontal_scrolling) .auto else .none;
         var grid = try dvui.grid(
             @src(),
             if (virtual_scrolling or true)
                 .{
                     .scroll_opts = .{ .scroll_info = &scroll_info },
-                    .col_info = if (column_sizing == .col_info) &col_info else null,
+                    .col_info = &col_info, // TODO: Implement a non-col_info version
                 }
             else
                 .{
@@ -340,24 +333,29 @@ fn gui_frame() !void {
                 // But if I make this 200, the grid walks it's way from -250 to -200 on startup
             },
         );
-        const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
-        const reserved_w: f32 = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0; // TODO: This is the scroll bar width
-        var layout: ColumnLayout = switch (column_sizing) {
-            // TODO: col_info should have a dummy one.
-            .col_info, .equal_width => .{ .equal_width = ColumnLayoutEqualWidth.init(grid, .{
-                .reserved_w = reserved_w,
-                .content_w = content_w,
-            }, 6) },
-            .proportional => .{ .proportional = ColumnLayoutProportional.init(
-                grid,
-                .{
-                    .reserved_w = reserved_w,
-                    .content_w = content_w,
-                },
-                &.{ 10, 15, 20, 40, 15, 55 },
-            ) },
-        };
         defer grid.deinit();
+        const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
+        //        ColumnLayoutEqualWidth.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+        @memcpy(col_info[0..], &[6]f32{ -10.0, -15.0, -20.0, -40.0, -15.0, -55.0 });
+        ColumnLayoutProportional.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+        std.debug.print("col_info = {d}\n", .{col_info});
+        var layout = ColumnLayoutDummy{};
+        //const reserved_w: f32 = if (selectable) headerCheckboxOptions().min_size_content.?.w else 0; // TODO: This is the scroll bar width
+        //        var layout: ColumnLayout = switch (column_sizing) {
+        //            // TODO: col_info should have a dummy one.
+        //            .col_info, .equal_width => .{ .equal_width = ColumnLayoutEqualWidth.init(grid, .{
+        //                .reserved_w = reserved_w,
+        //                .content_w = content_w,
+        //            }, 6) },
+        //            .proportional => .{ .proportional = ColumnLayoutProportional.init(
+        //                grid,
+        //                .{
+        //                    .reserved_w = reserved_w,
+        //                    .content_w = content_w,
+        //                },
+        //                &.{ 10, 15, 20, 40, 15, 55 },
+        //            ) },
+        //        };
         {
             //            var header = try dvui.gridHeader(@src(), grid, .{}, .{ .expand = .horizontal });
             //            defer header.deinit();
@@ -530,16 +528,12 @@ fn gui_frame() !void {
 }
 
 fn customColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car, opts: dvui.Options) !void {
-    var col = try g.column(src, opts.max_size_contentGet().w);
-    defer col.deinit();
-
     // TODO: FIX this to have defaults then override. Actually fix this so you just specify column size
     const label_opts = opts.override(.{ .min_size_content = null, .max_size_content = null });
     for (data, 0..) |*item, i| {
         var cell = try g.bodyCell(@src(), i, opts);
         defer cell.deinit();
-        // TODO: Consider moving the cell styling to cellBegin() instead of requring height / width to be set on each widget?
-        try dvui.label(@src(), "{d}", .{item.year}, label_opts.override(.{
+        try dvui.label(src, "{d}", .{item.year}, label_opts.override(.{
             .id_extra = i,
             .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
             .gravity_y = 0.5,
