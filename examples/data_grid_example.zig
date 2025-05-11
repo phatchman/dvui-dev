@@ -88,31 +88,6 @@ pub fn main() !void {
     }
 }
 
-const ColumnLayout = union(enum) {
-    equal_width: ColumnLayoutEqualWidth,
-    proportional: ColumnLayoutProportional,
-
-    pub fn nextHeaderColOption(self: *ColumnLayout, opts: dvui.Options) dvui.Options {
-        switch (self.*) {
-            inline else => |*s| return s.nextHeaderColOption(opts),
-        }
-    }
-
-    pub fn nextBodyColOption(self: *ColumnLayout, opts: dvui.Options) dvui.Options {
-        switch (self.*) {
-            inline else => |*s| return s.nextBodyColOption(opts),
-        }
-    }
-};
-
-pub fn sumSlice(T: type, slice: []const T) T {
-    var total: T = 0;
-    for (slice) |value| {
-        total += value;
-    }
-    return total;
-}
-
 const ColumnLayoutProportional = struct {
     const InitOpts = struct {
         // Positive values are treated as fixed width columns
@@ -145,16 +120,6 @@ const ColumnLayoutProportional = struct {
                 w.* = -w.* / ratio_w * available_w;
             }
         }
-    }
-};
-
-const ColumnLayoutDummy = struct {
-    fn nextHeaderColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
-        return opts.override(.{ .max_size_content = .width(0) });
-    }
-
-    fn nextBodyColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
-        return opts.override(.{ .max_size_content = .width(0) });
     }
 };
 
@@ -233,7 +198,18 @@ pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.O
     return rect;
 }
 
-var col_info: [6]f32 = .{ 20, 30, 40, 50, 60, 70 };
+const default_col_info: [6]f32 = .{ 20, 30, 40, 50, 60, 70 };
+var col_info: [default_col_info.len]f32 = default_col_info;
+
+const ColumnLayoutDummy = struct {
+    fn nextHeaderColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
+        return opts.override(.{ .max_size_content = .width(0) });
+    }
+
+    fn nextBodyColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
+        return opts.override(.{ .max_size_content = .width(0) });
+    }
+};
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
@@ -309,8 +285,6 @@ fn gui_frame() !void {
     var main_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
     {
-        col_info = @splat(-1);
-
         scroll_info.horizontal = if (horizontal_scrolling) .auto else .none;
         var grid = try dvui.grid(
             @src(),
@@ -336,7 +310,17 @@ fn gui_frame() !void {
         defer grid.deinit();
         const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
         //        ColumnLayoutEqualWidth.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
-        @memcpy(col_info[0..], &[6]f32{ -10.0, -15.0, -20.0, -40.0, -15.0, -55.0 });
+        switch (column_sizing) {
+            .equal_width => {
+                col_info = @splat(-1);
+                ColumnLayoutEqualWidth.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+            },
+            .proportional => {
+                @memcpy(&col_info, &[6]f32{ -10.0, -15.0, -20.0, -40.0, -15.0, -55.0 });
+                ColumnLayoutProportional.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
+            },
+            .col_info => @memcpy(&col_info, &default_col_info),
+        }
         ColumnLayoutProportional.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
         std.debug.print("col_info = {d}\n", .{col_info});
         var layout = ColumnLayoutDummy{};
