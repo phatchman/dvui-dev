@@ -171,6 +171,7 @@ const ColumnSizing = enum {
     equal_width,
     proportional,
     col_info,
+    expand,
 };
 var column_sizing: ColumnSizing = .equal_width;
 const prev_height: f32 = 0;
@@ -199,16 +200,22 @@ pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.O
 }
 
 const col_info_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
-const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -50, -60, -70 };
+const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -20, -60, -70 };
 var col_info: [col_info_default.len]f32 = col_info_default;
 
 const ColumnLayoutDummy = struct {
     fn nextHeaderColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
-        return opts.override(.{ .max_size_content = .width(0) });
+        if (column_sizing == .expand) {
+            return opts.override(.{ .expand = .horizontal });
+        }
+        return opts;
     }
 
     fn nextBodyColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
-        return opts.override(.{ .max_size_content = .width(0) });
+        if (column_sizing == .expand) {
+            return opts.override(.{ .expand = .horizontal });
+        }
+        return opts;
     }
 };
 
@@ -294,7 +301,7 @@ fn gui_frame() !void {
             if (virtual_scrolling or true)
                 .{
                     .scroll_opts = .{ .scroll_info = &scroll_info },
-                    .col_info = col_info[start_idx..], // TODO: Implement a non-col_info version
+                    .col_info = if (column_sizing != .expand) col_info[start_idx..] else null, // TODO: Implement a non-col_info version
                 }
             else
                 .{
@@ -325,6 +332,7 @@ fn gui_frame() !void {
                 ColumnLayoutProportional.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
             },
             .col_info => @memcpy(col_info[start_idx..], col_info_default[start_idx..]),
+            .expand => {},
         }
         ColumnLayoutProportional.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
         std.debug.print("col_info = {d}\n", .{col_info});
@@ -333,7 +341,7 @@ fn gui_frame() !void {
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
             if (selectable) {
-                var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
                 defer col.deinit();
 
                 if (try dvui.gridHeadingCheckbox(@src(), grid, &selection, headerCheckboxOptions())) {
@@ -351,7 +359,7 @@ fn gui_frame() !void {
             }
             if (sortable) {
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
                         sort("Make", sort_dir);
@@ -359,7 +367,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
                         std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
@@ -368,7 +376,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
                         sort("Year", sort_dir);
@@ -376,7 +384,7 @@ fn gui_frame() !void {
                     try customColumn(@src(), grid, cars[0..], layout.nextHeaderColOption(.{}));
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
                     defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
@@ -385,7 +393,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
                     defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
@@ -394,7 +402,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}).max_size_content.?.w);
+                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
                         sort("Description", sort_dir);
@@ -464,6 +472,9 @@ fn gui_frame() !void {
             }
             if (try dvui.radio(@src(), column_sizing == .col_info, "col_info", .{})) {
                 column_sizing = .col_info;
+            }
+            if (try dvui.radio(@src(), column_sizing == .expand, ".expand", .{})) {
+                column_sizing = .expand;
             }
 
             // TODO: Add per-column sizing.

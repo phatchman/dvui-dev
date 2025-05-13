@@ -26,7 +26,9 @@ pub const SortDirection = enum {
 pub const InitOpts = struct {
     scroll_opts: ?ScrollAreaWidget.InitOpts,
     col_info: ?[]f32,
+    //content_width: ?f32, // TODO: Consider adding content width so that user can size the width of the scroll area?
 };
+pub const default_col_width: f32 = 100;
 
 vbox: BoxWidget = undefined,
 hbox: BoxWidget = undefined,
@@ -91,11 +93,10 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
-// TODO: Decide whether this takes a width or an Option or both.
-// The option should be used for background colours for the column, borders etc. (Keep in mind the border will include the header)
-pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32) !*BoxWidget {
+pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options) !*BoxWidget {
     // TODO: Should this take styling options?
     // TODO: Check current col is null or else error.
+    // TODO: Handle row heights.
     self.clipReset();
     self.current_col = null;
     if (self.col_num == std.math.maxInt(usize)) {
@@ -105,28 +106,66 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, col_width: f32
     }
     self.next_row_y = 0;
 
-    // Width comes from init_opts.col_opts or from col_width.
+    std.debug.print("column opts {d} is {}\n", .{ self.col_num, opts });
+
+    // Width comes from init_opts.col_opts or opts.max_size_content.
     const w = width: {
+        // Take width from col_opts if it is set.
         if (self.init_opts.col_info) |col_info| {
             if (self.col_num < col_info.len) {
+                std.debug.print("col_info\n", .{});
                 break :width col_info[self.col_num];
             } else {
-                break :width col_width;
+                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_info. Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                break :width default_col_width;
             }
         } else {
-            break :width col_width;
+            // Otherwise take width from max_size_content
+            if (opts.max_size_content) |max_size_content| {
+                if (max_size_content.w != dvui.max_float_safe and max_size_content.w > 0) {
+                    std.debug.print("max_size_content\n", .{});
+                    break :width max_size_content.w;
+                } else {
+                    dvui.log.debug("GridWidget {x} invalid opts.max_size_content.w provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                    break :width default_col_width;
+                }
+            }
+            // Otherwise there must be a horizontal expand.
+            switch (opts.expand orelse .none) {
+                .none,
+                .ratio,
+                .vertical,
+                => {
+                    dvui.log.debug("GridWidget {x} invalid opts.expand provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                    break :width default_col_width;
+                },
+                .both, .horizontal => {
+                    std.debug.print("zero\n", .{});
+                    break :width 0;
+                },
+            }
         }
     };
-    std.debug.print("Width for {d} is {d}\n", .{ self.col_num, w });
+    if (w != 0 and opts.expand != null) {
+        dvui.log.debug("GridWidget {x} opts.max_size_content.w overrides opts.expand.\n", .{self.data().id});
+    }
+    // Make sure there is always a .vertical expand supplied.
+    const expand: Options.Expand = switch (opts.expand orelse .none) {
+        .none, .vertical => .vertical,
+        .horizontal, .both => .both,
+        .ratio => unreachable, // ratio expand not supported.
+    };
 
     var col = try dvui.currentWindow().arena().create(BoxWidget);
-    col.* = BoxWidget.init(src, .vertical, false, .{
-        .expand = .vertical,
+    const col_opts: Options = .{
+        .expand = expand,
         .min_size_content = .{ .w = w, .h = self.last_height },
-        .max_size_content = .width(w),
+        .max_size_content = if (w > 0) .width(w) else null,
         .border = Rect.all(1),
         .color_border = .{ .color = try dvui.Color.fromHex("#ff0000".*) },
-    });
+    };
+    std.debug.print("Width opts {d} is {}\n", .{ self.col_num, col_opts });
+    col.* = BoxWidget.init(src, .vertical, false, col_opts);
     try col.install();
     try col.drawBackground();
     self.current_col = col;
