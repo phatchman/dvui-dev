@@ -6,6 +6,11 @@
         - Using strip on hte options passed ot the label, causes height issues.
 - [ ] Take the header clip from a measured height, rather than a constant 80.
 
+- So we need a different height for headers vs body. So max_content_size.h can be specified for both headers and bodies
+- When layout ot the rows, use the row_height if supplied, otherwise use the calculated row height
+- Grid should store the max row_height for the previous frame, separately for both header and body
+- This should be used when laying out the position of the next row. (will prob need a refresh if this size changes)
+
 ### Issues
 - [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.
 - [ ] Is there a better name than window size for the scroller? It's not really a window size. It's a number of extra rows to render above and below the visible rows.
