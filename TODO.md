@@ -1,8 +1,10 @@
 ### Todos
 - [ ] Make rows always the same height (potentially there should be a way to override this if user really wants?)
+- [ ] As above for headers.
+- [ ] Make sure rows and headers can grow and shrink.
 - [ ] Make it so different options can be provided for the cell vs the label? Or will these never overlap? 
         - Using strip on hte options passed ot the label, causes height issues.
-- [ ] Take the header clip from a measued height, rather than a constant 80.
+- [ ] Take the header clip from a measured height, rather than a constant 80.
 
 ### Issues
 - [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.
