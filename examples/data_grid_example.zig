@@ -88,75 +88,33 @@ pub fn main() !void {
     }
 }
 
-const ColumnLayoutProportional = struct {
-    const InitOpts = struct {
-        // Positive values are treated as fixed width columns
-        // Negative values are treated as a ratio.
-        initial_w: []f32,
-        // Size to specified width. Otherwise sizes to width of parent grid.
-        content_w: ?f32 = null,
-    };
+pub fn columnLayoutProportional(grid: *dvui.GridWidget, ratio_widths: []f32, content_width: ?f32) void {
+    const scroll_bar_w: f32 = 10; // TODO: Don't necessarily know if SB is showing? There needs ot be a grid function to work this out.
+    const content_w: f32 = content_width orelse grid.data().contentRect().w;
 
-    // TODO: Probably remove init_opts and make these params?
-    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutProportional.InitOpts) void {
-        const scroll_bar_w: f32 = 10; // Don't necessarily know if SB is showing?
-        const content_w: f32 = init_opts.content_w orelse grid.data().contentRect().w;
-
-        const reserved_w, const ratio_w: f32 = blk: {
-            var res_width: f32 = 0;
-            var total_ratio_w: f32 = 0;
-            for (init_opts.initial_w) |w| {
-                if (w <= 0) {
-                    total_ratio_w += -w;
-                } else {
-                    res_width += w;
-                }
-            }
-            break :blk .{ res_width, total_ratio_w };
-        };
-        const available_w = content_w - reserved_w - scroll_bar_w;
-        for (init_opts.initial_w) |*w| {
-            if (w.* <= 0) {
-                w.* = -w.* / ratio_w * available_w;
+    // Count all of the positive widths as reserved widths.
+    // Total all of the negative widths.
+    const reserved_w, const ratio_w: f32 = blk: {
+        var res_width: f32 = 0;
+        var total_ratio_w: f32 = 0;
+        for (ratio_widths) |w| {
+            if (w <= 0) {
+                total_ratio_w += -w;
+            } else {
+                res_width += w;
             }
         }
-    }
-};
-
-const ColumnLayoutEqualWidth = struct {
-    const InitOpts = struct {
-        // Positive widths are treated as fixed width columns.
-        // Zero and negative widths are laid out as equal width
-        initial_w: []f32,
-        // Size to specified width. Otherwise sizes to width of parent grid.
-        content_w: ?f32,
+        break :blk .{ res_width, total_ratio_w };
     };
+    const available_w = content_w - reserved_w - scroll_bar_w;
 
-    pub fn init(grid: *dvui.GridWidget, init_opts: ColumnLayoutEqualWidth.InitOpts) void {
-        const num_cols: f32, const reserved_w: f32 = blk: {
-            var col_count: usize = 0;
-            var res_width: f32 = 0;
-            for (init_opts.initial_w) |w| {
-                if (w <= 0) {
-                    col_count += 1;
-                } else {
-                    res_width += w;
-                }
-            }
-            break :blk .{ @floatFromInt(col_count), res_width };
-        };
-
-        const scroll_bar_w: f32 = 10; // Don't necessarily know if SB is showing?
-        const content_w: f32 = init_opts.content_w orelse grid.data().contentRect().w;
-        const col_width = (content_w - reserved_w - scroll_bar_w) / num_cols;
-
-        for (init_opts.initial_w) |*w| {
-            if (w.* <= 0) {
-                w.* = col_width;
-            }
+    // For each negative width, replace it width a positive calcualted width.
+    for (ratio_widths) |*w| {
+        if (w.* <= 0) {
+            w.* = -w.* / ratio_w * available_w;
         }
     }
-};
+}
 
 const num_cars = 500;
 pub const testing = false;
@@ -203,21 +161,12 @@ const col_info_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
 const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -20, -60, -70 };
 var col_info: [col_info_default.len]f32 = col_info_default;
 
-const ColumnLayoutDummy = struct {
-    fn nextHeaderColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
-        if (column_sizing == .expand) {
-            return opts.override(.{ .expand = .horizontal });
-        }
-        return opts;
+fn colOptions(opts: dvui.Options) dvui.Options {
+    if (column_sizing == .expand) {
+        return opts.override(.{ .expand = .horizontal });
     }
-
-    fn nextBodyColOption(_: *ColumnLayoutDummy, opts: dvui.Options) dvui.Options {
-        if (column_sizing == .expand) {
-            return opts.override(.{ .expand = .horizontal });
-        }
-        return opts;
-    }
-};
+    return opts;
+}
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
@@ -323,25 +272,23 @@ fn gui_frame() !void {
         std.debug.print("start idx = {}\n", .{start_idx});
         switch (column_sizing) {
             .equal_width => {
+                // MAke all columns equal width, except for checbox which stays a fixed width.
                 col_info = @splat(-1);
                 col_info[0] = col_info_default[0];
-                ColumnLayoutEqualWidth.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
             },
             .proportional => {
-                @memcpy(col_info[start_idx..], col_info_proportional[start_idx..]);
-                ColumnLayoutProportional.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
+                @memcpy(&col_info, &col_info_proportional);
             },
-            .col_info => @memcpy(col_info[start_idx..], col_info_default[start_idx..]),
+            .col_info => @memcpy(&col_info, &col_info_default),
             .expand => {},
         }
-        ColumnLayoutProportional.init(grid, .{ .initial_w = col_info[start_idx..], .content_w = content_w });
+        columnLayoutProportional(grid, col_info[start_idx..], content_w);
         std.debug.print("col_info = {d}\n", .{col_info});
-        var layout = ColumnLayoutDummy{};
         {
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
             if (selectable) {
-                var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
+                var col = try grid.column(@src(), colOptions(.{}));
                 defer col.deinit();
 
                 if (try dvui.gridHeadingCheckbox(@src(), grid, &selection, headerCheckboxOptions())) {
@@ -359,7 +306,7 @@ fn gui_frame() !void {
             }
             if (sortable) {
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
+                    var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
                         sort("Make", sort_dir);
@@ -367,7 +314,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
+                    var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
                         std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
@@ -376,15 +323,15 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
+                    var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
                         sort("Year", sort_dir);
                     }
-                    try customColumn(@src(), grid, cars[0..], layout.nextHeaderColOption(.{}));
+                    try customColumn(@src(), grid, cars[0..], colOptions(.{}));
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
+                    var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
@@ -393,7 +340,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
+                    var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
 
                     if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
@@ -402,7 +349,7 @@ fn gui_frame() !void {
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
                 }
                 {
-                    var col = try grid.column(@src(), layout.nextHeaderColOption(.{}));
+                    var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
                         sort("Description", sort_dir);
@@ -417,41 +364,6 @@ fn gui_frame() !void {
             //   try dvui.gridHeading(@src(), header, "Condition", layout.nextHeaderColOption(.{}));
             //   try dvui.gridHeading(@src(), header, "Description", layout.nextHeaderColOption(.{}));
             //}
-        }
-        if (false) // TODO: Keep scope
-        {
-            var body = try dvui.gridBody(@src(), grid, .{}, .{ .expand = .both });
-            defer body.deinit();
-            const row_count = if (filter_grid) filtered_cars.len else cars.len;
-            const first, const last = limits: {
-                if (virtual_scrolling) {
-                    var scroller = body.virtualScroller(.{ .total_rows = row_count, .window_size = 20 });
-                    break :limits .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
-                } else {
-                    break :limits .{ 0, row_count };
-                }
-            };
-
-            if (selectable) {
-                const changed = try dvui.gridColumnCheckbox(@src(), body, Car, cars[first..last], "selected", rowCheckboxOptions());
-                if (changed) std.debug.print("selection changed\n", .{});
-            }
-
-            if (!filter_grid) {
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "make", "{s}", layout.nextBodyColOption(.{}));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "model", "{s}", layout.nextBodyColOption(.{}));
-                try customColumn(@src(), body, cars[first..last], layout.nextBodyColOption(.{}));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "mileage", "{d}", layout.nextBodyColOption(.{ .gravity_x = 1.0 }));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "condition", "{s}", layout.nextBodyColOption(.{ .gravity_x = 0.5 }));
-                try dvui.gridColumnFromSlice(@src(), body, Car, cars[first..last], "description", "{s}", layout.nextBodyColOption(.{}));
-            } else {
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "make", "{s}", layout.nextBodyColOption(.{}));
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "model", "{s}", layout.nextBodyColOption(.{}));
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "year", "{d}", layout.nextBodyColOption(.{}));
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "mileage", "{d}", layout.nextBodyColOption(.{ .gravity_x = 1.0 }));
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "condition", "{s}", layout.nextBodyColOption(.{ .gravity_x = 0.5 }));
-                try dvui.gridColumnFromSlice(@src(), body, *Car, filtered_cars[first..last], "description", "{s}", layout.nextBodyColOption(.{}));
-            }
         }
     }
     {
