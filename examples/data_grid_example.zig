@@ -311,7 +311,7 @@ fn gui_frame() !void {
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
                         sort("Make", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{});
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(1) });
                 }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
@@ -426,15 +426,16 @@ fn gui_frame() !void {
 }
 
 fn customColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car, opts: dvui.Options) !void {
-    // TODO: FIX this to have defaults then override. Actually fix this so you just specify column size
-    const label_opts = opts.override(.{ .min_size_content = null, .max_size_content = null });
     for (data, 0..) |*item, i| {
-        var cell = try g.bodyCell(@src(), i, opts);
+        var cell = try g.bodyCell(@src(), i, opts.override(
+            .{ .color_fill = if (item.year % 2 == 0) .{ .name = .fill_press } else null, .background = true },
+        ));
         defer cell.deinit();
-        try dvui.label(src, "{d}", .{item.year}, label_opts.override(.{
+        try dvui.label(src, "{d}", .{item.year}, opts.override(.{
             .id_extra = i,
             .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
             .gravity_y = 0.5,
+            //.background = true,
             //   .expand = .both,
         }));
     }

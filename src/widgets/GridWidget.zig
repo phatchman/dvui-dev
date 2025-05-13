@@ -204,14 +204,14 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui
 }
 
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !*BoxWidget {
-    _ = opts; // TODO: Choose which opts to take.
     const parent_rect = self.current_col.?.data().contentRect();
     const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w };
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
-    cell.* = BoxWidget.init(src, .horizontal, false, .{
+
+    cell.* = BoxWidget.init(src, .horizontal, false, opts.override(.{
         .id_extra = row_num,
         .rect = cell_rect,
-    });
+    }));
 
     try cell.install();
     try cell.drawBackground(); // TODO: These background draws prob not required?
