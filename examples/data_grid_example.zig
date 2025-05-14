@@ -149,7 +149,7 @@ pub fn rowCheckboxOptions() dvui.Options {
 pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.Options) !dvui.Rect {
     var lw = dvui.LabelWidget.initNoFmt(src, str, opts);
     try lw.install();
-    std.debug.print("clip = {}\n", .{dvui.clipGet()});
+    //std.debug.print("clip = {}\n", .{dvui.clipGet()});
     lw.processEvents();
     try lw.draw();
     const rect = lw.data().rect;
@@ -170,7 +170,7 @@ fn colOptions(opts: dvui.Options) dvui.Options {
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
-    std.debug.print("frame\n", .{});
+    //std.debug.print("frame\n", .{});
     const backend = g_backend orelse return;
     _ = backend;
     {
@@ -214,7 +214,7 @@ fn gui_frame() !void {
                     defer hb.deinit();
                     var y_pos: f32 = rect.h;
                     //                    const r = dvui.clip(.{ .h = 27.5, .w = 150, .y = y_pos });
-                    std.debug.print("clip = {}\n", .{dvui.clipGet()});
+                    //std.debug.print("clip = {}\n", .{dvui.clipGet()});
                     rect = try labelNoFmt(@src(), "Body2.1", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
                     //                    dvui.clipSet(r);
                     y_pos += rect.h;
@@ -269,7 +269,7 @@ fn gui_frame() !void {
         defer grid.deinit();
         const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
         //        ColumnLayoutEqualWidth.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
-        std.debug.print("start idx = {}\n", .{start_idx});
+        //std.debug.print("start idx = {}\n", .{start_idx});
         switch (column_sizing) {
             .equal_width => {
                 // MAke all columns equal width, except for checbox which stays a fixed width.
@@ -283,7 +283,7 @@ fn gui_frame() !void {
             .expand => {},
         }
         columnLayoutProportional(grid, col_info[start_idx..], content_w);
-        std.debug.print("col_info = {d}\n", .{col_info});
+        //std.debug.print("col_info = {d}\n", .{col_info});
         {
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
@@ -308,7 +308,7 @@ fn gui_frame() !void {
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{ .font_style = .title })) {
                         sort("Make", sort_dir);
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(1) });

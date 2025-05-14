@@ -38,7 +38,9 @@ num_cols: f32 = undefined,
 current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
-header_rect: Rect = .{},
+//header_rect: Rect = .{},
+header_height: f32 = 0,
+row_height: f32 = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
@@ -51,6 +53,12 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     self.vbox = BoxWidget.init(src, .vertical, false, options);
     if (dvui.dataGet(null, self.data().id, "_last_height", f32)) |last_height| {
         self.last_height = last_height;
+    }
+    if (dvui.dataGet(null, self.data().id, "_header_height", f32)) |header_height| {
+        self.header_height = header_height;
+    }
+    if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |header_height| {
+        self.header_height = header_height;
     }
     if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
         self.sort_col_number = sort_col;
@@ -85,6 +93,8 @@ pub fn data(self: *GridWidget) *WidgetData {
 pub fn deinit(self: *GridWidget) void {
     self.clipReset();
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
+    dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
+    dvui.dataSet(null, self.data().id, "_row_height", self.header_height);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
 
@@ -106,14 +116,14 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options)
     }
     self.next_row_y = 0;
 
-    std.debug.print("column opts {d} is {}\n", .{ self.col_num, opts });
+    //std.debug.print("column opts {d} is {}\n", .{ self.col_num, opts });
 
     // Width comes from init_opts.col_opts or opts.max_size_content.
     const w = width: {
         // Take width from col_opts if it is set.
         if (self.init_opts.col_info) |col_info| {
             if (self.col_num < col_info.len) {
-                std.debug.print("col_info\n", .{});
+                //std.debug.print("col_info\n", .{});
                 break :width col_info[self.col_num];
             } else {
                 dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_info. Using default column width of {d}\n", .{ self.data().id, default_col_width });
@@ -123,7 +133,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options)
             // Otherwise take width from max_size_content
             if (opts.max_size_content) |max_size_content| {
                 if (max_size_content.w != dvui.max_float_safe and max_size_content.w > 0) {
-                    std.debug.print("max_size_content\n", .{});
+                    //std.debug.print("max_size_content\n", .{});
                     break :width max_size_content.w;
                 } else {
                     dvui.log.debug("GridWidget {x} invalid opts.max_size_content.w provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
@@ -140,7 +150,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options)
                     break :width default_col_width;
                 },
                 .both, .horizontal => {
-                    std.debug.print("zero\n", .{});
+                    //std.debug.print("zero\n", .{});
                     break :width 0;
                 },
             }
@@ -164,7 +174,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options)
         .border = Rect.all(1),
         .color_border = .{ .color = try dvui.Color.fromHex("#ff0000".*) },
     };
-    std.debug.print("Width opts {d} is {}\n", .{ self.col_num, col_opts });
+    //std.debug.print("Width opts {d} is {}\n", .{ self.col_num, col_opts });
     col.* = BoxWidget.init(src, .vertical, false, col_opts);
     try col.install();
     try col.drawBackground();
@@ -186,11 +196,12 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui
     const parent_rect = self.current_col.?.data().backgroundRect();
 
     //    self.resetClip();
-
+    //std.debug.print("self.header_height = {d}\n", .{self.header_height});
+    const header_height: f32 = if (self.header_height < 5) 0 else self.header_height; // TODO: better way to express this?
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
     cell.* = BoxWidget.init(src, .horizontal, false, .{
         .expand = .horizontal, // TODO: Both?
-        .rect = .{ .x = 0, .y = y, .w = parent_rect.w },
+        .rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height },
         //        .color_fill = .{ .name = .fill_window },
         //        .background = true,
         .border = Rect.all(1),
@@ -198,14 +209,17 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui
     });
     try cell.install();
     try cell.drawBackground(); // TODO: These background draws prob not required?
-    self.next_row_y += cell.data().rect.h;
-    self.header_rect = cell.data().rect;
+    const height = cell.data().rect.h;
+    self.header_height = @max(self.header_height, height);
+    self.next_row_y += self.header_height;
+    //self.header_rect = cell.data().rect;
     return cell;
 }
 
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !*BoxWidget {
     const parent_rect = self.current_col.?.data().contentRect();
-    const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w };
+    const row_height = if (self.row_height < 5) 0 else self.row_height;
+    const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = row_height };
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
 
     cell.* = BoxWidget.init(src, .horizontal, false, opts.override(.{
@@ -215,13 +229,19 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
 
     try cell.install();
     try cell.drawBackground(); // TODO: These background draws prob not required?
-    self.next_row_y += cell.data().rect.h;
-
+    const cell_height = cell.data().rect.h;
+    self.row_height = @max(self.row_height, cell_height);
+    self.next_row_y += self.row_height;
     // TODO: Should be able to change the clipping to fix issue where
     // text overflows the column boundaries for 1 frame.
     if (self.clip_rect == null) {
         self.clip_rect = dvui.clipGet();
-        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = 80 })); // TODO: This should be scaled header height.
+        // TODO: Maybe pre-calc and only update when height changes? It is only done once per col.
+        const rect_scale = self.vbox.data().rectScale();
+        const header_height: Rect = .{ .h = self.header_height };
+        const scaled_header_height = header_height.scale(rect_scale.s);
+
+        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = scaled_header_height.h })); // TODO: This should be scaled header height.
     }
     return cell;
 }

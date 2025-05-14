@@ -5,6 +5,8 @@
 - [ ] Make it so different options can be provided for the cell vs the label? Or will these never overlap? 
         - Using strip on hte options passed ot the label, causes height issues.
 - [ ] Take the header clip from a measured height, rather than a constant 80.
+- [ ] Look into making the grid take a content width as an init_option. This would size the width of the 
+      scroll area, so that a .expand layout can fill the whole space.
 
 - So we need a different height for headers vs body. So max_content_size.h can be specified for both headers and bodies
 - When layout ot the rows, use the row_height if supplied, otherwise use the calculated row height
