@@ -193,10 +193,11 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui
     // TODO: Safety checks
     _ = opts; // TODO: Chose which opts to take.
     const y = self.scroll.si.viewport.y - 1.0;
-    const parent_rect = self.current_col.?.data().backgroundRect();
+    const parent_rect = self.current_col.?.data().contentRect();
 
     //    self.resetClip();
     //std.debug.print("self.header_height = {d}\n", .{self.header_height});
+    // TODO: This 5 is not really viable right? because I can just make a bigger border?
     const header_height: f32 = if (self.header_height < 5) 0 else self.header_height; // TODO: better way to express this?
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
     cell.* = BoxWidget.init(src, .horizontal, false, .{
@@ -222,6 +223,16 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = row_height };
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
 
+    if (self.clip_rect == null) {
+        self.clip_rect = dvui.clipGet();
+        // TODO: Maybe pre-calc and only update when height changes? It is only done once per col.
+        const rect_scale = self.vbox.data().rectScale();
+        const header_height: Rect = .{ .h = self.header_height };
+        const scaled_header_height = header_height.scale(rect_scale.s);
+
+        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = scaled_header_height.h })); // TODO: This should be scaled header height.
+    }
+
     cell.* = BoxWidget.init(src, .horizontal, false, opts.override(.{
         .id_extra = row_num,
         .rect = cell_rect,
@@ -234,15 +245,6 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     self.next_row_y += self.row_height;
     // TODO: Should be able to change the clipping to fix issue where
     // text overflows the column boundaries for 1 frame.
-    if (self.clip_rect == null) {
-        self.clip_rect = dvui.clipGet();
-        // TODO: Maybe pre-calc and only update when height changes? It is only done once per col.
-        const rect_scale = self.vbox.data().rectScale();
-        const header_height: Rect = .{ .h = self.header_height };
-        const scaled_header_height = header_height.scale(rect_scale.s);
-
-        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = scaled_header_height.h })); // TODO: This should be scaled header height.
-    }
     return cell;
 }
 

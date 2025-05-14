@@ -308,10 +308,10 @@ fn gui_frame() !void {
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{ .font_style = .title })) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{ .font_style = .title, .border = dvui.Rect.all(5) })) {
                         sort("Make", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(1) });
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) });
                 }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
