@@ -221,9 +221,8 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     const parent_rect = self.current_col.?.data().contentRect();
     const row_height = if (self.row_height < 5) 0 else self.row_height;
     const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = row_height };
-    var cell = try dvui.currentWindow().arena().create(BoxWidget);
 
-    // This prevetns the header for being overwritten when scrolling.
+    // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
         const rect_scale = self.vbox.data().rectScale();
         const header_height_scaled = self.header_height * rect_scale.s;
@@ -232,21 +231,24 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
     }
 
+    var cell = try dvui.currentWindow().arena().create(BoxWidget);
     cell.* = BoxWidget.init(src, .horizontal, false, opts.override(.{
         .id_extra = row_num,
         .rect = cell_rect,
     }));
 
     try cell.install();
-    try cell.drawBackground(); // TODO: These background draws prob not required?
+    try cell.drawBackground();
+
     const cell_height = cell.data().rect.h;
-    self.row_height = @max(self.row_height, cell_height);
+    self.row_height = @max(self.row_height, cell_height); // TODO: Allow heights to shrink. Need a prev_row_height.
     self.next_row_y += self.row_height;
     // TODO: Should be able to change the clipping to fix issue where
     // text overflows the column boundaries for 1 frame.
     return cell;
 }
 
+/// Must be called whenever the sort order for any column has changed.
 pub fn sortChanged(self: *GridWidget) void {
     // If sorting on a new column, change current sort column to unsorted.
     if (self.col_num != self.sort_col_number) {
@@ -257,7 +259,7 @@ pub fn sortChanged(self: *GridWidget) void {
     self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
 }
 
-/// Returns the sort order for the current header.
+/// Returns the sort order for the current column.
 pub fn colSortOrder(self: *const GridWidget) SortDirection {
     if (self.col_num == self.sort_col_number) {
         return self.sort_direction;
@@ -266,9 +268,9 @@ pub fn colSortOrder(self: *const GridWidget) SortDirection {
     }
 }
 
-///// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.
-///// GridVirtualScroller requires that a scroll_info has been passed as an init_option
-///// to the GridBodyWidget.
+/// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.
+/// GridVirtualScroller requires that a scroll_info has been passed as an init_option
+/// to the GridBodyWidget.
 pub const GridVirtualScroller = struct {
     pub const InitOpts = struct {
         // Total rows in the columns displayed

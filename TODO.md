@@ -7,6 +7,9 @@
 - [ ] Take the header clip from a measured height, rather than a constant 80.
 - [ ] Look into making the grid take a content width as an init_option. This would size the width of the 
       scroll area, so that a .expand layout can fill the whole space.
+- [ ] Provide some osrt pf init options to put the header and body row heights under the control of the user.
+        - They would be responsible for providing a min/max size content on each cell to make the rows line up
+        however they neeed.
 
 - So we need a different height for headers vs body. So max_content_size.h can be specified for both headers and bodies
 - When layout ot the rows, use the row_height if supplied, otherwise use the calculated row height
