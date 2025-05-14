@@ -44,7 +44,7 @@ row_height: f32 = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
-clip_rect: ?Rect = null,
+prev_clip_rect: ?Rect = null,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -183,9 +183,9 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options)
 }
 
 fn clipReset(self: *GridWidget) void {
-    if (self.clip_rect) |cr| {
+    if (self.prev_clip_rect) |cr| {
         dvui.clipSet(cr);
-        self.clip_rect = null;
+        self.prev_clip_rect = null;
     }
 }
 
@@ -223,14 +223,13 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = row_height };
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
 
-    if (self.clip_rect == null) {
-        self.clip_rect = dvui.clipGet();
-        // TODO: Maybe pre-calc and only update when height changes? It is only done once per col.
+    // This prevetns the header for being overwritten when scrolling.
+    if (self.prev_clip_rect == null) {
         const rect_scale = self.vbox.data().rectScale();
-        const header_height: Rect = .{ .h = self.header_height };
-        const scaled_header_height = header_height.scale(rect_scale.s);
+        const header_height_scaled = self.header_height * rect_scale.s;
 
-        dvui.clipSet(self.vbox.data().rectScale().r.offset(.{ .y = scaled_header_height.h })); // TODO: This should be scaled header height.
+        self.prev_clip_rect = dvui.clipGet();
+        dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
     }
 
     cell.* = BoxWidget.init(src, .horizontal, false, opts.override(.{
