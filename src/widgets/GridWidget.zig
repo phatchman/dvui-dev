@@ -105,8 +105,8 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     if (dvui.dataGet(null, self.data().id, "_header_height", f32)) |header_height| {
         self.header_height = header_height;
     }
-    if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |header_height| {
-        self.header_height = header_height;
+    if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
+        self.row_height = row_height;
     }
     if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
         self.sort_col_number = sort_col;
@@ -142,7 +142,7 @@ pub fn deinit(self: *GridWidget) void {
     self.clipReset();
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
-    dvui.dataSet(null, self.data().id, "_row_height", self.header_height);
+    dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
 
@@ -223,19 +223,20 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
         }
     };
 
+    var cell_opts = opts.toOptions();
+    cell_opts.rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height };
+
     // Create the cell and install as parent.
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
-    cell.* = BoxWidget.init(src, .horizontal, false, .{
-        .rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height },
-        .border = Rect.all(1),
-        .color_border = .{ .color = try dvui.Color.fromHex("#0000ff".*) },
-    });
+    cell.* = BoxWidget.init(src, .horizontal, false, cell_opts);
     try cell.install();
     try cell.drawBackground();
 
     // Determine heights for next frame.
-    const height = cell.data().rect.h;
-    self.header_height = @max(self.header_height, height);
+    if (cell.data().contentRect().h > 0) {
+        const height = cell.data().rect.h;
+        self.header_height = @max(self.header_height, height);
+    }
     self.next_row_y += self.header_height;
     return cell;
 }
@@ -249,13 +250,13 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         if (opts.height) |height| {
             break :height height;
         } else {
-            // TODO: Why is height 2 on first frame and not 0? Something to do with border?
             if (self.row_height < 5) {
                 break :height 0;
             }
             break :height self.row_height;
         }
     };
+    std.debug.print("Row h = {d}\n", .{cell_height});
 
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
@@ -275,8 +276,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     try cell.install();
     try cell.drawBackground();
 
-    const measured_cell_height = cell.data().rect.h;
-    self.row_height = @max(self.row_height, measured_cell_height); // TODO: Allow heights to shrink. Need a prev_row_height.
+    if (cell.data().contentRect().h > 0) {
+        const measured_cell_height = cell.data().rect.h;
+        self.row_height = @max(self.row_height, measured_cell_height);
+    }
     self.next_row_y += self.row_height;
 
     return cell;

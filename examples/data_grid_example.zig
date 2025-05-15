@@ -273,15 +273,15 @@ fn gui_frame() !void {
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) }, .{});
                 }
-                {
-                    var col = try grid.column(@src(), colOptions(.{}));
-                    defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{}, .{})) {
-                        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
-                        sort("Model", sort_dir);
-                    }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
-                }
+                //{
+                //    var col = try grid.column(@src(), colOptions(.{}));
+                //    defer col.deinit();
+                //    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{}, .{})) {
+                //        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
+                //        sort("Model", sort_dir);
+                //    }
+                //    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
+                //}
                 //                {
                 //                    var col = try grid.column(@src(), colOptions(.{}));
                 //                    defer col.deinit();
@@ -308,14 +308,15 @@ fn gui_frame() !void {
                 //                    }
                 //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{}, .{ .gravity_x = 0.5 });
                 //                }
-                //                {
-                //                    var col = try grid.column(@src(), colOptions(.{}));
-                //                    defer col.deinit();
-                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{}, .{})) {
-                //                        sort("Description", sort_dir);
-                //                    }
-                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{}, .{});
-                //                }
+                {
+                    var col = try grid.column(@src(), colOptions(.{}));
+                    defer col.deinit();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{}, .{})) {
+                        sort("Description", sort_dir);
+                    }
+                    try textAreaColumn(@src(), grid, cars[0..]);
+                    //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{}, .{});
+                }
             } // else if (false) {
             //   try dvui.gridHeading(@src(), header, "Make", layout.nextHeaderColOption(.{}));
             //   try dvui.gridHeading(@src(), header, "Model", layout.nextHeaderColOption(.{}));
@@ -391,16 +392,30 @@ fn gui_frame() !void {
 fn customColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car, opts: dvui.Options) !void {
     for (data, 0..) |*item, i| {
         var cell = try g.bodyCell(
-            @src(),
+            src,
             i,
             (.{ .color_fill = if (item.year % 2 == 0) .{ .name = .fill_press } else null, .background = true }),
         );
         defer cell.deinit();
-        try dvui.label(src, "{d}", .{item.year}, opts.override(.{
+        try dvui.label(@src(), "{d}", .{item.year}, opts.override(.{
             .id_extra = i,
             .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
             .gravity_y = 0.5,
         }));
+    }
+}
+
+fn textAreaColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car) !void {
+    for (data, 0..) |*item, i| {
+        var cell = try g.bodyCell(
+            src,
+            i,
+            .{ .height = 0 },
+        );
+        defer cell.deinit();
+        var text = try dvui.textLayout(@src(), .{ .break_lines = true }, .{ .expand = .both });
+        defer text.deinit();
+        try text.addText(item.description, .{ .expand = .both });
     }
 }
 
