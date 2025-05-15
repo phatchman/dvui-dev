@@ -24,7 +24,7 @@ pub const CellOptions = struct {
 
     pub fn toOptions(self: *const CellOptions) Options {
         return .{
-            // height is not converted
+            // height is not converted as cell height is set via rect.
             .margin = self.margin,
             .border = self.border,
             .padding = self.padding,
@@ -63,7 +63,6 @@ num_cols: f32 = undefined,
 current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
-//header_rect: Rect = .{},
 header_height: f32 = 0,
 row_height: f32 = 0,
 col_num: usize = std.math.maxInt(usize),
@@ -219,7 +218,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
     const parent_rect = self.current_col.?.data().contentRect();
 
     // Take header height from options if exists or from previous header_height.
-    // On first frame (header_height < 5), height is unconstrained.
+    // On first frame (when header_height < 5), height is unconstrained.
     const header_height: f32 = height: {
         if (opts.height) |height| {
             break :height height;
@@ -265,9 +264,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
             break :height self.row_height;
         }
     };
-    var cell_opts = opts.toOptions();
-    cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
-    cell_opts.id_extra = row_num;
+
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
         const rect_scale = self.vbox.data().rectScale();
@@ -276,6 +273,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         self.prev_clip_rect = dvui.clipGet();
         dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
     }
+
+    var cell_opts = opts.toOptions();
+    cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
+    cell_opts.id_extra = row_num;
 
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
     cell.* = BoxWidget.init(src, .horizontal, false, cell_opts);
