@@ -136,10 +136,17 @@ const prev_height: f32 = 0;
 
 const fixed_width_w: f32 = 50;
 pub fn headerCheckboxOptions() dvui.Options {
-    return .{
-        .min_size_content = .{ .w = 40 },
-        .max_size_content = .width(40),
-    };
+    if (header_height == 0) {
+        return .{
+            .min_size_content = .{ .w = 40 },
+            .max_size_content = .width(40),
+        };
+    } else {
+        return .{
+            .min_size_content = .{ .w = 40, .h = header_height },
+            .max_size_content = .width(40),
+        };
+    }
 }
 
 pub fn rowCheckboxOptions() dvui.Options {
@@ -291,7 +298,7 @@ fn gui_frame() !void {
                 var col = try grid.column(@src(), colOptions(.{}));
                 defer col.deinit();
 
-                if (try dvui.gridHeadingCheckbox(@src(), grid, &selection, headerCheckboxOptions())) {
+                if (try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{}, headerCheckboxOptions())) {
                     for (cars[0..]) |*car| {
                         switch (selection) {
                             .select_all => car.selected = true,
@@ -308,24 +315,24 @@ fn gui_frame() !void {
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{ .font_style = .title, .border = dvui.Rect.all(5) })) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{ .border = dvui.Rect.all(5) }, .{ .font_style = .title })) {
                         sort("Make", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) });
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) }, .{});
                 }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{ .height = 50 }, .{})) {
                         std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
                         sort("Model", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{});
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
                 }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{}, .{})) {
                         sort("Year", sort_dir);
                     }
                     try customColumn(@src(), grid, cars[0..], colOptions(.{}));
@@ -334,27 +341,27 @@ fn gui_frame() !void {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
 
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{}, .{})) {
                         sort("Mileage", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{ .gravity_x = 1.0 });
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{}, .{ .gravity_x = 1.0 });
                 }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
 
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{}, .{})) {
                         sort("Condition", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{ .gravity_x = 0.5 });
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{}, .{ .gravity_x = 0.5 });
                 }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{}, .{})) {
                         sort("Description", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{});
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{}, .{});
                 }
             } // else if (false) {
             //   try dvui.gridHeading(@src(), header, "Make", layout.nextHeaderColOption(.{}));
@@ -427,16 +434,16 @@ fn gui_frame() !void {
 
 fn customColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car, opts: dvui.Options) !void {
     for (data, 0..) |*item, i| {
-        var cell = try g.bodyCell(@src(), i, opts.override(
-            .{ .color_fill = if (item.year % 2 == 0) .{ .name = .fill_press } else null, .background = true },
-        ));
+        var cell = try g.bodyCell(
+            @src(),
+            i,
+            (.{ .color_fill = if (item.year % 2 == 0) .{ .name = .fill_press } else null, .background = true }),
+        );
         defer cell.deinit();
         try dvui.label(src, "{d}", .{item.year}, opts.override(.{
             .id_extra = i,
             .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
             .gravity_y = 0.5,
-            //.background = true,
-            //   .expand = .both,
         }));
     }
 }

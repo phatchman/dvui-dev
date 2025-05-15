@@ -3963,23 +3963,29 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
 /// Returns true if the sort direction has changed.
 /// sort_dir is an out parameter containing the current sort direction.
 /// opts controls the styling for the button label used for the heading.
-pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, dir: *GridWidget.SortDirection, opts: dvui.Options) !bool {
+pub fn gridHeadingSortable(
+    src: std.builtin.SourceLocation,
+    g: *GridWidget,
+    heading: []const u8,
+    dir: *GridWidget.SortDirection,
+    cell_opts: GridWidget.CellOptions,
+    opts: dvui.Options,
+) !bool {
     const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
-    const icon_width = 27.5; // TODO: Is this really a const?
+    const icon_width = 27.5;
     const padding = ButtonWidget.defaults.padding orelse Rect.all(6);
 
+    // Pad buttons with extra space if there is no sort indicator.
     const padding_opts: Options = .{ .padding = .{ .x = icon_width / 2.0, .w = icon_width / 2.0, .y = padding.y, .h = padding.h } };
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
-        .background = true, // TODO:
+        //        .background = true,
     };
-    var heading_opts = heading_defaults.override(opts);
-    heading_opts.min_size_content = null;
-    heading_opts.max_size_content = null;
+    const heading_opts = heading_defaults.override(opts);
 
-    var cell = try g.headerCell(src, .{}); // TODO: handle opts
+    var cell = try g.headerCell(src, cell_opts);
     defer cell.deinit();
 
     const sort_changed = switch (g.colSortOrder()) {
@@ -4002,8 +4008,8 @@ pub fn gridHeadingSortable(src: std.builtin.SourceLocation, g: *GridWidget, head
 /// Enums are displayed as their @tagName and fmt must be "{s}"
 /// Bools are displayed as Y or N and fmt must be "{s}"
 /// Other types are formatted using the supplied fmt string.
-/// opts controls the label displayed in the grid cell.
-/// opts.id_extra is ignored.
+/// cell_opts styles the cell's hbox
+/// opts styles the label
 pub fn gridColumnFromSlice(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
@@ -4011,7 +4017,8 @@ pub fn gridColumnFromSlice(
     data: []const T,
     comptime field_name: ?[]const u8,
     comptime fmt: []const u8,
-    opts: dvui.Options,
+    cell_opts: GridWidget.CellOptions,
+    opts: Options,
 ) !void {
     // TODO: Support pointer to direct value.
     comptime var TypeToValidate = T;
@@ -4041,14 +4048,10 @@ pub fn gridColumnFromSlice(
         .max_size_content = null,
         .expand = .horizontal,
     };
-    var label_opts = label_defaults.override(opts);
-    label_opts.min_size_content = null;
-    label_opts.max_size_content = null;
+    const label_opts = label_defaults.override(opts);
 
-    //    try body.colBegin(src, opts);
-    //    defer body.colEnd();
     for (data, 0..) |item, row_num| {
-        var cell = try g.bodyCell(src, row_num, opts);
+        var cell = try g.bodyCell(src, row_num, cell_opts);
         defer cell.deinit();
         const cell_value = value: {
             if (field_name) |_field_name| {
@@ -4072,7 +4075,6 @@ pub fn gridColumnFromSlice(
             fmt,
             .{cell_value},
             label_opts,
-            //            label_opts.override(.{ .id_extra = id_extra }),
         );
     }
 }
@@ -4087,7 +4089,7 @@ pub const GridColumnSelectAllState = enum {
 ///
 /// Returns true if the selection state has changed.
 /// selection - out parameter containing the current selection state.
-pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, selection: *GridColumnSelectAllState, opts: dvui.Options) !bool {
+pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, selection: *GridColumnSelectAllState, cell_opts: GridWidget.CellOptions, opts: Options) !bool {
     const header_defaults: Options = .{
         .background = true,
         .color_fill = .{ .name = .fill_control },
@@ -4095,10 +4097,8 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
         .expand = .vertical,
         .gravity_y = 0.5,
     };
-    var header_options = header_defaults.override(opts);
-    header_options.min_size_content = null;
-    header_options.max_size_content = null;
-    var cell = try g.headerCell(src, opts);
+    const header_options = header_defaults.override(opts);
+    var cell = try g.headerCell(src, cell_opts);
     defer cell.deinit();
 
     var clicked = false;

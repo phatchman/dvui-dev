@@ -33,4 +33,39 @@
 * Resize columns via dragging
 * Filtering headers
 
+## How do we treat options???
+        // reset to defaults of internal widgets
+        .id_extra = null, - Cell
+        .tag = null, - Cell
+        .name = null, - Cell
+        .rect = null, - Ignored
+        .min_size_content = null, - Ignored
+        .max_size_content = null, - Cell
+        .expand = null, - Label (Cell is always expanded.)
+        .gravity_x = null,     - Label
+        .gravity_y = null,     - Label
+
+        // ignore defaults of internal widgets
+        .tab_index = null, - Label
+        .margin = Rect{}, - Label
+        .border = Rect{},  - Cell
+        .padding = Rect{}, - Cell
+        .corner_radius = Rect{}, - Label
+        .background = false, - Label (Cell always draw background?)
+
+        // keep the rest
+        .color_accent = self.color_accent,      - Label
+        .color_text = self.color_text,  - Label
+        .color_text_press = self.color_text_press,      - Label
+        .color_fill = self.color_fill,  - Label / Cell
+        .color_fill_hover = self.color_fill_hover, Label / Cell
+        .color_fill_press = self.color_fill_press, Label
+        .color_border = self.color_border, Label / Cell
+
+        .font = self.font, Lable
+        .font_style = self.font_style,
+
+        .rotation = self.rotation,
+        .debug = self.debug,
+
 

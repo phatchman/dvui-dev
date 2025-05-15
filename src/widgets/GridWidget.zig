@@ -2,6 +2,7 @@ const std = @import("std");
 const dvui = @import("../dvui.zig");
 
 const Options = dvui.Options;
+const ColorOrName = dvui.Options.ColorOrName;
 const Rect = dvui.Rect;
 const Size = dvui.Size;
 const MaxSize = Options.MaxSize;
@@ -10,6 +11,30 @@ const WidgetData = dvui.WidgetData;
 const BoxWidget = dvui.BoxWidget;
 const ScrollAreaWidget = dvui.ScrollAreaWidget;
 const GridWidget = @This();
+
+pub const CellOptions = struct {
+    height: ?f32 = null,
+    margin: ?Rect = null,
+    border: ?Rect = null,
+    padding: ?Rect = null,
+    background: ?bool = null,
+    color_fill: ?ColorOrName = null,
+    color_fill_hover: ?ColorOrName = null,
+    color_border: ?ColorOrName = null,
+
+    pub fn toOptions(self: *const CellOptions) Options {
+        return .{
+            // height is not converted
+            .margin = self.margin,
+            .border = self.border,
+            .padding = self.padding,
+            .background = self.background,
+            .color_fill = self.color_fill,
+            .color_fill_hover = self.color_fill_hover,
+            .color_border = self.color_border,
+        };
+    }
+};
 
 pub var defaults: Options = .{
     .name = "GridWidget",
@@ -189,39 +214,60 @@ fn clipReset(self: *GridWidget) void {
     }
 }
 
-pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: dvui.Options) !*BoxWidget {
-    // TODO: Safety checks
-    _ = opts; // TODO: Chose which opts to take.
+pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) !*BoxWidget {
     const y = self.scroll.si.viewport.y - 1.0;
     const parent_rect = self.current_col.?.data().contentRect();
 
-    //    self.resetClip();
-    //std.debug.print("self.header_height = {d}\n", .{self.header_height});
-    // TODO: This 5 is not really viable right? because I can just make a bigger border?
-    const header_height: f32 = if (self.header_height < 5) 0 else self.header_height; // TODO: better way to express this?
+    // Take header height from options if exists or from previous header_height.
+    // On first frame (header_height < 5), height is unconstrained.
+    const header_height: f32 = height: {
+        if (opts.height) |height| {
+            break :height height;
+        } else {
+            // TODO: Why is height 2 on first frame and not 0? Something to do with border?
+            if (self.header_height < 5) {
+                break :height 0;
+            }
+            break :height self.header_height;
+        }
+    };
+
+    // Create the cell and install as parent.
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
     cell.* = BoxWidget.init(src, .horizontal, false, .{
-        .expand = .horizontal, // TODO: Both?
         .rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height },
-        //        .color_fill = .{ .name = .fill_window },
-        //        .background = true,
         .border = Rect.all(1),
         .color_border = .{ .color = try dvui.Color.fromHex("#0000ff".*) },
     });
     try cell.install();
-    try cell.drawBackground(); // TODO: These background draws prob not required?
+    try cell.drawBackground();
+
+    // Determine heights for next frame.
     const height = cell.data().rect.h;
     self.header_height = @max(self.header_height, height);
     self.next_row_y += self.header_height;
-    //self.header_rect = cell.data().rect;
     return cell;
 }
 
-pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: dvui.Options) !*BoxWidget {
+pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) !*BoxWidget {
     const parent_rect = self.current_col.?.data().contentRect();
-    const row_height = if (self.row_height < 5) 0 else self.row_height;
-    const cell_rect: Rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = row_height };
 
+    // Take row height from options if exists or from previous row_height.
+    // On first frame (row_height < 5), height is unconstrained.
+    const cell_height: f32 = height: {
+        if (opts.height) |height| {
+            break :height height;
+        } else {
+            // TODO: Why is height 2 on first frame and not 0? Something to do with border?
+            if (self.row_height < 5) {
+                break :height 0;
+            }
+            break :height self.row_height;
+        }
+    };
+    var cell_opts = opts.toOptions();
+    cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
+    cell_opts.id_extra = row_num;
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
         const rect_scale = self.vbox.data().rectScale();
@@ -232,19 +278,14 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     }
 
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
-    cell.* = BoxWidget.init(src, .horizontal, false, opts.override(.{
-        .id_extra = row_num,
-        .rect = cell_rect,
-    }));
-
+    cell.* = BoxWidget.init(src, .horizontal, false, cell_opts);
     try cell.install();
     try cell.drawBackground();
 
-    const cell_height = cell.data().rect.h;
-    self.row_height = @max(self.row_height, cell_height); // TODO: Allow heights to shrink. Need a prev_row_height.
+    const measured_cell_height = cell.data().rect.h;
+    self.row_height = @max(self.row_height, measured_cell_height); // TODO: Allow heights to shrink. Need a prev_row_height.
     self.next_row_y += self.row_height;
-    // TODO: Should be able to change the clipping to fix issue where
-    // text overflows the column boundaries for 1 frame.
+
     return cell;
 }
 
