@@ -180,7 +180,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
                 }
             } else {
                 // If there is no width specified either in col_info or col_opts,
-                // just expand.
+                // just expand to fill available width.
                 break :width .{ 0, .horizontal };
             }
         }

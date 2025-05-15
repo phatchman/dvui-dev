@@ -129,6 +129,7 @@ const ColumnSizing = enum {
     equal_width,
     proportional,
     col_info,
+    col_width,
     expand,
 };
 var column_sizing: ColumnSizing = .equal_width;
@@ -153,22 +154,36 @@ pub fn rowCheckboxOptions() dvui.Options {
     return headerCheckboxOptions();
 }
 
-pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.Options) !dvui.Rect {
-    var lw = dvui.LabelWidget.initNoFmt(src, str, opts);
-    try lw.install();
-    //std.debug.print("clip = {}\n", .{dvui.clipGet()});
-    lw.processEvents();
-    try lw.draw();
-    const rect = lw.data().rect;
-    lw.deinit();
-    return rect;
-}
-
+//pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.Options) !dvui.Rect {
+//    var lw = dvui.LabelWidget.initNoFmt(src, str, opts);
+//    try lw.install();
+//    //std.debug.print("clip = {}\n", .{dvui.clipGet()});
+//    lw.processEvents();
+//    try lw.draw();
+//    const rect = lw.data().rect;
+//    lw.deinit();
+//    return rect;
+//}
+//
 const col_info_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
 const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -20, -60, -70 };
 var col_info: [col_info_default.len]f32 = col_info_default;
 
 fn colOptions(opts: dvui.GridWidget.ColOptions) dvui.GridWidget.ColOptions {
+    if (column_sizing == .col_width) {
+        var result = opts;
+        result.width = 200;
+        return result;
+    }
+    return opts;
+}
+
+fn headerCellOpts(opts: dvui.GridWidget.CellOptions) dvui.GridWidget.CellOptions {
+    if (header_height > 0) {
+        var result = opts;
+        result.height = header_height;
+        return result;
+    }
     return opts;
 }
 
@@ -186,63 +201,6 @@ fn gui_frame() !void {
             defer fw.deinit();
         }
     }
-    if (testing) {
-        var outer_vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
-        defer outer_vbox.deinit();
-        {
-            var scroll = try dvui.scrollArea(@src(), .{ .horizontal = .auto }, .{ .expand = .both });
-            defer scroll.deinit();
-            {
-                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-                defer hbox.deinit();
-                {
-                    var vbox = try dvui.box(@src(), .vertical, .{
-                        .expand = .vertical,
-                        .min_size_content = .{ .w = 150 },
-                        .max_size_content = .width(50),
-                        .border = dvui.Rect.all(1),
-                    });
-                    defer vbox.deinit();
-                    try dvui.labelNoFmt(@src(), "Body1", .{});
-                }
-                {
-                    var vbox = try dvui.box(@src(), .vertical, .{
-                        .expand = .vertical,
-                        .min_size_content = .{ .w = 150 },
-                        .max_size_content = .width(50),
-                        .border = dvui.Rect.all(1),
-                    });
-                    defer vbox.deinit();
-                    var rect = try labelNoFmt(@src(), "Header 2", .{ .rect = .{ .h = 27.5, .w = 150, .x = 0, .y = 0 } });
-                    var hb = try dvui.box(@src(), .horizontal, .{ .expand = .both });
-                    defer hb.deinit();
-                    var y_pos: f32 = rect.h;
-                    //                    const r = dvui.clip(.{ .h = 27.5, .w = 150, .y = y_pos });
-                    //std.debug.print("clip = {}\n", .{dvui.clipGet()});
-                    rect = try labelNoFmt(@src(), "Body2.1", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
-                    //                    dvui.clipSet(r);
-                    y_pos += rect.h;
-                    rect = try labelNoFmt(@src(), "Body2.2", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
-                    y_pos += rect.h;
-                    rect = try labelNoFmt(@src(), "Body2.3", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
-                    y_pos += rect.h;
-                    rect = try labelNoFmt(@src(), "Body2.4", .{ .rect = .{ .h = 27.5, .w = 150, .y = y_pos } });
-                }
-                {
-                    var vbox = try dvui.box(@src(), .vertical, .{
-                        .expand = .vertical,
-                        .min_size_content = .{ .w = 550 },
-                        .max_size_content = .width(550),
-                        .border = dvui.Rect.all(1),
-                    });
-                    defer vbox.deinit();
-                    try dvui.labelNoFmt(@src(), "Body3", .{});
-                }
-            }
-        }
-        return;
-    }
-
     var main_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
     {
@@ -252,10 +210,10 @@ fn gui_frame() !void {
         var grid = try dvui.grid(
             @src(),
             if (virtual_scrolling or true)
-                .{
-                    .scroll_opts = .{ .scroll_info = &scroll_info },
-                    .col_info = if (column_sizing != .expand) col_info[start_idx..] else null, // TODO: Implement a non-col_info version
-                }
+                .{ .scroll_opts = .{ .scroll_info = &scroll_info }, .col_info = switch (column_sizing) {
+                    .expand, .col_width => null,
+                    .col_info, .equal_width, .proportional => col_info[start_idx..],
+                } }
             else
                 .{
                     .horizontal = if (horizontal_scrolling) .auto else .none,
@@ -282,7 +240,7 @@ fn gui_frame() !void {
                 @memcpy(&col_info, &col_info_proportional);
             },
             .col_info => @memcpy(&col_info, &col_info_default),
-            .expand => {},
+            .col_width, .expand => {},
         }
         columnLayoutProportional(grid, col_info[start_idx..], content_w);
         //std.debug.print("col_info = {d}\n", .{col_info});
@@ -310,20 +268,20 @@ fn gui_frame() !void {
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, .{ .border = dvui.Rect.all(5) }, .{ .font_style = .title })) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{ .border = dvui.Rect.all(5) }), .{ .font_style = .title })) {
                         sort("Make", sort_dir);
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) }, .{});
                 }
-                //                {
-                //                    var col = try grid.column(@src(), colOptions(.{}));
-                //                    defer col.deinit();
-                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{ .height = 50 }, .{})) {
-                //                        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
-                //                        sort("Model", sort_dir);
-                //                    }
-                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
-                //                }
+                {
+                    var col = try grid.column(@src(), colOptions(.{}));
+                    defer col.deinit();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{}, .{})) {
+                        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
+                        sort("Model", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
+                }
                 //                {
                 //                    var col = try grid.column(@src(), colOptions(.{}));
                 //                    defer col.deinit();
@@ -386,6 +344,9 @@ fn gui_frame() !void {
             }
             if (try dvui.radio(@src(), column_sizing == .col_info, "col_info", .{})) {
                 column_sizing = .col_info;
+            }
+            if (try dvui.radio(@src(), column_sizing == .col_width, "col_width", .{})) {
+                column_sizing = .col_width;
             }
             if (try dvui.radio(@src(), column_sizing == .expand, ".expand", .{})) {
                 column_sizing = .expand;
