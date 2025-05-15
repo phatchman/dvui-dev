@@ -36,6 +36,30 @@ pub const CellOptions = struct {
     }
 };
 
+pub const ColOptions = struct {
+    width: ?f32 = null,
+    margin: ?Rect = null,
+    border: ?Rect = null,
+    padding: ?Rect = null,
+    background: ?bool = null,
+    color_fill: ?ColorOrName = null,
+    color_fill_hover: ?ColorOrName = null,
+    color_border: ?ColorOrName = null,
+
+    pub fn toOptions(self: *const ColOptions) Options {
+        return .{
+            // height is not converted as cell height is set via rect.
+            .margin = self.margin,
+            .border = self.border,
+            .padding = self.padding,
+            .background = self.background,
+            .color_fill = self.color_fill,
+            .color_fill_hover = self.color_fill_hover,
+            .color_border = self.color_border,
+        };
+    }
+};
+
 pub var defaults: Options = .{
     .name = "GridWidget",
     .background = true,
@@ -127,10 +151,7 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
-pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options) !*BoxWidget {
-    // TODO: Should this take styling options?
-    // TODO: Check current col is null or else error.
-    // TODO: Handle row heights.
+pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) !*BoxWidget {
     self.clipReset();
     self.current_col = null;
     if (self.col_num == std.math.maxInt(usize)) {
@@ -140,65 +161,36 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: Options)
     }
     self.next_row_y = 0;
 
-    //std.debug.print("column opts {d} is {}\n", .{ self.col_num, opts });
-
-    // Width comes from init_opts.col_opts or opts.max_size_content.
-    const w = width: {
+    const w: f32, const expand: ?Options.Expand = width: {
         // Take width from col_opts if it is set.
         if (self.init_opts.col_info) |col_info| {
             if (self.col_num < col_info.len) {
-                //std.debug.print("col_info\n", .{});
-                break :width col_info[self.col_num];
+                break :width .{ col_info[self.col_num], null };
             } else {
                 dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_info. Using default column width of {d}\n", .{ self.data().id, default_col_width });
-                break :width default_col_width;
+                break :width .{ default_col_width, null };
             }
         } else {
-            // Otherwise take width from max_size_content
-            if (opts.max_size_content) |max_size_content| {
-                if (max_size_content.w != dvui.max_float_safe and max_size_content.w > 0) {
-                    //std.debug.print("max_size_content\n", .{});
-                    break :width max_size_content.w;
+            if (opts.width) |w| {
+                if (w > 0) {
+                    break :width .{ w, null };
                 } else {
-                    dvui.log.debug("GridWidget {x} invalid opts.max_size_content.w provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
-                    break :width default_col_width;
+                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                    break :width .{ default_col_width, null };
                 }
-            }
-            // Otherwise there must be a horizontal expand.
-            switch (opts.expand orelse .none) {
-                .none,
-                .ratio,
-                .vertical,
-                => {
-                    dvui.log.debug("GridWidget {x} invalid opts.expand provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
-                    break :width default_col_width;
-                },
-                .both, .horizontal => {
-                    //std.debug.print("zero\n", .{});
-                    break :width 0;
-                },
+            } else {
+                // If there is no width specified either in col_info or col_opts,
+                // just expand.
+                break :width .{ 0, .horizontal };
             }
         }
     };
-    if (w != 0 and opts.expand != null) {
-        dvui.log.debug("GridWidget {x} opts.max_size_content.w overrides opts.expand.\n", .{self.data().id});
-    }
-    // Make sure there is always a .vertical expand supplied.
-    const expand: Options.Expand = switch (opts.expand orelse .none) {
-        .none, .vertical => .vertical,
-        .horizontal, .both => .both,
-        .ratio => unreachable, // ratio expand not supported.
-    };
+    var col_opts = opts.toOptions();
+    col_opts.expand = expand;
+    col_opts.min_size_content = .{ .w = w, .h = self.last_height };
+    col_opts.max_size_content = if (w > 0) .width(w) else null;
 
     var col = try dvui.currentWindow().arena().create(BoxWidget);
-    const col_opts: Options = .{
-        .expand = expand,
-        .min_size_content = .{ .w = w, .h = self.last_height },
-        .max_size_content = if (w > 0) .width(w) else null,
-        .border = Rect.all(1),
-        .color_border = .{ .color = try dvui.Color.fromHex("#ff0000".*) },
-    };
-    //std.debug.print("Width opts {d} is {}\n", .{ self.col_num, col_opts });
     col.* = BoxWidget.init(src, .vertical, false, col_opts);
     try col.install();
     try col.drawBackground();

@@ -168,10 +168,7 @@ const col_info_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
 const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -20, -60, -70 };
 var col_info: [col_info_default.len]f32 = col_info_default;
 
-fn colOptions(opts: dvui.Options) dvui.Options {
-    if (column_sizing == .expand) {
-        return opts.override(.{ .expand = .horizontal });
-    }
+fn colOptions(opts: dvui.GridWidget.ColOptions) dvui.GridWidget.ColOptions {
     return opts;
 }
 
@@ -275,11 +272,9 @@ fn gui_frame() !void {
         );
         defer grid.deinit();
         const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
-        //        ColumnLayoutEqualWidth.init(grid, .{ .initial_w = &col_info, .content_w = content_w });
-        //std.debug.print("start idx = {}\n", .{start_idx});
         switch (column_sizing) {
             .equal_width => {
-                // MAke all columns equal width, except for checbox which stays a fixed width.
+                // Make all columns equal width, except for checbox which stays a fixed width.
                 col_info = @splat(-1);
                 col_info[0] = col_info_default[0];
             },
@@ -320,49 +315,49 @@ fn gui_frame() !void {
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) }, .{});
                 }
-                {
-                    var col = try grid.column(@src(), colOptions(.{}));
-                    defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{ .height = 50 }, .{})) {
-                        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
-                        sort("Model", sort_dir);
-                    }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
-                }
-                {
-                    var col = try grid.column(@src(), colOptions(.{}));
-                    defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{}, .{})) {
-                        sort("Year", sort_dir);
-                    }
-                    try customColumn(@src(), grid, cars[0..], colOptions(.{}));
-                }
-                {
-                    var col = try grid.column(@src(), colOptions(.{}));
-                    defer col.deinit();
-
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{}, .{})) {
-                        sort("Mileage", sort_dir);
-                    }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{}, .{ .gravity_x = 1.0 });
-                }
-                {
-                    var col = try grid.column(@src(), colOptions(.{}));
-                    defer col.deinit();
-
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{}, .{})) {
-                        sort("Condition", sort_dir);
-                    }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{}, .{ .gravity_x = 0.5 });
-                }
-                {
-                    var col = try grid.column(@src(), colOptions(.{}));
-                    defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{}, .{})) {
-                        sort("Description", sort_dir);
-                    }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{}, .{});
-                }
+                //                {
+                //                    var col = try grid.column(@src(), colOptions(.{}));
+                //                    defer col.deinit();
+                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{ .height = 50 }, .{})) {
+                //                        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
+                //                        sort("Model", sort_dir);
+                //                    }
+                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
+                //                }
+                //                {
+                //                    var col = try grid.column(@src(), colOptions(.{}));
+                //                    defer col.deinit();
+                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{}, .{})) {
+                //                        sort("Year", sort_dir);
+                //                    }
+                //                    try customColumn(@src(), grid, cars[0..], colOptions(.{}));
+                //                }
+                //                {
+                //                    var col = try grid.column(@src(), colOptions(.{}));
+                //                    defer col.deinit();
+                //
+                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{}, .{})) {
+                //                        sort("Mileage", sort_dir);
+                //                    }
+                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{}, .{ .gravity_x = 1.0 });
+                //                }
+                //                {
+                //                    var col = try grid.column(@src(), colOptions(.{}));
+                //                    defer col.deinit();
+                //
+                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{}, .{})) {
+                //                        sort("Condition", sort_dir);
+                //                    }
+                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{}, .{ .gravity_x = 0.5 });
+                //                }
+                //                {
+                //                    var col = try grid.column(@src(), colOptions(.{}));
+                //                    defer col.deinit();
+                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{}, .{})) {
+                //                        sort("Description", sort_dir);
+                //                    }
+                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{}, .{});
+                //                }
             } // else if (false) {
             //   try dvui.gridHeading(@src(), header, "Make", layout.nextHeaderColOption(.{}));
             //   try dvui.gridHeading(@src(), header, "Model", layout.nextHeaderColOption(.{}));
