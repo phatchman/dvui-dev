@@ -260,7 +260,7 @@ fn gui_frame() !void {
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{ .border = dvui.Rect.all(5) }), .{ .font_style = .title })) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{}), .{})) {
                         sort("Make", sort_dir);
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) }, .{});
@@ -303,7 +303,7 @@ fn gui_frame() !void {
                 {
                     var col = try grid.column(@src(), colOptions(.{ .width = 0 }));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{}, .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{ .border = dvui.Rect.all(5) }, .{ .font_style = .title })) {
                         sort("Description", sort_dir);
                     }
                     try textAreaColumn(@src(), grid, cars[0..]);

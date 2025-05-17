@@ -88,6 +88,7 @@ current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
 header_height: f32 = 0,
+last_header_height: f32 = 0,
 row_height: f32 = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
@@ -103,7 +104,7 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         self.last_height = last_height;
     }
     if (dvui.dataGet(null, self.data().id, "_header_height", f32)) |header_height| {
-        self.header_height = header_height;
+        self.last_header_height = header_height;
     }
     if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
         self.row_height = row_height;
@@ -218,15 +219,13 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
             break :height height;
         } else {
             // TODO: Why is height 2 on first frame and not 0? Something to do with border?
-            if (self.header_height < 5) {
+            if (self.last_header_height < 5) {
                 break :height 0;
             }
-            break :height self.header_height;
+            break :height if (self.header_height < self.last_header_height) 0 else self.last_header_height;
         }
     };
-    if (self.col_num == 0) {
-        std.debug.print("Header h = {d}\n", .{header_height});
-    }
+    std.debug.print("Header h = {d}:{d}\n", .{ self.col_num, header_height });
 
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height };
@@ -268,7 +267,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
         const rect_scale = self.vbox.data().rectScale();
-        const header_height_scaled = self.header_height * rect_scale.s;
+        const header_height_scaled = self.last_header_height * rect_scale.s;
 
         self.prev_clip_rect = dvui.clipGet();
         dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
