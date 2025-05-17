@@ -174,6 +174,8 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
             if (opts.width) |w| {
                 if (w > 0) {
                     break :width .{ w, null };
+                } else if (w == 0) {
+                    break :width .{ 0, .horizontal };
                 } else {
                     dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
                     break :width .{ default_col_width, null };
@@ -222,6 +224,9 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
             break :height self.header_height;
         }
     };
+    if (self.col_num == 0) {
+        std.debug.print("Header h = {d}\n", .{header_height});
+    }
 
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height };
@@ -256,7 +261,9 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
             break :height self.row_height;
         }
     };
-    std.debug.print("Row h = {d}\n", .{cell_height});
+    if (self.col_num == 99 and self.next_row_y <= self.header_height) {
+        std.debug.print("Row h = {d}\n", .{cell_height});
+    }
 
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {

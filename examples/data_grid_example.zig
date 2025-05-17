@@ -154,17 +154,9 @@ pub fn rowCheckboxOptions() dvui.Options {
     return headerCheckboxOptions();
 }
 
-//pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, opts: dvui.Options) !dvui.Rect {
-//    var lw = dvui.LabelWidget.initNoFmt(src, str, opts);
-//    try lw.install();
-//    //std.debug.print("clip = {}\n", .{dvui.clipGet()});
-//    lw.processEvents();
-//    try lw.draw();
-//    const rect = lw.data().rect;
-//    lw.deinit();
-//    return rect;
-//}
-//
+//- Size to Largest
+//-
+
 const col_info_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
 const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -20, -60, -70 };
 var col_info: [col_info_default.len]f32 = col_info_default;
@@ -309,7 +301,7 @@ fn gui_frame() !void {
                 //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{}, .{ .gravity_x = 0.5 });
                 //                }
                 {
-                    var col = try grid.column(@src(), colOptions(.{}));
+                    var col = try grid.column(@src(), colOptions(.{ .width = 0 }));
                     defer col.deinit();
                     if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{}, .{})) {
                         sort("Description", sort_dir);
