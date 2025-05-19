@@ -90,6 +90,7 @@ last_height: f32 = 0,
 header_height: f32 = 0,
 last_header_height: f32 = 0,
 row_height: f32 = 0,
+last_row_height: f32 = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
@@ -107,7 +108,7 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         self.last_header_height = header_height;
     }
     if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
-        self.row_height = row_height;
+        self.last_row_height = row_height;
     }
     if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
         self.sort_col_number = sort_col;
@@ -150,6 +151,11 @@ pub fn deinit(self: *GridWidget) void {
     self.hbox.deinit();
     self.scroll.deinit();
     self.vbox.deinit();
+    if (!std.math.approxEqAbs(f32, self.header_height, self.last_header_height, 0.01) or
+        !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01))
+    {
+        dvui.refresh(null, @src(), self.data().id);
+    }
 }
 
 pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) !*BoxWidget {
@@ -241,7 +247,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
         const height = cell.data().rect.h;
         self.header_height = @max(self.header_height, height);
     }
-    self.next_row_y += self.header_height;
+    self.next_row_y += self.last_header_height; // TODO: Should this really be last_header_height?
     return cell;
 }
 
@@ -257,12 +263,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
             if (self.row_height < 5) {
                 break :height 0;
             }
-            break :height self.row_height;
+            break :height if (self.row_height < self.last_row_height) 0 else self.last_row_height;
         }
     };
-    if (self.col_num == 99 and self.next_row_y <= self.header_height) {
-        std.debug.print("Row h = {d}\n", .{cell_height});
-    }
+    std.debug.print("Row h = {d}:{d}\n", .{ self.col_num, cell_height });
 
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
@@ -276,6 +280,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
     cell_opts.id_extra = row_num;
+    //    cell_opts.expand = .both; // TODO: Testing
 
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
     cell.* = BoxWidget.init(src, .horizontal, false, cell_opts);
@@ -286,7 +291,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         const measured_cell_height = cell.data().rect.h;
         self.row_height = @max(self.row_height, measured_cell_height);
     }
-    self.next_row_y += self.row_height;
+    self.next_row_y += self.last_row_height; // TODO: Should this really be last_row_height?
 
     return cell;
 }
