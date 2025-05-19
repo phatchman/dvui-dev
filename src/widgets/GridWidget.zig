@@ -315,18 +315,18 @@ pub const GridVirtualScroller = struct {
         // Larger windows can result in smoother scrolling but will take longer to render each frame.
         window_size: usize = 1,
     };
-    body: *GridWidget,
+    g: *GridWidget,
     si: *ScrollInfo,
     total_rows: usize,
     window_size: usize,
-    pub fn init(body: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
+    pub fn init(g: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
-        body.scroll.si.virtual_size.h = @max(total_rows_f * body.row_height, body.scroll.si.viewport.h);
+        g.scroll.si.virtual_size.h = @max(total_rows_f * g.last_row_height, g.scroll.si.viewport.h);
         const window_size: f32 = @floatFromInt(init_opts.window_size);
-        body.invisible_height = @max(0, body.scroll.si.viewport.y - body.row_height * window_size);
+        g.next_row_y = @max(0, g.scroll.si.viewport.y - g.last_row_height * window_size);
         return .{
-            .body = body,
-            .si = body.scroll.si,
+            .g = g,
+            .si = g.scroll.si,
             .total_rows = init_opts.total_rows,
             .window_size = init_opts.window_size,
         };
@@ -334,10 +334,10 @@ pub const GridVirtualScroller = struct {
 
     /// Return the first row within the visible scroll area, minus window_size
     pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
-        if (self.body.row_height < 1) {
+        if (self.g.last_row_height < 1) {
             return 0;
         }
-        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.body.row_height));
+        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.g.last_row_height));
         if (first_row_in_viewport < self.window_size) {
             return @min(first_row_in_viewport, self.total_rows);
         }
@@ -347,10 +347,10 @@ pub const GridVirtualScroller = struct {
     /// Return the last row within the visible scroll area, plus the window size.
     /// TODO: This doesn't return the last row. It returns the last row + 1? Or at least it needs to for first..last to work.
     pub fn rowLastRendered(self: *const GridVirtualScroller) usize {
-        if (self.body.row_height < 1) {
+        if (self.g.last_row_height < 1) {
             return 1;
         }
-        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.body.row_height));
+        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.g.last_row_height));
         return @min(last_row_in_viewport + self.window_size, self.total_rows);
     }
 };

@@ -239,6 +239,14 @@ fn gui_frame() !void {
         columnLayoutProportional(grid, col_widths[start_idx..], content_w);
         //std.debug.print("col_info = {d}\n", .{col_info});
         {
+            const first: usize, const last: usize = range: {
+                if (virtual_scrolling) {
+                    var scroller = dvui.GridWidget.GridVirtualScroller.init(grid, .{ .total_rows = cars.len, .window_size = 25 });
+                    break :range .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
+                } else {
+                    break :range .{ 0, cars.len };
+                }
+            };
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
             if (selectable) {
@@ -265,7 +273,7 @@ fn gui_frame() !void {
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{}), .{})) {
                         sort("Make", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", bodyCellOpts(.{ .border = dvui.Rect.all(5) }), .{});
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", bodyCellOpts(.{ .border = dvui.Rect.all(5) }), .{});
                 }
                 //{
                 //    var col = try grid.column(@src(), colOptions(.{}));
@@ -308,7 +316,7 @@ fn gui_frame() !void {
                     if (try dvui.gridHeadingSortable(@src(), grid, "Description", &sort_dir, .{ .border = dvui.Rect.all(5) }, .{ .font_style = .title })) {
                         sort("Description", sort_dir);
                     }
-                    try textAreaColumn(@src(), grid, cars[0..]);
+                    try textAreaColumn(@src(), grid, cars[first..last]);
                     //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "description", "{s}", .{}, .{});
                 }
             } // else if (false) {
