@@ -157,9 +157,9 @@ pub fn rowCheckboxOptions() dvui.Options {
 //- Size to Largest
 //-
 
-const col_info_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
-const col_info_proportional: [7]f32 = .{ 40, -20, -30, -40, -20, -60, -70 };
-var col_info: [col_info_default.len]f32 = col_info_default;
+const col_widths_default: [7]f32 = .{ 40, 20, 30, 40, 50, 60, 70 };
+const col_widths_proportional: [7]f32 = .{ 40, -20, -30, -40, -20, -60, -70 };
+var col_widths: [col_widths_default.len]f32 = col_widths_default;
 
 fn colOptions(opts: dvui.GridWidget.ColOptions) dvui.GridWidget.ColOptions {
     if (column_sizing == .col_width) {
@@ -174,6 +174,15 @@ fn headerCellOpts(opts: dvui.GridWidget.CellOptions) dvui.GridWidget.CellOptions
     if (header_height > 0) {
         var result = opts;
         result.height = header_height;
+        return result;
+    }
+    return opts;
+}
+
+fn bodyCellOpts(opts: dvui.GridWidget.CellOptions) dvui.GridWidget.CellOptions {
+    if (row_height > 0) {
+        var result = opts;
+        result.height = row_height;
         return result;
     }
     return opts;
@@ -201,17 +210,10 @@ fn gui_frame() !void {
 
         var grid = try dvui.grid(
             @src(),
-            if (virtual_scrolling or true)
-                .{ .scroll_opts = .{ .scroll_info = &scroll_info }, .col_info = switch (column_sizing) {
-                    .expand, .col_width => null,
-                    .col_info, .equal_width, .proportional => col_info[start_idx..],
-                } }
-            else
-                .{
-                    .horizontal = if (horizontal_scrolling) .auto else .none,
-                    .vertical = .auto,
-                    .vertical_bar = .show,
-                },
+            .{ .scroll_opts = .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .col_widths = switch (column_sizing) {
+                .expand, .col_width => null,
+                .col_info, .equal_width, .proportional => col_widths[start_idx..],
+            } },
             .{
                 .expand = .both,
                 .background = true,
@@ -225,16 +227,16 @@ fn gui_frame() !void {
         switch (column_sizing) {
             .equal_width => {
                 // Make all columns equal width, except for checbox which stays a fixed width.
-                col_info = @splat(-1);
-                col_info[0] = col_info_default[0];
+                col_widths = @splat(-1);
+                col_widths[0] = col_widths_default[0];
             },
             .proportional => {
-                @memcpy(&col_info, &col_info_proportional);
+                @memcpy(&col_widths, &col_widths_proportional);
             },
-            .col_info => @memcpy(&col_info, &col_info_default),
+            .col_info => @memcpy(&col_widths, &col_widths_default),
             .col_width, .expand => {},
         }
-        columnLayoutProportional(grid, col_info[start_idx..], content_w);
+        columnLayoutProportional(grid, col_widths[start_idx..], content_w);
         //std.debug.print("col_info = {d}\n", .{col_info});
         {
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
@@ -263,7 +265,7 @@ fn gui_frame() !void {
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{}), .{})) {
                         sort("Make", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", .{ .border = dvui.Rect.all(5) }, .{});
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "make", "{s}", bodyCellOpts(.{ .border = dvui.Rect.all(5) }), .{});
                 }
                 //{
                 //    var col = try grid.column(@src(), colOptions(.{}));

@@ -73,15 +73,16 @@ pub const SortDirection = enum {
 };
 
 pub const InitOpts = struct {
-    scroll_opts: ?ScrollAreaWidget.InitOpts,
-    col_info: ?[]f32,
+    scroll_opts: ?ScrollAreaWidget.InitOpts = null,
+    col_widths: ?[]f32 = null,
     //content_width: ?f32, // TODO: Consider adding content width so that user can size the width of the scroll area?
+    //equal_row_heights: ?bool // TODO: Consider adding a flag that lets each row height vary independently.
 };
 pub const default_col_width: f32 = 100;
 
-vbox: BoxWidget = undefined,
-hbox: BoxWidget = undefined,
+vbox: BoxWidget = undefined, // Outer container
 scroll: ScrollAreaWidget = undefined,
+hbox: BoxWidget = undefined, // Horizontal box for column layout
 init_opts: InitOpts = undefined,
 num_cols: f32 = undefined,
 current_col: ?*BoxWidget = null,
@@ -91,6 +92,7 @@ header_height: f32 = 0,
 last_header_height: f32 = 0,
 row_height: f32 = 0,
 last_row_height: f32 = 0,
+tallest_body_col: usize = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
@@ -170,7 +172,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
 
     const w: f32, const expand: ?Options.Expand = width: {
         // Take width from col_opts if it is set.
-        if (self.init_opts.col_info) |col_info| {
+        if (self.init_opts.col_widths) |col_info| {
             if (self.col_num < col_info.len) {
                 break :width .{ col_info[self.col_num], null };
             } else {
@@ -218,20 +220,13 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
     const y = self.scroll.si.viewport.y - 1.0;
     const parent_rect = self.current_col.?.data().contentRect();
 
-    // Take header height from options if exists or from previous header_height.
-    // On first frame (when header_height < 5), height is unconstrained.
     const header_height: f32 = height: {
         if (opts.height) |height| {
             break :height height;
         } else {
-            // TODO: Why is height 2 on first frame and not 0? Something to do with border?
-            if (self.last_header_height < 5) {
-                break :height 0;
-            }
-            break :height if (self.header_height < self.last_header_height) 0 else self.last_header_height;
+            break :height 0;
         }
     };
-    std.debug.print("Header h = {d}:{d}\n", .{ self.col_num, header_height });
 
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height };
@@ -254,19 +249,13 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) !*BoxWidget {
     const parent_rect = self.current_col.?.data().contentRect();
 
-    // Take row height from options if exists or from previous row_height.
-    // On first frame (row_height < 5), height is unconstrained.
     const cell_height: f32 = height: {
         if (opts.height) |height| {
             break :height height;
         } else {
-            if (self.row_height < 5) {
-                break :height 0;
-            }
-            break :height if (self.row_height < self.last_row_height) 0 else self.last_row_height;
+            break :height 0;
         }
     };
-    std.debug.print("Row h = {d}:{d}\n", .{ self.col_num, cell_height });
 
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
@@ -280,7 +269,6 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
     cell_opts.id_extra = row_num;
-    //    cell_opts.expand = .both; // TODO: Testing
 
     var cell = try dvui.currentWindow().arena().create(BoxWidget);
     cell.* = BoxWidget.init(src, .horizontal, false, cell_opts);

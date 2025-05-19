@@ -10,6 +10,8 @@
 - [ ] Provide some osrt pf init options to put the header and body row heights under the control of the user.
         - They would be responsible for providing a min/max size content on each cell to make the rows line up
         however they neeed.
+- [ ] The current header / row shrinking doesn't size the cells correctly. Instead we need to remember which column was the tallest and if that
+        column shrinks then redraw that column with a height of 0.
 
 - So we need a different height for headers vs body. So max_content_size.h can be specified for both headers and bodies
 - When layout ot the rows, use the row_height if supplied, otherwise use the calculated row height
