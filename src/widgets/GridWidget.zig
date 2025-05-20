@@ -75,8 +75,10 @@ pub const SortDirection = enum {
 pub const InitOpts = struct {
     scroll_opts: ?ScrollAreaWidget.InitOpts = null,
     col_widths: ?[]f32 = null,
+    // Row heights never shrink unless this flag is used.
+    // It should be set for one frame to shrink row heights to fit the current content
+    shrink_rows: bool = false,
     //content_width: ?f32, // TODO: Consider adding content width so that user can size the width of the scroll area?
-    //equal_row_heights: ?bool // TODO: Consider adding a flag that lets each row height vary independently.
 };
 pub const default_col_width: f32 = 100;
 
@@ -89,14 +91,13 @@ current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
 header_height: f32 = 0,
-last_header_height: f32 = 0,
 row_height: f32 = 0,
 last_row_height: f32 = 0,
-tallest_body_col: usize = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
 prev_clip_rect: ?Rect = null,
+shrinking: bool = false,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -106,12 +107,26 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     if (dvui.dataGet(null, self.data().id, "_last_height", f32)) |last_height| {
         self.last_height = last_height;
     }
+    if (dvui.dataGet(null, self.data().id, "_shrinking", bool)) |shrinking| {
+        self.shrinking = shrinking;
+    }
     if (dvui.dataGet(null, self.data().id, "_header_height", f32)) |header_height| {
-        self.last_header_height = header_height;
+        self.header_height = header_height;
     }
     if (dvui.dataGet(null, self.data().id, "_row_height", f32)) |row_height| {
         self.last_row_height = row_height;
+        self.row_height = row_height;
     }
+    if (init_opts.shrink_rows) {
+        self.shrinking = true;
+        dvui.refresh(null, @src(), self.data().id);
+    }
+    if (self.shrinking) {
+        self.row_height = 0;
+    }
+    std.debug.print("IHH = {d}\n", .{self.header_height});
+    std.debug.print("IRH = {d}\n", .{self.row_height});
+    std.debug.print("SHRINK = {}\n", .{self.init_opts.shrink_rows});
     if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
         self.sort_col_number = sort_col;
     }
@@ -132,7 +147,6 @@ pub fn install(self: *GridWidget) !void {
     // Lay out columns horizontally.
     self.hbox = BoxWidget.init(@src(), .horizontal, false, .{
         .expand = .both,
-        .border = Rect.all(1),
     });
     try self.hbox.install();
     try self.hbox.drawBackground();
@@ -144,8 +158,21 @@ pub fn data(self: *GridWidget) *WidgetData {
 
 pub fn deinit(self: *GridWidget) void {
     self.clipReset();
+    if (self.init_opts.shrink_rows) {
+        // TODO: Needed?
+        self.header_height = 0;
+        //        self.row_height = 0;
+    }
+    self.shrinking = self.row_height < self.last_row_height or self.init_opts.shrink_rows;
+
+    //        if (std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01)) {
+    //            self.shrinking = false;
+    //            dvui.refresh(null, @src(), self.data().id);
+    //        }
+    //    }
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
+    dvui.dataSet(null, self.data().id, "_shrinking", self.shrinking);
     dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
@@ -153,11 +180,6 @@ pub fn deinit(self: *GridWidget) void {
     self.hbox.deinit();
     self.scroll.deinit();
     self.vbox.deinit();
-    if (!std.math.approxEqAbs(f32, self.header_height, self.last_header_height, 0.01) or
-        !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01))
-    {
-        dvui.refresh(null, @src(), self.data().id);
-    }
 }
 
 pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) !*BoxWidget {
@@ -224,10 +246,11 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
         if (opts.height) |height| {
             break :height height;
         } else {
-            break :height 0;
+            break :height if (self.init_opts.shrink_rows or self.last_height == 0) 0 else self.header_height;
         }
     };
-
+    //std.debug.print("HH = {d}:{d}\n", .{ self.col_num, header_height });
+    // TODO: Really should be uysing PlaceIn so that margins and padding are respected.
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height };
 
@@ -239,12 +262,17 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
 
     // Determine heights for next frame.
     if (cell.data().contentRect().h > 0) {
+        //  std.debug.print("H, HH = {d}:{d},{d}\n", .{ self.col_num, cell.data().rect.h, self.header_height });
+
         const height = cell.data().rect.h;
         self.header_height = @max(self.header_height, height);
     }
-    self.next_row_y += self.last_header_height; // TODO: Should this really be last_header_height?
+    self.next_row_y += self.header_height;
+    first_row = true;
     return cell;
 }
+
+var first_row = false;
 
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) !*BoxWidget {
     const parent_rect = self.current_col.?.data().contentRect();
@@ -253,17 +281,21 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         if (opts.height) |height| {
             break :height height;
         } else {
-            break :height 0;
+            break :height if (self.shrinking or self.last_height == 0) 0 else self.row_height;
+            //break :height 0;
         }
     };
 
     // Prevent the header for being overwritten when scrolling.
     if (self.prev_clip_rect == null) {
         const rect_scale = self.vbox.data().rectScale();
-        const header_height_scaled = self.last_header_height * rect_scale.s;
+        const header_height_scaled = self.header_height * rect_scale.s;
 
         self.prev_clip_rect = dvui.clipGet();
         dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
+    }
+    if (first_row) {
+        std.debug.print("ENTER Col {}: Cell h = {d}, row_height = {d}, shrinking = {}\n", .{ self.col_num, cell_height, self.row_height, self.shrinking });
     }
 
     var cell_opts = opts.toOptions();
@@ -277,9 +309,16 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
 
     if (cell.data().contentRect().h > 0) {
         const measured_cell_height = cell.data().rect.h;
-        self.row_height = @max(self.row_height, measured_cell_height);
+        self.row_height = if (self.shrinking)
+            @min(self.row_height, measured_cell_height)
+        else
+            @max(self.row_height, measured_cell_height);
     }
-    self.next_row_y += self.last_row_height; // TODO: Should this really be last_row_height?
+    self.next_row_y += self.row_height; // TODO: Should this really be last_row_height?
+    if (first_row) {
+        first_row = false;
+        std.debug.print("EXIT Col {}: Cell h = {d}, row_height = {d}\n", .{ self.col_num, cell_height, self.row_height });
+    }
 
     return cell;
 }
@@ -321,9 +360,9 @@ pub const GridVirtualScroller = struct {
     window_size: usize,
     pub fn init(g: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
-        g.scroll.si.virtual_size.h = @max(total_rows_f * g.last_row_height, g.scroll.si.viewport.h);
+        g.scroll.si.virtual_size.h = @max(total_rows_f * g.row_height, g.scroll.si.viewport.h);
         const window_size: f32 = @floatFromInt(init_opts.window_size);
-        g.next_row_y = @max(0, g.scroll.si.viewport.y - g.last_row_height * window_size);
+        g.next_row_y = @max(0, g.scroll.si.viewport.y - g.row_height * window_size);
         return .{
             .g = g,
             .si = g.scroll.si,
@@ -334,10 +373,10 @@ pub const GridVirtualScroller = struct {
 
     /// Return the first row within the visible scroll area, minus window_size
     pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
-        if (self.g.last_row_height < 1) {
+        if (self.g.row_height < 1) {
             return 0;
         }
-        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.g.last_row_height));
+        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.g.row_height));
         if (first_row_in_viewport < self.window_size) {
             return @min(first_row_in_viewport, self.total_rows);
         }
@@ -347,10 +386,10 @@ pub const GridVirtualScroller = struct {
     /// Return the last row within the visible scroll area, plus the window size.
     /// TODO: This doesn't return the last row. It returns the last row + 1? Or at least it needs to for first..last to work.
     pub fn rowLastRendered(self: *const GridVirtualScroller) usize {
-        if (self.g.last_row_height < 1) {
+        if (self.g.row_height < 1) {
             return 1;
         }
-        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.g.last_row_height));
+        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.g.row_height));
         return @min(last_row_in_viewport + self.window_size, self.total_rows);
     }
 };

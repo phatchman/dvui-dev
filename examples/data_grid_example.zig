@@ -134,6 +134,7 @@ const ColumnSizing = enum {
 };
 var column_sizing: ColumnSizing = .equal_width;
 const prev_height: f32 = 0;
+var shrink_rows: bool = false;
 
 const fixed_width_w: f32 = 50;
 pub fn headerCheckboxOptions() dvui.Options {
@@ -213,7 +214,7 @@ fn gui_frame() !void {
             .{ .scroll_opts = .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .col_widths = switch (column_sizing) {
                 .expand, .col_width => null,
                 .col_info, .equal_width, .proportional => col_widths[start_idx..],
-            } },
+            }, .shrink_rows = shrink_rows },
             .{
                 .expand = .both,
                 .background = true,
@@ -223,6 +224,7 @@ fn gui_frame() !void {
             },
         );
         defer grid.deinit();
+        shrink_rows = false;
         const content_w: ?f32 = if (horizontal_scrolling) grid.data().contentRect().w + 1024 else null;
         switch (column_sizing) {
             .equal_width => {
@@ -270,7 +272,7 @@ fn gui_frame() !void {
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
-                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{}), .{})) {
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{ .border = dvui.Rect.all(1) }), .{})) {
                         sort("Make", sort_dir);
                     }
                     try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", bodyCellOpts(.{ .border = dvui.Rect.all(5) }), .{});
@@ -353,6 +355,7 @@ fn gui_frame() !void {
             }
             if (try dvui.radio(@src(), column_sizing == .expand, ".expand", .{})) {
                 column_sizing = .expand;
+                shrink_rows = true;
             }
 
             // TODO: Add per-column sizing.
@@ -412,6 +415,7 @@ fn textAreaColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []
         var cell = try g.bodyCell(
             src,
             i,
+            //.{},
             .{ .height = 0 },
         );
         defer cell.deinit();

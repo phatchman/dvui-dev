@@ -1,13 +1,13 @@
 ### Todos
-- [ ] Make rows always the same height (potentially there should be a way to override this if user really wants?)
-- [ ] As above for headers.
-- [ ] Make sure rows and headers can grow and shrink.
-- [ ] Make it so different options can be provided for the cell vs the label? Or will these never overlap? 
+- [X] Make rows always the same height (potentially there should be a way to override this if user really wants?)
+- [X] As above for headers.
+- [?] Make sure rows and headers can grow and shrink.
+- [X] Make it so different options can be provided for the cell vs the label? Or will these never overlap? 
         - Using strip on hte options passed ot the label, causes height issues.
-- [ ] Take the header clip from a measured height, rather than a constant 80.
+- [X] Take the header clip from a measured height, rather than a constant 80.
 - [ ] Look into making the grid take a content width as an init_option. This would size the width of the 
       scroll area, so that a .expand layout can fill the whole space.
-- [ ] Provide some osrt pf init options to put the header and body row heights under the control of the user.
+- [ ] Provide some sort of init options to put the header and body row heights under the control of the user.
         - They would be responsible for providing a min/max size content on each cell to make the rows line up
         however they neeed.
 - [ ] The current header / row shrinking doesn't size the cells correctly. Instead we need to remember which column was the tallest and if that
@@ -21,7 +21,7 @@
 ### Issues
 - [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.
 - [ ] Is there a better name than window size for the scroller? It's not really a window size. It's a number of extra rows to render above and below the visible rows.
-- [ ] Checkbox doesn't expand to the full height of the header.
+- [X] Checkbox doesn't expand to the full height of the header.
 - [ ] Grid header widget assumes vertical scroll bar width is 10 and that it will always be displayed. 
 - [ ] Example needs to be added to Example.zig, rather than a stand-alone.
 
