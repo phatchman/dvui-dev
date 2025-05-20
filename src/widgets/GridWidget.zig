@@ -158,18 +158,9 @@ pub fn data(self: *GridWidget) *WidgetData {
 
 pub fn deinit(self: *GridWidget) void {
     self.clipReset();
-    if (self.init_opts.shrink_rows) {
-        // TODO: Needed?
-        self.header_height = 0;
-        //        self.row_height = 0;
-    }
+    // Check if still shrinking
     self.shrinking = self.row_height < self.last_row_height or self.init_opts.shrink_rows;
 
-    //        if (std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01)) {
-    //            self.shrinking = false;
-    //            dvui.refresh(null, @src(), self.data().id);
-    //        }
-    //    }
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
     dvui.dataSet(null, self.data().id, "_shrinking", self.shrinking);
@@ -246,7 +237,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
         if (opts.height) |height| {
             break :height height;
         } else {
-            break :height if (self.init_opts.shrink_rows or self.last_height == 0) 0 else self.header_height;
+            break :height if (self.shrinking or self.last_height == 0) 0 else self.header_height;
         }
     };
     //std.debug.print("HH = {d}:{d}\n", .{ self.col_num, header_height });
@@ -314,7 +305,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         else
             @max(self.row_height, measured_cell_height);
     }
-    self.next_row_y += self.row_height; // TODO: Should this really be last_row_height?
+    self.next_row_y += self.row_height;
     if (first_row) {
         first_row = false;
         std.debug.print("EXIT Col {}: Cell h = {d}, row_height = {d}\n", .{ self.col_num, cell_height, self.row_height });
