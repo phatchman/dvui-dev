@@ -342,6 +342,7 @@ fn gui_frame() !void {
         if (try dvui.expander(@src(), "Column Layout", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
             var inner_vbox = try dvui.box(@src(), .vertical, .{ .margin = .{ .x = 10 } });
             defer inner_vbox.deinit();
+
             if (try dvui.radio(@src(), column_sizing == .equal_width, "Equal Spacing", .{})) {
                 column_sizing = .equal_width;
                 resize_rows = true;
@@ -420,7 +421,7 @@ fn textAreaColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []
         var cell = try g.bodyCell(
             src,
             i,
-            .{},
+            .{ .height = 250 },
             //.{ .height = if (frame_count < 2) 0 else null },
         );
         defer cell.deinit();
