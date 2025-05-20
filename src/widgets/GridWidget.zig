@@ -377,7 +377,8 @@ pub const GridVirtualScroller = struct {
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
         si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
         const window_size: f32 = @floatFromInt(init_opts.window_size);
-        grid.offsetRowsBy(@max(0, @round(si.viewport.y / grid.row_height) * grid.row_height - grid.row_height * window_size));
+        //        grid.offsetRowsBy(@max(0, @round(si.viewport.y / grid.row_height) * grid.row_height - grid.row_height * window_size));
+        grid.offsetRowsBy(@max(0, @trunc(si.viewport.y / grid.row_height) * grid.row_height - grid.row_height * window_size));
         std.debug.print("POST = {d}, {d}\n", .{ si.virtual_size.h, grid.y_offset });
         return .{
             .grid = grid,

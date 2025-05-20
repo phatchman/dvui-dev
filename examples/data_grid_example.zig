@@ -119,7 +119,7 @@ pub fn columnLayoutProportional(grid: *dvui.GridWidget, ratio_widths: []f32, con
 const num_cars = 500;
 pub const testing = false;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
-var virtual_scrolling = false;
+var virtual_scrolling = true;
 var horizontal_scrolling = false;
 var sortable = true;
 var header_height: f32 = 0;

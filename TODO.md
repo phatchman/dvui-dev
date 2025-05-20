@@ -12,6 +12,7 @@
 - [ ] Remove special casing of 0 for column width. It should either be no width provided, a positive width or get the default width if it is <= 0>.
 - [ ] Draws over horiztonal scroll bar. Need to adjust the clipping rect to take this into account.
 - [ ] Handle padding when header column width is smaller than the heading button width. Currently doesn't show the separator.
+- [ ] Fix issue with grid headers moving while virtual scrolling.
 
 ### Issues
 - [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.
