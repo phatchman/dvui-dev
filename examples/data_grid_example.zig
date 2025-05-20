@@ -191,7 +191,7 @@ fn bodyCellOpts(opts: dvui.GridWidget.CellOptions) dvui.GridWidget.CellOptions {
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
-    //std.debug.print("frame\n", .{});
+    std.debug.print("frame: {d}\n", .{frame_count});
     defer frame_count += 1;
     const backend = g_backend orelse return;
     _ = backend;
@@ -421,7 +421,8 @@ fn textAreaColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []
         var cell = try g.bodyCell(
             src,
             i,
-            .{ .height = 250 },
+            .{},
+            //.{ .height = 250 },
             //.{ .height = if (frame_count < 2) 0 else null },
         );
         defer cell.deinit();

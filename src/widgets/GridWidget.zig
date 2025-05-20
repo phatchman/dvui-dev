@@ -75,8 +75,7 @@ pub const SortDirection = enum {
 pub const InitOpts = struct {
     scroll_opts: ?ScrollAreaWidget.InitOpts = null,
     col_widths: ?[]f32 = null,
-    // Row heights never shrink unless this flag is used.
-    // It should be set for one frame to shrink row heights to fit the current content
+    // Recalculate row heights. Only set this when row heights might have changed, .e.g on column resize.
     resize_rows: bool = false,
     //content_width: ?f32, // TODO: Consider adding content width so that user can size the width of the scroll area?
 };
@@ -107,8 +106,8 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     if (dvui.dataGet(null, self.data().id, "_last_height", f32)) |last_height| {
         self.last_height = last_height;
     }
-    if (dvui.dataGet(null, self.data().id, "_shrinking", bool)) |shrinking| {
-        self.resizing = shrinking;
+    if (dvui.dataGet(null, self.data().id, "_resizing", bool)) |resizing| {
+        self.resizing = resizing;
     }
     if (dvui.dataGet(null, self.data().id, "_header_height", f32)) |header_height| {
         self.header_height = header_height;
@@ -117,24 +116,19 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         self.last_row_height = row_height;
         self.row_height = row_height;
     }
-    if (init_opts.resize_rows) {
-        //        self.last_height = 0;
-        self.row_height = 0;
-        //        self.last_row_height = 0;
-        dvui.refresh(null, @src(), self.data().id);
-    }
-    if (self.resizing) {
-        self.row_height = 0;
-        dvui.refresh(null, @src(), self.data().id);
-    }
-    //    std.debug.print("IHH = {d}\n", .{self.header_height});
-    //    std.debug.print("IRH = {d}\n", .{self.row_height});
-    //    std.debug.print("SHRINK = {}\n", .{self.init_opts.resize_rows});
     if (dvui.dataGet(null, self.data().id, "_sort_col", usize)) |sort_col| {
         self.sort_col_number = sort_col;
     }
     if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
         self.sort_direction = sort_direction;
+    }
+    // Ensure resize on first initialization.
+    if (self.last_height == 0) {
+        self.resizing = true;
+    }
+    if (init_opts.resize_rows or self.resizing) {
+        self.row_height = 0;
+        dvui.refresh(null, @src(), self.data().id);
     }
 
     return self;
@@ -161,12 +155,15 @@ pub fn data(self: *GridWidget) *WidgetData {
 
 pub fn deinit(self: *GridWidget) void {
     self.clipReset();
-    // Check if still shrinking
-    self.resizing = !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01) or self.init_opts.resize_rows;
+
+    // resizing if row heights changed or a resize requested via init option.
+    self.resizing =
+        self.init_opts.resize_rows or
+        !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01);
 
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
-    dvui.dataSet(null, self.data().id, "_shrinking", self.resizing);
+    dvui.dataSet(null, self.data().id, "_resizing", self.resizing);
     dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
@@ -176,6 +173,14 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
+/// Start a new grid column.
+/// Returns a vbox.
+/// Ensure deinit() is called on the returned vbox before creating a new column.
+/// Column width is determined from:
+/// 1) init_opts.col_width if supplied
+/// 2) opts.width if supplied
+/// 3) If not width is provided it will expand to the available space.
+/// It is highly recommended that widths are provided for all columns.
 pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) !*BoxWidget {
     self.clipReset();
     self.current_col = null;
@@ -199,7 +204,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
             if (opts.width) |w| {
                 if (w > 0) {
                     break :width .{ w, null };
-                } else if (w == 0) {
+                } else if (w == 0) { // TODO: probably remove this special case and make it a default width. i.e. don't specify a width is a zero width.
                     break :width .{ 0, .horizontal };
                 } else {
                     dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
@@ -225,6 +230,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
     return col;
 }
 
+/// Restore saved clip region.
 fn clipReset(self: *GridWidget) void {
     if (self.prev_clip_rect) |cr| {
         dvui.clipSet(cr);
@@ -232,6 +238,10 @@ fn clipReset(self: *GridWidget) void {
     }
 }
 
+/// Create a new header cell within a column
+/// Returns a hbox, deinit() must be called on this hbox before creating a new cell.
+/// Only one header cell is allowed per column.
+/// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) !*BoxWidget {
     const y = self.scroll.si.viewport.y - 1.0;
     const parent_rect = self.current_col.?.data().contentRect();
@@ -240,7 +250,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
         if (opts.height) |height| {
             break :height height;
         } else {
-            break :height if (self.resizing or self.last_height == 0) 0 else self.header_height;
+            break :height if (self.resizing) 0 else self.header_height;
         }
     };
     //std.debug.print("HH = {d}:{d}\n", .{ self.col_num, header_height });
@@ -268,6 +278,9 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
 
 var first_row = false;
 
+/// Create a new body cell within a column
+/// Returns a hbox, deinit() must be called on this hbox before creating a new cell.
+/// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) !*BoxWidget {
     const parent_rect = self.current_col.?.data().contentRect();
 
@@ -275,7 +288,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         if (opts.height) |height| {
             break :height height;
         } else {
-            break :height if (self.resizing or self.last_height == 0) 0 else self.row_height;
+            break :height if (self.resizing) 0 else self.row_height;
         }
     };
 
