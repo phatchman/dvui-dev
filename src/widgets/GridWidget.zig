@@ -99,6 +99,7 @@ sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
 prev_clip_rect: ?Rect = null,
 resizing: bool = false,
+y_offset: f32 = 0,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -175,6 +176,12 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
+/// Set the starting y value to begin rendering rows.
+/// Used for setting the y location of the first row when virtual scrolling.
+pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
+    self.y_offset = offset;
+}
+
 /// Start a new grid column.
 /// Returns a vbox.
 /// Ensure deinit() is called on the returned vbox before creating a new column.
@@ -191,7 +198,7 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
     } else {
         self.col_num += 1;
     }
-    self.next_row_y = 0;
+    self.next_row_y = self.y_offset;
 
     const w: f32, const expand: ?Options.Expand = width: {
         // Take width from col_opts if it is set.
@@ -358,19 +365,23 @@ pub const GridVirtualScroller = struct {
         // The number of rows to render before and after the visible scroll area.
         // Larger windows can result in smoother scrolling but will take longer to render each frame.
         window_size: usize = 1,
+        scroll_info: *ScrollInfo,
     };
     grid: *GridWidget,
     si: *ScrollInfo,
     total_rows: usize,
     window_size: usize,
     pub fn init(grid: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
+        const si = init_opts.scroll_info;
+        std.debug.print("PRE: {}\n", .{si});
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
-        grid.scroll.si.virtual_size.h = @max(total_rows_f * grid.row_height, grid.scroll.si.viewport.h);
+        si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
         const window_size: f32 = @floatFromInt(init_opts.window_size);
-        grid.next_row_y = @max(0, grid.scroll.si.viewport.y - grid.row_height * window_size);
+        grid.offsetRowsBy(@max(0, @round(si.viewport.y / grid.row_height) * grid.row_height - grid.row_height * window_size));
+        std.debug.print("POST = {d}, {d}\n", .{ si.virtual_size.h, grid.y_offset });
         return .{
             .grid = grid,
-            .si = grid.scroll.si,
+            .si = si,
             .total_rows = init_opts.total_rows,
             .window_size = init_opts.window_size,
         };
@@ -379,12 +390,16 @@ pub const GridVirtualScroller = struct {
     /// Return the first row within the visible scroll area, minus window_size
     pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
         if (self.grid.row_height < 1) {
+            std.debug.print("row height < 1\n", .{});
             return 0;
         }
         const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.grid.row_height));
         if (first_row_in_viewport < self.window_size) {
-            return @min(first_row_in_viewport, self.total_rows);
+            std.debug.print("frivp1 = {}, tr = {} ws = {}\n", .{ first_row_in_viewport, self.total_rows, self.window_size });
+            //            return @min(first_row_in_viewport, self.total_rows);
+            return 0;
         }
+        std.debug.print("frivp2 = {}, tr = {}\n", .{ first_row_in_viewport - self.window_size, self.total_rows });
         return @min(first_row_in_viewport - self.window_size, self.total_rows);
     }
 

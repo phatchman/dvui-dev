@@ -118,7 +118,7 @@ pub fn columnLayoutProportional(grid: *dvui.GridWidget, ratio_widths: []f32, con
 
 const num_cars = 500;
 pub const testing = false;
-pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto };
+pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 var virtual_scrolling = false;
 var horizontal_scrolling = false;
 var sortable = true;
@@ -247,12 +247,13 @@ fn gui_frame() !void {
         {
             const first: usize, const last: usize = range: {
                 if (virtual_scrolling) {
-                    var scroller = dvui.GridWidget.GridVirtualScroller.init(grid, .{ .total_rows = cars.len, .window_size = 25 });
+                    var scroller = dvui.GridWidget.GridVirtualScroller.init(grid, .{ .scroll_info = &scroll_info, .total_rows = cars.len, .window_size = 5 });
                     break :range .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
                 } else {
                     break :range .{ 0, cars.len };
                 }
             };
+            std.debug.print("first = {}, last = {}\n", .{ first, last });
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
             if (selectable) {
