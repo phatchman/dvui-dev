@@ -212,7 +212,10 @@ fn gui_frame() !void {
 
         var grid = try dvui.grid(
             @src(),
-            .{ .scroll_opts = .{ .scroll_info = if (virtual_scrolling) &scroll_info else null }, .col_widths = switch (column_sizing) {
+            .{ .scroll_opts = .{
+                .scroll_info = if (virtual_scrolling) &scroll_info else null,
+                .horizontal = if (!virtual_scrolling) .auto else null,
+            }, .col_widths = switch (column_sizing) {
                 .expand, .col_width => null,
                 .col_info, .equal_width, .proportional => col_widths[start_idx..],
             }, .resize_rows = resize_rows },
@@ -287,14 +290,14 @@ fn gui_frame() !void {
                 //    }
                 //    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
                 //}
-                //                {
-                //                    var col = try grid.column(@src(), colOptions(.{}));
-                //                    defer col.deinit();
-                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{}, .{})) {
-                //                        sort("Year", sort_dir);
-                //                    }
-                //                    try customColumn(@src(), grid, cars[0..], colOptions(.{}));
-                //                }
+                {
+                    var col = try grid.column(@src(), colOptions(.{}));
+                    defer col.deinit();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{}, .{})) {
+                        sort("Year", sort_dir);
+                    }
+                    try customColumn(@src(), grid, cars[first..last], bodyCellOpts(.{}));
+                }
                 //                {
                 //                    var col = try grid.column(@src(), colOptions(.{}));
                 //                    defer col.deinit();
@@ -400,19 +403,23 @@ fn gui_frame() !void {
     }
 }
 
-fn customColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car, opts: dvui.Options) !void {
+fn customColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []Car, opts: dvui.GridWidget.CellOptions) !void {
+    var cell_opts = opts;
     for (data, 0..) |*item, i| {
+        cell_opts.color_fill = if (item.year % 2 == 0) .{ .name = .fill_press } else null;
+        cell_opts.background = true;
         var cell = try g.bodyCell(
             src,
             i,
-            (.{ .color_fill = if (item.year % 2 == 0) .{ .name = .fill_press } else null, .background = true }),
+            cell_opts,
         );
+
         defer cell.deinit();
-        try dvui.label(@src(), "{d}", .{item.year}, opts.override(.{
+        try dvui.label(@src(), "{d}", .{item.year}, .{
             .id_extra = i,
             .gravity_x = if (item.year % 2 == 0) 0.0 else 1.0,
             .gravity_y = 0.5,
-        }));
+        });
     }
 }
 
@@ -422,8 +429,6 @@ fn textAreaColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []
             src,
             i,
             .{},
-            //.{ .height = 250 },
-            //.{ .height = if (frame_count < 2) 0 else null },
         );
         defer cell.deinit();
         var text = try dvui.textLayout(@src(), .{ .break_lines = true }, .{ .expand = .both });

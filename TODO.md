@@ -7,16 +7,10 @@
 - [X] Take the header clip from a measured height, rather than a constant 80.
 - [ ] Look into making the grid take a content width as an init_option. This would size the width of the 
       scroll area, so that a .expand layout can fill the whole space.
-- [ ] Provide some sort of init options to put the header and body row heights under the control of the user.
-        - They would be responsible for providing a min/max size content on each cell to make the rows line up
-        however they neeed.
-- [ ] The current header / row shrinking doesn't size the cells correctly. Instead we need to remember which column was the tallest and if that
-        column shrinks then redraw that column with a height of 0.
-
-- So we need a different height for headers vs body. So max_content_size.h can be specified for both headers and bodies
-- When layout ot the rows, use the row_height if supplied, otherwise use the calculated row height
-- Grid should store the max row_height for the previous frame, separately for both header and body
-- This should be used when laying out the position of the next row. (will prob need a refresh if this size changes)
+- [ ] Get rid of the padding for the sortable header. It isn't const the size of the symbol is dependent on the font size?
+- [ ] Use placeIn to place the cell in the column vbox to respect margin and padding requirements?
+- [ ] Remove special casing of 0 for column width. It should either be no width provided, a positive width or get the default width if it is <= 0>.
+- [ ] Draws over horiztonal scroll bar. Need to adjust the clipping rect to take this into account.
 
 ### Issues
 - [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.

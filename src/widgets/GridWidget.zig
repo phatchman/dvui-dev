@@ -22,6 +22,7 @@ pub const CellOptions = struct {
     color_fill_hover: ?ColorOrName = null,
     color_border: ?ColorOrName = null,
 
+    // TODO: provide override???
     pub fn toOptions(self: *const CellOptions) Options {
         return .{
             // height is not converted as cell height is set via rect.
@@ -46,6 +47,7 @@ pub const ColOptions = struct {
     color_fill_hover: ?ColorOrName = null,
     color_border: ?ColorOrName = null,
 
+    // TODO: provide override???
     pub fn toOptions(self: *const ColOptions) Options {
         return .{
             // height is not converted as cell height is set via rect.
@@ -156,7 +158,7 @@ pub fn data(self: *GridWidget) *WidgetData {
 pub fn deinit(self: *GridWidget) void {
     self.clipReset();
 
-    // resizing if row heights changed or a resize requested via init option.
+    // resizing if row heights changed or a resize was requested via init options.
     self.resizing =
         self.init_opts.resize_rows or
         !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01);
@@ -317,7 +319,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         const measured_cell_height = cell.data().rect.h;
         self.row_height = @max(self.row_height, measured_cell_height);
     }
-    self.next_row_y += self.row_height; // TODO: ??? should it be row_height??
+    self.next_row_y += self.row_height; // TODO: Does row_height or last_row_height look better when resizing?
     if (first_row) {
         first_row = false;
         std.debug.print("EXIT Col {}: Cell h = {d}, row_height = {d}\n", .{ self.col_num, cell_height, self.row_height });
@@ -357,18 +359,18 @@ pub const GridVirtualScroller = struct {
         // Larger windows can result in smoother scrolling but will take longer to render each frame.
         window_size: usize = 1,
     };
-    g: *GridWidget,
+    grid: *GridWidget,
     si: *ScrollInfo,
     total_rows: usize,
     window_size: usize,
-    pub fn init(g: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
+    pub fn init(grid: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
-        g.scroll.si.virtual_size.h = @max(total_rows_f * g.row_height, g.scroll.si.viewport.h);
+        grid.scroll.si.virtual_size.h = @max(total_rows_f * grid.row_height, grid.scroll.si.viewport.h);
         const window_size: f32 = @floatFromInt(init_opts.window_size);
-        g.next_row_y = @max(0, g.scroll.si.viewport.y - g.row_height * window_size);
+        grid.next_row_y = @max(0, grid.scroll.si.viewport.y - grid.row_height * window_size);
         return .{
-            .g = g,
-            .si = g.scroll.si,
+            .grid = grid,
+            .si = grid.scroll.si,
             .total_rows = init_opts.total_rows,
             .window_size = init_opts.window_size,
         };
@@ -376,10 +378,10 @@ pub const GridVirtualScroller = struct {
 
     /// Return the first row within the visible scroll area, minus window_size
     pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
-        if (self.g.row_height < 1) {
+        if (self.grid.row_height < 1) {
             return 0;
         }
-        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.g.row_height));
+        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.grid.row_height));
         if (first_row_in_viewport < self.window_size) {
             return @min(first_row_in_viewport, self.total_rows);
         }
@@ -389,10 +391,10 @@ pub const GridVirtualScroller = struct {
     /// Return the last row within the visible scroll area, plus the window size.
     /// TODO: This doesn't return the last row. It returns the last row + 1? Or at least it needs to for first..last to work.
     pub fn rowLastRendered(self: *const GridVirtualScroller) usize {
-        if (self.g.row_height < 1) {
+        if (self.grid.row_height < 1) {
             return 1;
         }
-        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.g.row_height));
+        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.grid.row_height));
         return @min(last_row_in_viewport + self.window_size, self.total_rows);
     }
 };
