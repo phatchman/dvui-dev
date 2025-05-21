@@ -358,11 +358,6 @@ fn gui_frame() !void {
                 column_sizing = .expand;
                 resize_rows = true;
             }
-
-            // TODO: Add per-column sizing.
-            //            if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
-            //                column_sizing = .fixed_width;
-            //            }
         }
         _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
         _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
