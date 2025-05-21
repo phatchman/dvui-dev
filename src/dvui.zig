@@ -3973,7 +3973,7 @@ pub fn gridHeadingSortable(
 ) !bool {
     const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
-    const icon_width = 27.5;
+    const icon_width = 27.5; // TODO: This is not const.
     const padding = ButtonWidget.defaults.padding orelse Rect.all(6);
 
     // Pad buttons with extra space if there is no sort indicator.
@@ -3981,7 +3981,6 @@ pub fn gridHeadingSortable(
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
-        //        .background = true,
     };
     const heading_opts = heading_defaults.override(opts);
 
@@ -4002,6 +4001,20 @@ pub fn gridHeadingSortable(
     return sort_changed;
 }
 
+const CellOptionsOrCallback = union(enum) {
+    options: GridWidget.CellOptions,
+    callback: fn (row_number: usize) GridWidget.CellOptions,
+
+    pub const none: CellOptionsOrCallback = .{ .options = .{} };
+};
+
+const OptionsOrCallback = union(enum) {
+    options: Options,
+    callback: fn (row_number: usize) Options,
+
+    pub const none: OptionsOrCallback = .{ .options = .{} };
+};
+
 /// Create a column from a slice
 ///
 /// If data is a slice of struct field_name must be supplied
@@ -4010,6 +4023,7 @@ pub fn gridHeadingSortable(
 /// Other types are formatted using the supplied fmt string.
 /// cell_opts styles the cell's hbox
 /// opts styles the label
+/// // TODO: Cleanup variable names around options.
 pub fn gridColumnFromSlice(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
@@ -4017,8 +4031,8 @@ pub fn gridColumnFromSlice(
     data: []const T,
     comptime field_name: ?[]const u8,
     comptime fmt: []const u8,
-    cell_opts: GridWidget.CellOptions,
-    opts: Options,
+    cell_opts: CellOptionsOrCallback,
+    opts: OptionsOrCallback,
 ) !void {
     // TODO: Support pointer to direct value.
     comptime var TypeToValidate = T;
@@ -4044,14 +4058,28 @@ pub fn gridColumnFromSlice(
     };
 
     const label_defaults: Options = .{
-        .min_size_content = null,
-        .max_size_content = null,
         .expand = .horizontal,
     };
-    const label_opts = label_defaults.override(opts);
-
+    // If options are supplied create the default options.
+    const label_opts: Options = switch (opts) {
+        .options => |o| label_defaults.override(o),
+        .callback => label_defaults,
+    };
+    const default_cell_opts: GridWidget.CellOptions = switch (cell_opts) {
+        .options => |o| o,
+        .callback => .{},
+    };
     for (data, 0..) |item, row_num| {
-        var cell = try g.bodyCell(src, row_num, cell_opts);
+        // TODO: This copies both options for each row.
+        const this_cell_opts: GridWidget.CellOptions = switch (cell_opts) {
+            .options => default_cell_opts,
+            .callback => |cb| cb(row_num),
+        };
+        const this_label_opts = switch (opts) {
+            .options => label_opts,
+            .callback => |cb| cb(row_num),
+        };
+        var cell = try g.bodyCell(src, row_num, this_cell_opts);
         defer cell.deinit();
         const cell_value = value: {
             if (field_name) |_field_name| {
@@ -4074,7 +4102,7 @@ pub fn gridColumnFromSlice(
             @src(),
             fmt,
             .{cell_value},
-            label_opts,
+            this_label_opts,
         );
     }
 }

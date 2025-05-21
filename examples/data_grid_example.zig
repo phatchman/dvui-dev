@@ -116,7 +116,7 @@ pub fn columnLayoutProportional(grid: *dvui.GridWidget, ratio_widths: []f32, con
     }
 }
 
-const num_cars = 500_000;
+const num_cars = 5_000;
 pub const testing = false;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 var virtual_scrolling = true;
@@ -247,12 +247,13 @@ fn gui_frame() !void {
         {
             const first: usize, const last: usize = range: {
                 if (virtual_scrolling) {
-                    var scroller = dvui.GridWidget.GridVirtualScroller.init(grid, .{ .scroll_info = &scroll_info, .total_rows = cars.len, .window_size = 5 });
+                    var scroller = dvui.GridWidget.GridVirtualScroller.init(grid, .{ .scroll_info = &scroll_info, .total_rows = cars.len, .window_size = 1 });
                     break :range .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
                 } else {
                     break :range .{ 0, cars.len };
                 }
             };
+            first_row = first;
             std.debug.print("first = {}, last = {}\n", .{ first, last });
             var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
@@ -280,17 +281,18 @@ fn gui_frame() !void {
                     if (try dvui.gridHeadingSortable(@src(), grid, "Make", &sort_dir, headerCellOpts(.{ .border = dvui.Rect.all(0) }), .{})) {
                         sort("Make", sort_dir);
                     }
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", bodyCellOpts(.{ .border = dvui.Rect.all(0) }), .{});
+                    // TODO: was bodyCellOpts()
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", .{ .callback = bandedRows }, .{ .options = .{} });
                 }
-                //{
-                //    var col = try grid.column(@src(), colOptions(.{}));
-                //    defer col.deinit();
-                //    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{}, .{})) {
-                //        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
-                //        sort("Model", sort_dir);
-                //    }
-                //    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .{}, .{});
-                //}
+                {
+                    var col = try grid.column(@src(), colOptions(.{}));
+                    defer col.deinit();
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Model", &sort_dir, .{}, .{})) {
+                        std.debug.print("Sorting {s}\n", .{@tagName(sort_dir)});
+                        sort("Model", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "model", "{s}", .none, .none);
+                }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
                     defer col.deinit();
@@ -589,6 +591,14 @@ const some_cars = [_]Car{
     .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .mileage = 142000, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
     .{ .model = "Mustang with a really long name", .make = "Ford", .year = 2020, .mileage = 24000, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
 };
+var first_row: usize = 0;
+fn bandedRows(row_num: usize) dvui.GridWidget.CellOptions {
+    const result: dvui.GridWidget.CellOptions = .{
+        .color_fill = if ((first_row + row_num) % 2 == 0) .{ .name = .fill_press } else null,
+        .background = true,
+    };
+    return result;
+}
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {

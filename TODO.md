@@ -2,8 +2,7 @@
 - [ ] Look into making the grid take a content width as an init_option. This would size the width of the 
       scroll area, so that a .expand layout can fill the whole space.
 - [ ] Get rid of the padding for the sortable header. It isn't const the size of the symbol is dependent on the font size?
-- [ ] Use placeIn to place the cell in the column vbox to respect margin and padding requirements?
-- [ ] Remove special casing of 0 for column width. It should either be no width provided, a positive width or get the default width if it is <= 0>.
+- [X] Remove special casing of 0 for column width. It should either be no width provided, a positive width or get the default width if it is <= 0>.
 - [ ] Draws over horiztonal scroll bar. Need to adjust the clipping rect to take this into account.
 - [ ] Handle padding when header column width is smaller than the heading button width. Currently doesn't show the separator.
 

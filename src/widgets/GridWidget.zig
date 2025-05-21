@@ -39,24 +39,20 @@ pub const CellOptions = struct {
 
 pub const ColOptions = struct {
     width: ?f32 = null,
-    margin: ?Rect = null,
     border: ?Rect = null,
-    padding: ?Rect = null,
     background: ?bool = null,
     color_fill: ?ColorOrName = null,
-    color_fill_hover: ?ColorOrName = null,
+    color_fill_hover: ?ColorOrName = null, // TODO: Not currently supported.
     color_border: ?ColorOrName = null,
 
     // TODO: provide override???
     pub fn toOptions(self: *const ColOptions) Options {
         return .{
             // height is not converted as cell height is set via rect.
-            .margin = self.margin,
             .border = self.border,
-            .padding = self.padding,
             .background = self.background,
             .color_fill = self.color_fill,
-            .color_fill_hover = self.color_fill_hover,
+            .color_fill_hover = self.color_fill_hover, // TODO: Not currently supported.
             .color_border = self.color_border,
         };
     }
@@ -206,15 +202,13 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
             if (self.col_num < col_info.len) {
                 break :width .{ col_info[self.col_num], null };
             } else {
-                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_info. Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
                 break :width .{ default_col_width, null };
             }
         } else {
             if (opts.width) |w| {
                 if (w > 0) {
                     break :width .{ w, null };
-                } else if (w == 0) { // TODO: probably remove this special case and make it a default width. i.e. don't specify a width is a zero width.
-                    break :width .{ 0, .horizontal };
                 } else {
                     dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
                     break :width .{ default_col_width, null };
@@ -262,8 +256,6 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
             break :height if (self.resizing) 0 else self.header_height;
         }
     };
-    //std.debug.print("HH = {d}:{d}\n", .{ self.col_num, header_height });
-    // TODO: Really should be uysing PlaceIn so that margins and padding are respected.
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height };
 
@@ -275,17 +267,12 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
 
     // Determine heights for next frame.
     if (cell.data().contentRect().h > 0) {
-        //  std.debug.print("H, HH = {d}:{d},{d}\n", .{ self.col_num, cell.data().rect.h, self.header_height });
-
         const height = cell.data().rect.h;
         self.header_height = @max(self.header_height, height);
     }
     self.next_row_y += self.header_height;
-    //first_row = true;
     return cell;
 }
-
-//var first_row = false;
 
 /// Create a new body cell within a column
 /// Returns a hbox, deinit() must be called on this hbox before creating a new cell.
@@ -309,9 +296,6 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         self.prev_clip_rect = dvui.clipGet();
         dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
     }
-    //    if (first_row) {
-    //        std.debug.print("ENTER Col {}: Cell h = {d}, row_height = {d}, shrinking = {}\n", .{ self.col_num, cell_height, self.row_height, self.resizing });
-    //    }
 
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
@@ -327,10 +311,6 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         self.row_height = @max(self.row_height, measured_cell_height);
     }
     self.next_row_y += self.row_height; // TODO: Does row_height or last_row_height look better when resizing?
-    //    if (first_row) {
-    //        first_row = false;
-    //        std.debug.print("EXIT Col {}: Cell h = {d}, row_height = {d}\n", .{ self.col_num, cell_height, self.row_height });
-    //    }
 
     return cell;
 }
@@ -373,12 +353,10 @@ pub const GridVirtualScroller = struct {
     window_size: usize,
     pub fn init(grid: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
         const si = init_opts.scroll_info;
-        std.debug.print("PRE: {}\n", .{si});
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
         si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
         const first_row: f32 = @floatFromInt(_rowFirstRendered(grid, si, init_opts.total_rows, init_opts.window_size));
         grid.offsetRowsBy(first_row * grid.row_height); // TODO: does last_row_height make a difference?
-        std.debug.print("POST = {d}, {d}\n", .{ si.virtual_size.h, grid.y_offset });
         return .{
             .grid = grid,
             .si = si,
@@ -389,16 +367,12 @@ pub const GridVirtualScroller = struct {
 
     fn _rowFirstRendered(grid: *GridWidget, si: *ScrollInfo, total_rows: usize, window_size: usize) usize {
         if (grid.row_height < 1) {
-            std.debug.print("row height < 1\n", .{});
             return 0;
         }
         const first_row_in_viewport: usize = @intFromFloat(@round(si.viewport.y / grid.row_height));
         if (first_row_in_viewport < window_size) {
-            std.debug.print("frivp1 = {}, tr = {} ws = {}\n", .{ first_row_in_viewport, total_rows, window_size });
-            //            return @min(first_row_in_viewport, self.total_rows);
             return 0;
         }
-        std.debug.print("frivp2 = {}, tr = {}\n", .{ first_row_in_viewport - window_size, total_rows });
         return @min(first_row_in_viewport - window_size, total_rows);
     }
     /// Return the first row within the visible scroll area, minus window_size
