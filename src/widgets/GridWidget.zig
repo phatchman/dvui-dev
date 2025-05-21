@@ -92,7 +92,7 @@ last_row_height: f32 = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
-prev_clip_rect: ?Rect = null,
+prev_clip_rect: ?Rect.Physical = null,
 resizing: bool = false,
 y_offset: f32 = 0,
 
