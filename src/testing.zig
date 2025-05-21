@@ -1,10 +1,13 @@
 allocator: std.mem.Allocator,
 backend: *Backend,
 window: *Window,
-doc_image_dir: ?[]const u8,
+image_dir: ?[]const u8,
 snapshot_dir: []const u8,
 
 snapshot_index: u8 = 0,
+
+/// Used to hash widget data during a frame for snapshot testing
+pub var widget_hasher: ?dvui.fnv = null;
 
 /// Moves the mouse to the center of the widget
 pub fn moveTo(tag: []const u8) !void {
@@ -14,8 +17,8 @@ pub fn moveTo(tag: []const u8) !void {
     };
     if (!tag_data.visible) return error.WidgetNotVisible;
     const cw = dvui.currentWindow();
-    const point = tag_data.rect.center().scale(1 / dvui.windowNaturalScale());
-    _ = try cw.addEventMouseMotion(point.x, point.y);
+    const point = tag_data.rect.center().toNatural();
+    _ = try cw.addEventMouseMotion(point);
 }
 
 /// Presses and releases the button at the current mouse position
@@ -73,7 +76,7 @@ pub fn step(frame: dvui.App.frameFunction) !?u32 {
 pub const InitOptions = struct {
     allocator: std.mem.Allocator = if (@import("builtin").is_test) std.testing.allocator else undefined,
     window_size: dvui.Size = .{ .w = 600, .h = 400 },
-    doc_image_dir: ?[]const u8 = null,
+    image_dir: ?[]const u8 = null,
     snapshot_dir: []const u8 = "snapshots",
 };
 
@@ -91,22 +94,14 @@ pub fn init(options: InitOptions) !Self {
         }),
         .testing => Backend.init(.{
             .allocator = options.allocator,
-            .size = options.window_size,
-            .size_pixels = options.window_size.scale(2),
+            .size = .cast(options.window_size),
+            .size_pixels = options.window_size.scale(2, dvui.Size.Physical),
         }),
         inline else => |kind| {
             std.debug.print("dvui.testing does not support the {s} backend\n", .{@tagName(kind)});
             return error.SkipZigTest;
         },
     };
-
-    const img_dir = options.doc_image_dir orelse @import("build_options").doc_image_dir;
-
-    if (img_dir) |imgdir| {
-        std.fs.cwd().makePath(imgdir) catch |err| switch (err) {
-            else => return err,
-        };
-    }
 
     if (should_write_snapshots()) {
         // ensure snapshot directory exists
@@ -126,7 +121,7 @@ pub fn init(options: InitOptions) !Self {
         .allocator = options.allocator,
         .backend = backend,
         .window = window,
-        .doc_image_dir = img_dir,
+        .image_dir = options.image_dir orelse @import("build_options").image_dir,
         .snapshot_dir = options.snapshot_dir,
     };
 }
@@ -142,21 +137,30 @@ pub fn deinit(self: *Self) void {
 }
 
 pub fn expectFocused(tag: []const u8) !void {
-    if (dvui.tagGet(tag)) |data| {
-        try std.testing.expectEqual(data.id, dvui.focusedWidgetId());
-    } else {
-        std.debug.print("tag \"{s}\" not found\n", .{tag});
-        return error.TagNotFound;
-    }
+    const data = try tagGet(tag);
+    try std.testing.expectEqual(data.id, dvui.focusedWidgetId());
+}
+
+pub fn expectNotFocused(tag: []const u8) !void {
+    const data = try tagGet(tag);
+    try std.testing.expect(data.id != dvui.focusedWidgetId());
 }
 
 pub fn expectVisible(tag: []const u8) !void {
-    if (dvui.tagGet(tag)) |data| {
-        try std.testing.expect(data.visible);
-    } else {
+    const data = try tagGet(tag);
+    try std.testing.expect(data.visible);
+}
+
+pub fn expectNotVisible(tag: []const u8) !void {
+    const data = try tagGet(tag);
+    try std.testing.expect(!data.visible);
+}
+
+pub fn tagGet(tag: []const u8) !dvui.TagData {
+    return dvui.tagGet(tag) orelse {
         std.debug.print("tag \"{s}\" not found\n", .{tag});
         return error.TagNotFound;
-    }
+    };
 }
 
 pub const SnapshotError = error{
@@ -170,7 +174,7 @@ pub const SnapshotError = error{
 /// Captures the physical pixels in rect, or if null the entire OS window.
 ///
 /// The returned data is allocated by `Self.allocator` and should be freed by the caller.
-pub fn capturePng(self: *Self, frame: dvui.App.frameFunction, rect: ?dvui.Rect) ![]const u8 {
+pub fn capturePng(self: *Self, frame: dvui.App.frameFunction, rect: ?dvui.Rect.Physical) ![]const u8 {
     var picture = dvui.Picture.start(rect orelse dvui.windowRectPixels()) orelse {
         std.debug.print("Current backend does not support capturing images\n", .{});
         return error.Unsupported;
@@ -197,154 +201,130 @@ pub fn capturePng(self: *Self, frame: dvui.App.frameFunction, rect: ?dvui.Rect) 
 
     return png_data;
 }
-const png_extension = ".png";
 
-/// Captures one frame and compares to an earilier captured frame, returning an error if they are not the same
+/// Runs exactly one frame, creating a hash of the state of that frame and compares to an earilier saved hash,
+/// returning an error if they are not the same.
 ///
 /// IMPORTANT: Snapshots are unstable and both backend and platform dependent. Changing any of these might fail the test.
 ///
-/// All snapshot tests can be ignored (without skipping the whole test) by setting the environment variable `DVUI_SNAPSHOT_IGNORE`
+/// All snapshot tests can be ignored (without skipping the whole test) by setting the environment variable `DVUI_SNAPSHOT_IGNORE`.
 ///
 /// Set the environment variable `DVUI_SNAPSHOT_WRITE` to create/overwrite the snapshot files
+///
+/// To generate and image of the snapshot for debugging pass `-Dsnapshot-images` with a suffix like "before" or "after".
+/// The images will be places in a `images` directory next to the snapshot files in question
 ///
 /// Dvui does not clear out old or unused snapshot files. To clean the snapshot directory follow these steps:
 /// 1. Ensure all snapshot test pass
 /// 2. Delete the snapshot directory
 /// 3. Run all snapshot tests with `DVUI_SNAPSHOT_WRITE` set to recreate only the used files
 pub fn snapshot(self: *Self, src: std.builtin.SourceLocation, frame: dvui.App.frameFunction) !void {
-    if (should_ignore_snapshots()) return;
+    if (should_ignore_snapshots()) {
+        _ = try step(frame);
+        return;
+    }
 
     defer self.snapshot_index += 1;
-    const filename = try std.fmt.allocPrint(self.allocator, "{s}-{s}-{d}" ++ png_extension, .{ src.file, src.fn_name, self.snapshot_index });
+    const filename = try std.fmt.allocPrint(self.allocator, "{s}-{s}-{d}", .{ src.file, src.fn_name, self.snapshot_index });
     defer self.allocator.free(filename);
     // NOTE: do fs operation through cwd to handle relative and absolute paths
     var dir = std.fs.cwd().openDir(self.snapshot_dir, .{}) catch |err| switch (err) {
         error.FileNotFound => {
             std.debug.print("{s}:{d}:{d}: Snapshot directory did not exist! Run the test with DVUI_SNAPSHOT_WRITE to create all snapshot files\n", .{ src.file, src.line, src.column });
-            return error.SkipZigTest; // FIXME: Test should fail with missing snapshots, but we don't want to commit snapshots while they are unstable, so skip tests instead
+            return error.MissingSnapshotFile;
         },
         else => return err,
     };
     defer dir.close();
 
-    const png_data = try self.capturePng(frame, null);
-    defer self.allocator.free(png_data);
+    widget_hasher = .init();
+    defer widget_hasher = null;
 
-    const file = dir.openFile(filename, .{}) catch |err| switch (err) {
+    if (@import("build_options").snapshot_image_suffix) |image_suffix| {
+        const png_data = try self.capturePng(frame, null);
+        defer self.allocator.free(png_data);
+        dir.makeDir("images") catch |err| switch (err) {
+            error.PathAlreadyExists => {},
+            else => return err,
+        };
+        const image_name = try std.fmt.allocPrint(self.allocator, "images/{s}-{s}.png", .{ filename, image_suffix });
+        defer self.allocator.free(image_name);
+        try dir.writeFile(.{ .sub_path = image_name, .data = png_data, .flags = .{} });
+        // Do not continue with checking hashes as it is not deterministic across content_scales because
+        // fonts render in integer steps and scaling changes the step used and the size of the test
+        return; // Do not skip test because other snapshots might run after this one
+    } else {
+        _ = try step(frame);
+    }
+
+    const HashInt = u32;
+    const hash: HashInt = widget_hasher.?.final();
+
+    const file = dir.openFile(filename, .{ .mode = .read_write }) catch |err| switch (err) {
         std.fs.File.OpenError.FileNotFound => {
             if (should_write_snapshots()) {
-                try dir.writeFile(.{ .sub_path = filename, .data = png_data, .flags = .{} });
+                const file = try dir.createFile(filename, .{});
+                try file.writer().print("{X}", .{hash});
                 std.debug.print("Snapshot: Created file \"{s}\"\n", .{filename});
                 return;
             }
             std.debug.print("{s}:{d}:{d}: Snapshot file did not exist! Run the test with `DVUI_SNAPSHOT_WRITE` to create all snapshot files\n", .{ src.file, src.line, src.column });
-            return error.SkipZigTest; // FIXME: Test should fail with missing snapshots, but we don't want to commit snapshots while they are unstable, so skip tests instead
+            return error.MissingSnapshotFile;
         },
         else => return err,
     };
-    const prev_hash = try hash_png(file.reader().any());
-    file.close();
+    defer file.close();
 
-    var png_reader = std.io.fixedBufferStream(png_data);
-    const new_hash = try hash_png(png_reader.reader().any());
+    var hash_buf: [@sizeOf(HashInt) * 2]u8 = undefined;
+    _ = try file.readAll(&hash_buf);
+    const prev_hash = try std.fmt.parseUnsigned(HashInt, &hash_buf, 16);
 
-    if (prev_hash != new_hash) {
+    if (prev_hash != hash) {
         if (should_write_snapshots()) {
-            try dir.writeFile(.{ .sub_path = filename, .data = png_data, .flags = .{} });
+            try file.seekTo(0);
+            try file.writer().print("{X}", .{hash});
             std.debug.print("Snapshot: Overwrote file \"{s}\"\n", .{filename});
             return;
         }
-        const failed_filename = try std.fmt.allocPrint(self.allocator, "{s}-failed" ++ png_extension, .{filename[0 .. filename.len - png_extension.len]});
-        defer self.allocator.free(failed_filename);
-        try dir.writeFile(.{ .sub_path = failed_filename, .data = png_data, .flags = .{} });
-
-        std.debug.print("Snapshot did not match! See the \"{s}\" for the current output", .{failed_filename});
-
         return SnapshotError.SnapshotsDidNotMatch;
     }
 }
 
-fn hash_png(png_reader: std.io.AnyReader) !u32 {
-    var hasher = dvui.fnv.init();
-
-    var read_buf: [1024 * 4]u8 = undefined;
-    var len: usize = read_buf.len;
-    // len < read_buf indicates the end of the data
-    while (len == read_buf.len) {
-        len = try png_reader.readAll(&read_buf);
-        hasher.update(read_buf[0..len]);
-    }
-    return hasher.final();
-}
-
 fn should_ignore_snapshots() bool {
-    return Backend.kind == .testing or std.process.hasEnvVarConstant("DVUI_SNAPSHOT_IGNORE");
+    // If there is a snapshot image suffix, we expect to generate images, thus not ignore the test
+    return @import("build_options").snapshot_image_suffix == null and (Backend.kind != .testing or std.process.hasEnvVarConstant("DVUI_SNAPSHOT_IGNORE"));
 }
 
 fn should_write_snapshots() bool {
     return !should_ignore_snapshots() and std.process.hasEnvVarConstant("DVUI_SNAPSHOT_WRITE");
 }
 
-/// If image_dir is not null, run a single frame, capture the physical pixels
-/// in rect, and write those as a png file to image_dir/filename_fmt.
+/// Internal use only!
+///
+/// Always runs a single frame. If `-Dgenerate-images` is passed to `zig build docs`,
+/// capture the physical pixels in rect, and write those as a png file.
 ///
 /// If rect is null, capture the whole OS window.
 ///
-/// The intended use is for automatically generating documentation images.
-pub fn saveImage(self: *Self, frame: dvui.App.frameFunction, rect: ?dvui.Rect, comptime filename_fmt: []const u8, fmt_args: anytype) !void {
-    if (self.doc_image_dir) |img_dir| {
-        const filename = try std.fmt.allocPrint(self.allocator, "{s}/" ++ filename_fmt, .{img_dir} ++ fmt_args);
-        std.debug.print("FILENAME: {s}\n", .{filename});
-        defer self.allocator.free(filename);
-
-        const png_data = try self.capturePng(frame, rect);
-        defer self.allocator.free(png_data);
-
-        try std.fs.cwd().writeFile(.{
-            .data = png_data,
-            .sub_path = filename,
-            .flags = .{},
-        });
-    }
-}
-
-/// Internal use only!
-///
-/// Generates and saves images for documentation. The test name is required to end with `.png` and are format strings evaluated at comptime.
-pub fn saveDocImage(self: *Self, comptime src: std.builtin.SourceLocation, comptime format_args: anytype, frame: dvui.App.frameFunction) !void {
-    if (!std.mem.endsWith(u8, src.fn_name, png_extension)) {
-        return error.SaveDocImageRequiresPNGExtensionInTestName;
-    }
-
-    if (!is_dvui_doc_gen) {
-        // Do nothing if we are not running with the doc_gen test runner.
+/// Generates and saves images for documentation. The test name is required to
+/// end with `.png` and are format strings evaluated at comptime.
+pub fn saveImage(self: *Self, frame: dvui.App.frameFunction, rect: ?dvui.Rect.Physical, filename: []const u8) !void {
+    if (self.image_dir == null) {
         // This means that the rest of the test is still performed and used as a normal dvui test.
+        _ = try step(frame);
         return;
     }
 
-    const test_prefix = "test.";
-    const filename = std.fmt.comptimePrint(src.fn_name[test_prefix.len..], format_args);
-
-    const png_data = try self.capturePng(frame, null);
+    const png_data = try self.capturePng(frame, rect);
     defer self.allocator.free(png_data);
 
-    @import("root").dvui_image_doc_gen_dir.writeFile(.{
-        .data = png_data,
-        .sub_path = filename,
-        // set exclusive flag to error if two test generate an image with the same name
-        .flags = .{ .exclusive = true },
-    }) catch |err| {
-        if (err == std.fs.File.OpenError.PathAlreadyExists) {
-            std.debug.print("Error generating doc image: duplicated test name '{s}'\n", .{filename});
-            return error.DuplicateDocImageName;
-        } else {
-            return err;
-        }
-    };
+    var dir = try std.fs.cwd().makeOpenPath(self.image_dir.?, .{});
+    defer dir.close();
+    try dir.writeFile(.{ .data = png_data, .sub_path = filename });
 }
 
 /// Used internally for documentation generation
-pub const is_dvui_doc_gen = @hasDecl(@import("root"), "dvui_image_doc_gen_dir");
+pub const is_dvui_doc_gen_runner = @hasDecl(@import("root"), "DvuiDocGenRunner");
 
 const Self = @This();
 

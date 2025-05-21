@@ -42,7 +42,10 @@ pub fn AppFrame() !dvui.App.Result {
 }
 
 pub fn frame() !dvui.App.Result {
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .{ .name = .fill_window } });
+    var scaler = try dvui.scale(@src(), .{ .scale = &dvui.currentWindow().content_scale, .pinch_zoom = .global }, .{ .rect = .cast(dvui.windowRect()) });
+    scaler.deinit();
+
+    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
     defer scroll.deinit();
 
     var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
@@ -84,8 +87,10 @@ pub fn frame() !dvui.App.Result {
     //if (try dvui.button(@src(), "Panic", .{}, .{})) {
     //std.debug.panic("This is a panic message after {d}s", .{@divTrunc(dvui.currentWindow().frame_time_ns, std.time.ns_per_s)});
     //}
-    if (try dvui.button(@src(), if (dvui.backend.kind == .web) "Stop" else "Close", .{}, .{})) {
-        return .close;
+    if (dvui.backend.kind != .web) {
+        if (try dvui.button(@src(), "Close", .{}, .{})) {
+            return .close;
+        }
     }
 
     // look at demo() for examples of dvui widgets, shows in a floating window
@@ -100,6 +105,8 @@ test "tab order" {
 
     try dvui.testing.settle(frame);
 
+    try dvui.testing.expectNotFocused("show-demo-btn");
+
     try dvui.testing.pressKey(.tab, .none);
     try dvui.testing.settle(frame);
 
@@ -111,6 +118,11 @@ test "open example window" {
     defer t.deinit();
 
     try dvui.testing.settle(frame);
+
+    // FIXME: The global show_demo_window variable makes tests order dependent
+    dvui.Examples.show_demo_window = false;
+
+    try std.testing.expect(dvui.tagGet(dvui.Examples.demo_window_tag) == null);
 
     try dvui.testing.moveTo("show-demo-btn");
     try dvui.testing.click(.left);

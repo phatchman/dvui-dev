@@ -103,7 +103,7 @@ corners_min_size: [4]?Size = [_]?Size{null} ** 4,
 corners_last_seen: ?u8 = null,
 insert_pt: Point = Point{},
 current_line_height: f32 = 0.0,
-prevClip: Rect = Rect{},
+prevClip: Rect.Physical = .{},
 break_lines: bool = undefined,
 current_line_width: f32 = 0.0, // width of lines if break_lines was false
 touch_edit_just_focused: bool = undefined,
@@ -283,12 +283,12 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             var cursor = self.sel_start_r;
             cursor.x -= 1;
             cursor.w += 1;
-            const visible = !dvui.clipGet().intersect(rs.rectToScreen(cursor)).empty();
+            const visible = !dvui.clipGet().intersect(rs.rectToPhysical(cursor)).empty();
 
             var rect = self.sel_start_r;
             rect.y += rect.h; // move to below the line
             const srs = self.screenRectScale(rect);
-            rect = dvui.windowRectScale().rectFromScreen(srs.r);
+            rect = dvui.windowRectScale().rectFromPhysical(srs.r);
             rect.x -= size;
             rect.w = size;
             rect.h = size;
@@ -296,7 +296,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             var fc = dvui.FloatingWidget.init(@src(), .{ .rect = rect });
             try fc.install();
 
-            var offset: Point = dvui.dataGet(null, fc.wd.id, "_offset", Point) orelse .{};
+            var offset: Point.Physical = dvui.dataGet(null, fc.wd.id, "_offset", Point.Physical) orelse .{};
 
             const fcrs = fc.wd.rectScale();
             const evts = dvui.events();
@@ -318,7 +318,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
                         dvui.dragEnd();
                     } else if (me.action == .motion and dvui.captured(fc.wd.id)) {
                         const corner = me.p.plus(offset);
-                        self.sel_pts[0] = self.wd.contentRectScale().pointFromScreen(corner);
+                        self.sel_pts[0] = self.wd.contentRectScale().pointFromPhysical(corner);
                         self.sel_pts[1] = self.sel_end_r.topLeft().plus(.{ .y = self.sel_end_r.h / 2 });
 
                         self.sel_pts[0].?.y = @min(self.sel_pts[0].?.y, self.sel_pts[1].?.y);
@@ -334,14 +334,14 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             }
 
             if (visible) {
-                var path: std.ArrayList(dvui.Point) = .init(dvui.currentWindow().arena());
+                var path: dvui.PathArrayList = .init(dvui.currentWindow().arena());
                 defer path.deinit();
 
                 try path.append(.{ .x = fcrs.r.x + fcrs.r.w, .y = fcrs.r.y });
                 try dvui.pathAddArc(&path, .{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
 
-                try dvui.pathFillConvex(path.items, dvui.themeGet().color_fill_control);
-                try dvui.pathStroke(path.items, 1.0 * fcrs.s, self.wd.options.color(.border), .{ .closed = true });
+                try dvui.pathFillConvex(path.items, .{ .color = dvui.themeGet().color_fill_control, .blur = 0.5 });
+                try dvui.pathStroke(path.items, .{ .thickness = 1.0 * fcrs.s, .color = self.wd.options.color(.border), .closed = true });
             }
 
             dvui.dataSet(null, fc.wd.id, "_offset", offset);
@@ -355,19 +355,19 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             var cursor = self.sel_end_r;
             cursor.x -= 1;
             cursor.w += 1;
-            const visible = !dvui.clipGet().intersect(rs.rectToScreen(cursor)).empty();
+            const visible = !dvui.clipGet().intersect(rs.rectToPhysical(cursor)).empty();
 
             var rect = self.sel_end_r;
             rect.y += rect.h; // move to below the line
             const srs = self.screenRectScale(rect);
-            rect = dvui.windowRectScale().rectFromScreen(srs.r);
+            rect = dvui.windowRectScale().rectFromPhysical(srs.r);
             rect.w = size;
             rect.h = size;
 
             var fc = dvui.FloatingWidget.init(@src(), .{ .rect = rect });
             try fc.install();
 
-            var offset: Point = dvui.dataGet(null, fc.wd.id, "_offset", Point) orelse .{};
+            var offset: Point.Physical = dvui.dataGet(null, fc.wd.id, "_offset", Point.Physical) orelse .{};
 
             const fcrs = fc.wd.rectScale();
             const evts = dvui.events();
@@ -390,7 +390,7 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
                     } else if (me.action == .motion and dvui.captured(fc.wd.id)) {
                         const corner = me.p.plus(offset);
                         self.sel_pts[0] = self.sel_start_r.topLeft().plus(.{ .y = self.sel_start_r.h / 2 });
-                        self.sel_pts[1] = self.wd.contentRectScale().pointFromScreen(corner);
+                        self.sel_pts[1] = self.wd.contentRectScale().pointFromPhysical(corner);
 
                         self.sel_pts[1].?.y = @max(self.sel_pts[0].?.y, self.sel_pts[1].?.y);
 
@@ -405,14 +405,14 @@ pub fn install(self: *TextLayoutWidget, opts: struct { focused: ?bool = null, sh
             }
 
             if (visible) {
-                var path: std.ArrayList(dvui.Point) = .init(dvui.currentWindow().arena());
+                var path: dvui.PathArrayList = .init(dvui.currentWindow().arena());
                 defer path.deinit();
 
                 try path.append(.{ .x = fcrs.r.x, .y = fcrs.r.y });
                 try dvui.pathAddArc(&path, .{ .x = fcrs.r.x + fcrs.r.w / 2, .y = fcrs.r.y + fcrs.r.h / 2 }, fcrs.r.w / 2, std.math.pi, 0, true);
 
-                try dvui.pathFillConvex(path.items, dvui.themeGet().color_fill_control);
-                try dvui.pathStroke(path.items, 1.0 * fcrs.s, self.wd.options.color(.border), .{ .closed = true });
+                try dvui.pathFillConvex(path.items, .{ .color = dvui.themeGet().color_fill_control, .blur = 0.5 });
+                try dvui.pathStroke(path.items, .{ .thickness = 1.0 * fcrs.s, .color = self.wd.options.color(.border), .closed = true });
             }
 
             dvui.dataSet(null, fc.wd.id, "_offset", offset);
@@ -1395,8 +1395,7 @@ pub fn touchEditing(self: *TextLayoutWidget) !?*FloatingWidget {
     if (self.touch_editing and self.te_show_context_menu and self.focus_at_start and self.wd.visible()) {
         self.te_floating = dvui.FloatingWidget.init(@src(), .{});
 
-        const r = dvui.clipGet().offsetNeg(dvui.windowRectPixels()).scale(1.0 / dvui.windowNaturalScale());
-
+        const r = dvui.windowRectScale().rectFromPhysical(dvui.clipGet());
         if (dvui.minSizeGet(self.te_floating.data().id)) |_| {
             const ms = dvui.minSize(self.te_floating.data().id, self.te_floating.data().options.min_sizeGet());
             self.te_floating.wd.rect.w = ms.w;
@@ -1405,7 +1404,7 @@ pub fn touchEditing(self: *TextLayoutWidget) !?*FloatingWidget {
             self.te_floating.wd.rect.x = r.x + r.w - self.te_floating.wd.rect.w;
             self.te_floating.wd.rect.y = r.y - self.te_floating.wd.rect.h - self.wd.options.paddingGet().y;
 
-            self.te_floating.wd.rect = dvui.placeOnScreen(dvui.windowRect(), .{ .x = self.te_floating.wd.rect.x, .y = self.te_floating.wd.rect.y }, .vertical, self.te_floating.wd.rect);
+            self.te_floating.wd.rect = .cast(dvui.placeOnScreen(dvui.windowRect(), .{ .x = self.te_floating.wd.rect.x, .y = self.te_floating.wd.rect.y }, .vertical, .cast(self.te_floating.wd.rect)));
         } else {
             // need another frame to get our min size
             dvui.refresh(null, @src(), self.te_floating.wd.id);
@@ -1522,11 +1521,11 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
     switch (e.evt) {
         .mouse => |me| {
             if (me.action == .focus) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 // focus so that we can receive keyboard input
-                dvui.focusWidgetSelf(self.wd.id, e.num);
+                dvui.focusWidget(self.wd.id, null, e.num);
             } else if (me.action == .press and me.button.pointer()) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 // capture and start drag
                 dvui.captureMouse(self.data());
                 dvui.dragPreStart(me.p, .{ .cursor = .ibeam });
@@ -1541,7 +1540,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                     }
                 } else {
                     // a click always sets sel_move - has the highest priority
-                    const p = self.wd.contentRectScale().pointFromScreen(me.p);
+                    const p = self.wd.contentRectScale().pointFromPhysical(me.p);
                     self.sel_move = .{ .mouse = .{ .down_pt = p } };
                     self.scroll_to_cursor = true;
 
@@ -1554,12 +1553,12 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                     }
                 }
             } else if (me.action == .release and me.button.pointer()) {
-                e.handled = true;
+                e.handle(@src(), self.data());
 
                 if (dvui.captured(self.wd.id)) {
                     if (!self.touch_editing and dvui.dragging(me.p) == null) {
                         // click without drag
-                        self.click_pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                        self.click_pt = self.wd.contentRectScale().pointFromPhysical(me.p);
 
                         self.click_num += 1;
                         if (self.click_num == 4) {
@@ -1570,7 +1569,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                     if (me.button.touch()) {
                         // this was a touch-release without drag, which transitions
                         // us between touch editing
-                        const p = self.wd.contentRectScale().pointFromScreen(me.p);
+                        const p = self.wd.contentRectScale().pointFromPhysical(me.p);
 
                         if (self.te_focus_on_touchdown) {
                             self.touch_editing = !self.touch_editing;
@@ -1604,11 +1603,11 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
                 if (dvui.dragging(me.p)) |_| {
                     self.click_num = 0;
                     if (!me.button.touch()) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         if (self.sel_move == .mouse) {
-                            self.sel_move.mouse.drag_pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                            self.sel_move.mouse.drag_pt = self.wd.contentRectScale().pointFromPhysical(me.p);
                         } else if (self.sel_move == .expand_pt) {
-                            self.sel_move.expand_pt.pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                            self.sel_move.expand_pt.pt = self.wd.contentRectScale().pointFromPhysical(me.p);
                             self.sel_move.expand_pt.done = false;
                             self.sel_move.expand_pt.dragging = true;
                         }
@@ -1627,26 +1626,26 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             } else if (me.action == .motion) {
                 self.click_num = 0;
             } else if (me.action == .position) {
-                self.cursor_pt = self.wd.contentRectScale().pointFromScreen(me.p);
+                self.cursor_pt = self.wd.contentRectScale().pointFromPhysical(me.p);
             }
         },
         .key => |ke| blk: {
             if (ke.action == .down and ke.matchBind("text_start_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.selection.moveCursor(0, true);
                 self.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("text_end_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.selection.moveCursor(std.math.maxInt(usize), true);
                 self.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("line_start_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .expand_pt = .{ .which = .home } };
                 }
@@ -1654,7 +1653,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if (ke.action == .down and ke.matchBind("line_end_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .expand_pt = .{ .which = .end } };
                 }
@@ -1662,7 +1661,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_left_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .word_left_right = .{} };
                 }
@@ -1673,7 +1672,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_right_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .word_left_right = .{} };
                 }
@@ -1684,7 +1683,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_left_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .char_left_right = .{} };
                 }
@@ -1695,7 +1694,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_right_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .char_left_right = .{} };
                 }
@@ -1706,7 +1705,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_up_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .cursor_updown = .{} };
                 }
@@ -1717,7 +1716,7 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_down_select")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.sel_move == .none) {
                     self.sel_move = .{ .cursor_updown = .{} };
                 }
@@ -1728,13 +1727,13 @@ pub fn processEvent(self: *TextLayoutWidget, e: *Event, bubbling: bool) void {
             }
 
             if (ke.action == .down and ke.matchBind("copy")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.copy();
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("select_all")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.selection.selectAll();
                 break :blk;
             }

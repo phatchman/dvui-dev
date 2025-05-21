@@ -20,19 +20,20 @@ subwindows: std.ArrayList(Subwindow),
 /// id of the subwindow widgets are being added to
 subwindow_currentId: u32 = 0,
 
-/// pixel screen rect of the last subwindow, dialogs use this
+/// natural rect of the last subwindow, dialogs use this
 /// to center themselves
-subwindow_currentRect: Rect = .{},
+subwindow_currentRect: Rect.Natural = .{},
 
 /// id of the subwindow that has focus
 focused_subwindowId: u32 = 0,
 
 last_focused_id_this_frame: u32 = 0,
+last_registered_id_this_frame: u32 = 0,
 
-/// rect on screen (in natural pixels) telling the backend where our text input box is:
+/// natural rect telling the backend where our text input box is:
 /// * when non-null, we want an on screen keyboard if needed (phones)
 /// * when showing the IME input window, position it near this
-text_input_rect: ?Rect = null,
+text_input_rect: ?Rect.Natural = null,
 
 snap_to_pixels: bool = true,
 alpha: f32 = 1.0,
@@ -44,8 +45,8 @@ event_num: u16 = 0,
 /// 2) used to highlight the widget under the mouse (`dvui.Event.Mouse.Action` .position event)
 /// 3) used to change the cursor (`dvui.Event.Mouse.Action` .position event)
 // Start off screen so nothing is highlighted on the first frame
-mouse_pt: Point = Point{ .x = -1, .y = -1 },
-mouse_pt_prev: Point = Point{ .x = -1, .y = -1 },
+mouse_pt: Point.Physical = .{ .x = -1, .y = -1 },
+mouse_pt_prev: Point.Physical = .{ .x = -1, .y = -1 },
 inject_motion_event: bool = false,
 
 drag_state: enum {
@@ -53,8 +54,8 @@ drag_state: enum {
     prestart,
     dragging,
 } = .none,
-drag_pt: Point = Point{},
-drag_offset: Point = Point{},
+drag_pt: Point.Physical = .{},
+drag_offset: Point.Physical = .{},
 drag_name: []const u8 = "",
 
 frame_time_ns: i128 = 0,
@@ -66,7 +67,7 @@ frame_times: [30]u32 = [_]u32{0} ** 30,
 
 secs_since_last_frame: f32 = 0,
 extra_frames_needed: u8 = 0,
-clipRect: Rect = Rect{},
+clipRect: dvui.Rect.Physical = .{},
 
 theme: Theme = undefined,
 
@@ -91,11 +92,11 @@ cursor_requested: ?dvui.enums.Cursor = null,
 cursor_dragging: ?dvui.enums.Cursor = null,
 
 wd: WidgetData = undefined,
-rect_pixels: Rect = Rect{}, // pixels
+rect_pixels: dvui.Rect.Physical = .{},
 natural_scale: f32 = 1.0,
 /// can set separately but gets folded into natural_scale
 content_scale: f32 = 1.0,
-next_widget_ypos: f32 = 0,
+layout: dvui.BasicLayout = .{},
 
 capture: ?dvui.CaptureMouse = null,
 captured_last_frame: bool = false,
@@ -118,8 +119,10 @@ debug_under_mouse_esc_needed: bool = false,
 debug_under_mouse_quitting: bool = false,
 debug_under_mouse_info: []u8 = "",
 
-debug_refresh_mutex: std.Thread.Mutex,
+debug_toggle_mutex: std.Thread.Mutex,
 debug_refresh: bool = false,
+debug_handled_event: bool = false,
+debug_unhandled_events: bool = false,
 
 /// when true, left mouse button works like a finger
 debug_touch_simulate_events: bool = false,
@@ -128,7 +131,7 @@ debug_touch_simulate_down: bool = false,
 pub const Subwindow = struct {
     id: u32 = 0,
     rect: Rect = Rect{},
-    rect_pixels: Rect = Rect{},
+    rect_pixels: dvui.Rect.Physical = .{},
     focused_widgetId: ?u32 = null,
     render_cmds: std.ArrayList(dvui.RenderCommand),
     render_cmds_after: std.ArrayList(dvui.RenderCommand),
@@ -202,7 +205,7 @@ pub fn init(
         .dialogs = std.ArrayList(Dialog).init(gpa),
         .toasts = std.ArrayList(Toast).init(gpa),
         .keybinds = std.StringHashMap(dvui.enums.Keybind).init(gpa),
-        .debug_refresh_mutex = std.Thread.Mutex{},
+        .debug_toggle_mutex = std.Thread.Mutex{},
         .wd = WidgetData{ .src = src, .id = hashval, .init_options = .{ .subwindow = true }, .options = .{ .name = "Window" } },
         .backend = backend_ctx,
         .font_bytes = try dvui.Font.initTTFBytesDatabase(gpa),
@@ -437,9 +440,35 @@ pub fn arena(self: *Self) std.mem.Allocator {
 }
 
 /// called from any thread
+pub fn debugHandleEvents(self: *Self, val: ?bool) bool {
+    self.debug_toggle_mutex.lock();
+    defer self.debug_toggle_mutex.unlock();
+
+    const previous = self.debug_handled_event;
+    if (val) |v| {
+        self.debug_handled_event = v;
+    }
+
+    return previous;
+}
+
+/// called from any thread
+pub fn debugUnhandledEvents(self: *Self, val: ?bool) bool {
+    self.debug_toggle_mutex.lock();
+    defer self.debug_toggle_mutex.unlock();
+
+    const previous = self.debug_unhandled_events;
+    if (val) |v| {
+        self.debug_unhandled_events = v;
+    }
+
+    return previous;
+}
+
+/// called from any thread
 pub fn debugRefresh(self: *Self, val: ?bool) bool {
-    self.debug_refresh_mutex.lock();
-    defer self.debug_refresh_mutex.unlock();
+    self.debug_toggle_mutex.lock();
+    defer self.debug_toggle_mutex.unlock();
 
     const previous = self.debug_refresh;
     if (val) |v| {
@@ -555,10 +584,10 @@ pub fn addEventTextEx(self: *Self, text: []const u8, selected: bool) !bool {
 /// This can be called outside begin/end.  You should add all the events
 /// for a frame either before begin() or just after begin() and before
 /// calling normal dvui widgets.  end() clears the event list.
-pub fn addEventMouseMotion(self: *Self, x: f32, y: f32) !bool {
+pub fn addEventMouseMotion(self: *Self, pt: Point.Natural) !bool {
     self.positionMouseEventRemove();
 
-    const newpt = (Point{ .x = x, .y = y }).scale(self.natural_scale / self.content_scale);
+    const newpt = pt.scale(self.natural_scale / self.content_scale, Point.Physical);
     //log.debug("mouse motion {d} {d} -> {d} {d}", .{ x, y, newpt.x, newpt.y });
     const dp = newpt.diff(self.mouse_pt);
     self.mouse_pt = newpt;
@@ -620,8 +649,7 @@ pub fn addEventPointer(self: *Self, b: dvui.enums.Button, action: Event.Mouse.Ac
     self.positionMouseEventRemove();
 
     if (xynorm) |xyn| {
-        const newpt = (Point{ .x = xyn.x * self.wd.rect.w, .y = xyn.y * self.wd.rect.h }).scale(self.natural_scale);
-        self.mouse_pt = newpt;
+        self.mouse_pt = (Point{ .x = xyn.x * self.wd.rect.w, .y = xyn.y * self.wd.rect.h }).scale(self.natural_scale, Point.Physical);
     }
 
     const winId = self.windowFor(self.mouse_pt);
@@ -698,11 +726,11 @@ pub fn addEventMouseWheel(self: *Self, ticks: f32, dir: dvui.enums.Direction) !b
 pub fn addEventTouchMotion(self: *Self, finger: dvui.enums.Button, xnorm: f32, ynorm: f32, dxnorm: f32, dynorm: f32) !bool {
     self.positionMouseEventRemove();
 
-    const newpt = (Point{ .x = xnorm * self.wd.rect.w, .y = ynorm * self.wd.rect.h }).scale(self.natural_scale);
+    const newpt = (Point{ .x = xnorm * self.wd.rect.w, .y = ynorm * self.wd.rect.h }).scale(self.natural_scale, Point.Physical);
     //std.debug.print("touch motion {} {d} {d}\n", .{ finger, newpt.x, newpt.y });
     self.mouse_pt = newpt;
 
-    const dp = (Point{ .x = dxnorm * self.wd.rect.w, .y = dynorm * self.wd.rect.h }).scale(self.natural_scale);
+    const dp = (Point{ .x = dxnorm * self.wd.rect.w, .y = dynorm * self.wd.rect.h }).scale(self.natural_scale, Point.Physical);
 
     const winId = self.windowFor(self.mouse_pt);
 
@@ -1010,17 +1038,17 @@ pub fn begin(
     self.tab_index_prev = self.tab_index;
     self.tab_index = @TypeOf(self.tab_index).init(self.tab_index.allocator);
 
-    self.rect_pixels = self.backend.pixelSize().rect();
+    self.rect_pixels = .fromSize(self.backend.pixelSize());
     dvui.clipSet(self.rect_pixels);
 
-    self.wd.rect = self.backend.windowSize().rect().scale(1.0 / self.content_scale);
+    self.wd.rect = Rect.Natural.fromSize(self.backend.windowSize()).scale(1.0 / self.content_scale, Rect);
     self.natural_scale = if (self.wd.rect.w == 0) 1.0 else self.rect_pixels.w / self.wd.rect.w;
 
     //dvui.log.debug("window size {d} x {d} renderer size {d} x {d} scale {d}", .{ self.wd.rect.w, self.wd.rect.h, self.rect_pixels.w, self.rect_pixels.h, self.natural_scale });
 
     try dvui.subwindowAdd(self.wd.id, self.wd.rect, self.rect_pixels, false, null);
 
-    _ = dvui.subwindowCurrentSet(self.wd.id, self.wd.rect);
+    _ = dvui.subwindowCurrentSet(self.wd.id, .cast(self.wd.rect));
 
     self.extra_frames_needed -|= 1;
     self.secs_since_last_frame = @as(f32, @floatFromInt(micros_since_last)) / 1_000_000;
@@ -1101,7 +1129,7 @@ pub fn begin(
     self.wd.rect_scale_cache = null;
     try self.wd.register();
 
-    self.next_widget_ypos = self.wd.rect.y;
+    self.layout = .{};
 
     self.backend.begin(larena);
 }
@@ -1123,7 +1151,7 @@ fn positionMouseEventRemove(self: *Self) void {
     }
 }
 
-pub fn windowFor(self: *const Self, p: Point) u32 {
+pub fn windowFor(self: *const Self, p: Point.Physical) u32 {
     var i = self.subwindows.items.len;
     while (i > 0) : (i -= 1) {
         const sw = &self.subwindows.items[i - 1];
@@ -1185,12 +1213,12 @@ pub fn cursorRequestedFloating(self: *const Self) ?dvui.enums.Cursor {
     }
 }
 
-/// If a widget called wantTextInput this frame, return the rect (in
-/// natural pixels) of where the text input is happening.
+/// If a widget called wantTextInput this frame, return the rect of where the
+/// text input is happening.
 ///
 /// Apps and backends should use this to show an on screen keyboard and/or
 /// position an IME window.
-pub fn textInputRequested(self: *const Self) ?Rect {
+pub fn textInputRequested(self: *const Self) ?Rect.Natural {
     return self.text_input_rect;
 }
 
@@ -1218,12 +1246,14 @@ pub fn renderCommands(self: *Self, queue: std.ArrayList(dvui.RenderCommand)) !vo
                 try dvui.renderTexture(t.tex, t.rs, t.opts);
             },
             .pathFillConvex => |pf| {
-                try dvui.pathFillConvex(pf.path, pf.color);
-                self.arena().free(pf.path);
+                var triangles = try dvui.pathFillConvexTriangles(pf.path, pf.opts);
+                defer triangles.deinit(self.arena());
+                try dvui.renderTriangles(triangles, null);
             },
             .pathStroke => |ps| {
-                try dvui.pathStrokeRaw(ps.path, ps.thickness, ps.color, ps.closed, ps.endcap_style);
-                self.arena().free(ps.path);
+                var triangles = try dvui.pathStrokeTriangles(ps.path, ps.opts);
+                defer triangles.deinit(self.arena());
+                try dvui.renderTriangles(triangles, null);
             },
             .triangles => |t| {
                 try dvui.renderTriangles(t.tri, t.tex);
@@ -1445,27 +1475,6 @@ pub fn toastRemove(self: *Self, id: u32) void {
     }
 }
 
-/// show any toasts that didn't have a subwindow_id set
-fn toastsShow(self: *Self) !void {
-    var ti = dvui.toastsFor(null);
-    if (ti) |*it| {
-        var toast_win = dvui.FloatingWindowWidget.init(@src(), .{ .stay_above_parent_window = true, .process_events_in_deinit = false }, .{ .background = false, .border = .{} });
-        defer toast_win.deinit();
-
-        toast_win.data().rect = dvui.placeIn(self.wd.rect, toast_win.data().rect.size(), .none, .{ .x = 0.5, .y = 0.7 });
-        toast_win.autoSize();
-        try toast_win.install();
-        try toast_win.drawBackground();
-
-        var vbox = try dvui.box(@src(), .vertical, .{});
-        defer vbox.deinit();
-
-        while (it.next()) |t| {
-            try t.display(t.id);
-        }
-    }
-}
-
 fn debugWindowShow(self: *Self) !void {
     if (self.debug_under_mouse_quitting) {
         self.debug_under_mouse = false;
@@ -1549,9 +1558,17 @@ fn debugWindowShow(self: *Self) !void {
         duf = !duf;
     }
 
-    const logit = self.debugRefresh(null);
-    if (try dvui.button(@src(), if (logit) "Stop Refresh Logging" else "Start Refresh Logging", .{}, .{})) {
-        _ = self.debugRefresh(!logit);
+    const log_refresh = self.debugRefresh(null);
+    if (try dvui.button(@src(), if (log_refresh) "Stop Refresh Logging" else "Start Refresh Logging", .{}, .{})) {
+        _ = self.debugRefresh(!log_refresh);
+    }
+    const log_event_handled = self.debugHandleEvents(null);
+    if (try dvui.button(@src(), if (log_event_handled) "Stop Event Handled Logging" else "Start Event Handled Logging", .{}, .{})) {
+        _ = self.debugHandleEvents(!log_event_handled);
+    }
+    const log_event_unhandled = self.debugUnhandledEvents(null);
+    if (try dvui.button(@src(), if (log_event_unhandled) "Stop Unhandled Event Logging" else "Start Unhandled Event Logging", .{}, .{})) {
+        _ = self.debugUnhandledEvents(!log_event_unhandled);
     }
 
     var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .background = false });
@@ -1581,7 +1598,7 @@ pub const endOptions = struct {
 /// case you want to do something after everything has been rendered.
 pub fn endRendering(self: *Self, opts: endOptions) !void {
     if (opts.show_toasts) {
-        try self.toastsShow();
+        try dvui.toastsShow(null);
     }
     try self.dialogsShow();
 
@@ -1643,14 +1660,27 @@ pub fn end(self: *Self, opts: endOptions) !?u32 {
             }
         } else if (e.evt == .key) {
             if (e.evt.key.action == .down and e.evt.key.matchBind("next_widget")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.tabIndexNext(e.num);
             }
 
             if (e.evt.key.action == .down and e.evt.key.matchBind("prev_widget")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.tabIndexPrev(e.num);
             }
+        }
+    }
+
+    if (self.debug_unhandled_events) {
+        for (evts) |*e| {
+            if (e.handled) continue;
+            var action: []const u8 = "";
+            switch (e.evt) {
+                .mouse => action = @tagName(e.evt.mouse.action),
+                .key => action = @tagName(e.evt.key.action),
+                else => {},
+            }
+            log.debug("Unhandled {s} {s} event (num {d})", .{ @tagName(e.evt), action, e.num });
         }
     }
 
@@ -1682,8 +1712,8 @@ pub fn end(self: *Self, opts: endOptions) !?u32 {
 
     if (self.inject_motion_event) {
         self.inject_motion_event = false;
-        const pt = self.mouse_pt.scale(self.content_scale / self.natural_scale);
-        _ = try self.addEventMouseMotion(pt.x, pt.y);
+        const pt = self.rectScale().pointFromPhysical(self.mouse_pt);
+        _ = try self.addEventMouseMotion(.cast(pt));
     }
 
     defer dvui.current_window = self.previous_window;
@@ -1733,18 +1763,15 @@ pub fn data(self: *Self) *WidgetData {
 }
 
 pub fn rectFor(self: *Self, id: u32, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
-    _ = id;
-    var r = self.wd.rect;
-    r.y = self.next_widget_ypos;
-    r.h -= r.y;
-    const ret = dvui.placeIn(r, min_size, e, g);
-    self.next_widget_ypos += ret.h;
-    return ret;
+    return self.layout.rectFor(self.wd.rect, id, min_size, e, g);
+}
+
+pub fn rectScale(self: *Self) RectScale {
+    return .{ .r = self.rect_pixels, .s = self.natural_scale };
 }
 
 pub fn screenRectScale(self: *Self, r: Rect) RectScale {
-    const scaled = r.scale(self.natural_scale);
-    return RectScale{ .r = scaled.offset(self.rect_pixels), .s = self.natural_scale };
+    return self.rectScale().rectToRectScale(r);
 }
 
 pub fn minSizeForChild(self: *Self, s: Size) void {
@@ -1757,7 +1784,7 @@ pub fn processEvent(self: *Self, e: *Event, bubbling: bool) void {
     // window does cleanup events, but not normal events
     switch (e.evt) {
         .close_popup => |cp| {
-            e.handled = true;
+            e.handle(@src(), self.data());
             if (cp.intentional) {
                 // when a popup is closed due to a menu item being chosen,
                 // the window that spawned it (which had focus previously)

@@ -29,9 +29,9 @@ How to run the built-in examples:
     - `caddy file-server --root zig-out/bin/EXAMPLE_NAME --listen :8000`
   - ```zig build web-test```
     - then load `zig-out/bin/web-test/index.html`
-    - [online demo](https://david-vanderson.github.io/demo)
   - ```zig build web-app```
     - then load `zig-out/bin/web-app/index.html`
+    - [online demo](https://david-vanderson.github.io/demo)
 - Docs
   - [Online Docs](https://david-vanderson.github.io/docs)
   - ```zig build docs```
@@ -262,7 +262,8 @@ Each widget has the following options that can be changed through the Options st
 - corner_radius (for each corner)
 - colors (either RGBA value or named)
   - example RGBA `.color_text = .{ .color = .{ .r = 0xe0, .g = 0x1b, .b = 0x24 } }`
-  - example named `.color_text = .{ .name = .err }` (get current theme's `color_err`)
+  - example HEX `.color_text = .fromHex("#e01b24")`
+  - example named `.color_text = .err` (get current theme's `color_err`)
   - color_accent
   - color_text
   - color_text_press

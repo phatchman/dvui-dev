@@ -18,7 +18,7 @@ pub var defaults: Options = .{
 prev_rendering: bool = undefined,
 wd: WidgetData = undefined,
 prev_windowId: u32 = 0,
-prevClip: Rect = Rect{},
+prevClip: Rect.Physical = .{},
 scale_val: f32 = undefined,
 scaler: dvui.ScaleWidget = undefined,
 
@@ -38,7 +38,7 @@ pub fn init(src: std.builtin.SourceLocation, opts_in: Options) FloatingWidget {
     self.scale_val = dvui.parentGet().screenRectScale(Rect{}).s / dvui.windowNaturalScale();
     var opts = opts_in;
     if (opts.min_size_content) |msc| {
-        opts.min_size_content = msc.scale(self.scale_val);
+        opts.min_size_content = msc.scale(self.scale_val, Size);
     }
 
     // passing options.rect will stop WidgetData.init from calling
@@ -64,9 +64,10 @@ pub fn install(self: *FloatingWidget) !void {
 
     // clip to just our window (using clipSet since we are not inside our parent)
     self.prevClip = dvui.clipGet();
-    dvui.clipSet(rs.r);
+    dvui.clipSet(dvui.windowRectPixels());
+    _ = dvui.clip(rs.r);
 
-    self.scaler = dvui.ScaleWidget.init(@src(), self.scale_val, .{ .expand = .both });
+    self.scaler = dvui.ScaleWidget.init(@src(), .{ .scale = &self.scale_val }, .{ .expand = .both });
     try self.scaler.install();
 }
 

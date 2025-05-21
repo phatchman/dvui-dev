@@ -48,6 +48,8 @@ pub const InitOptions = struct {
 
     /// If null, same as .internal = .{}
     text: ?TextOption = null,
+    /// Faded text shown when the textEntry is empty
+    placeholder: ?[]const u8 = null,
 
     break_lines: bool = false,
     scroll_vertical: ?bool = null, // default is value of multiline
@@ -61,12 +63,12 @@ pub const InitOptions = struct {
 };
 
 wd: WidgetData = undefined,
-prevClip: Rect = undefined,
+prevClip: Rect.Physical = undefined,
 scroll: ScrollAreaWidget = undefined,
 scroll_init_opts: ScrollAreaWidget.InitOpts = undefined,
-scrollClip: Rect = undefined,
+scrollClip: Rect.Physical = undefined,
 textLayout: TextLayoutWidget = undefined,
-textClip: Rect = undefined,
+textClip: Rect.Physical = undefined,
 padding: Rect = undefined,
 
 init_opts: InitOptions = undefined,
@@ -146,6 +148,17 @@ pub fn install(self: *TextEntryWidget) !void {
     try self.textLayout.install(.{ .focused = self.wd.id == dvui.focusedWidgetId(), .show_touch_draggables = (self.len > 0) });
     self.textClip = dvui.clipGet();
 
+    if (self.len == 0) {
+        if (self.init_opts.placeholder) |placeholder| {
+            try dvui.renderText(.{
+                .font = self.textLayout.wd.options.fontGet(),
+                .color = self.textLayout.wd.options.color(.text).opacity(0.75),
+                .rs = self.textLayout.wd.contentRectScale(),
+                .text = placeholder,
+            });
+        }
+    }
+
     if (try self.textLayout.touchEditing()) |floating_widget| {
         defer floating_widget.deinit();
 
@@ -209,7 +222,7 @@ pub fn draw(self: *TextEntryWidget) !void {
     const focused = (self.wd.id == dvui.focusedWidgetId());
 
     if (focused) {
-        dvui.wantTextInput(self.wd.borderRectScale().r);
+        dvui.wantTextInput(self.wd.borderRectScale().r.toNatural());
     }
 
     // set clip back to what textLayout had, so we don't draw over the scrollbars
@@ -295,7 +308,7 @@ pub fn drawCursor(self: *TextEntryWidget) !void {
 
         var crect = self.textLayout.cursor_rect.plus(.{ .x = -1 });
         crect.w = 2;
-        try self.textLayout.screenRectScale(crect).r.fill(Rect.all(0), self.wd.options.color(.accent));
+        try self.textLayout.screenRectScale(crect).r.fill(.{}, .{ .color = self.wd.options.color(.accent) });
     }
 }
 
@@ -497,45 +510,45 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
     switch (e.evt) {
         .key => |ke| blk: {
             if (ke.action == .down and ke.matchBind("next_widget")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.tabIndexNext(e.num);
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("prev_widget")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 dvui.tabIndexPrev(e.num);
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("paste")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.paste();
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("cut")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.cut();
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("text_start")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.textLayout.selection.moveCursor(0, false);
                 self.textLayout.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("text_end")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 self.textLayout.selection.moveCursor(std.math.maxInt(usize), false);
                 self.textLayout.scroll_to_cursor = true;
                 break :blk;
             }
 
             if (ke.action == .down and ke.matchBind("line_start")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .expand_pt = .{ .select = false, .which = .home } };
                 }
@@ -543,7 +556,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if (ke.action == .down and ke.matchBind("line_end")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .expand_pt = .{ .select = false, .which = .end } };
                 }
@@ -551,7 +564,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_left")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.start, false);
                 } else {
@@ -566,7 +579,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("word_right")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.end, false);
                     self.textLayout.selection.affinity = .before;
@@ -582,7 +595,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_left")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.start, false);
                 } else {
@@ -597,7 +610,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_right")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (!self.textLayout.selection.empty()) {
                     self.textLayout.selection.moveCursor(self.textLayout.selection.end, false);
                     self.textLayout.selection.affinity = .before;
@@ -613,7 +626,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_up")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .cursor_updown = .{ .select = false } };
                 }
@@ -624,7 +637,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
 
             if ((ke.action == .down or ke.action == .repeat) and ke.matchBind("char_down")) {
-                e.handled = true;
+                e.handle(@src(), self.data());
                 if (self.textLayout.sel_move == .none) {
                     self.textLayout.sel_move = .{ .cursor_updown = .{ .select = false } };
                 }
@@ -637,7 +650,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             switch (ke.code) {
                 .backspace => {
                     if (ke.action == .down or ke.action == .repeat) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         var sel = self.textLayout.selectionGet(self.len);
                         if (!sel.empty()) {
                             // just delete selection
@@ -694,7 +707,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
                 },
                 .delete => {
                     if (ke.action == .down or ke.action == .repeat) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         var sel = self.textLayout.selectionGet(self.len);
                         if (!sel.empty()) {
                             // just delete selection
@@ -747,7 +760,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
                 },
                 .enter => {
                     if (ke.action == .down or ke.action == .repeat) {
-                        e.handled = true;
+                        e.handle(@src(), self.data());
                         if (self.init_opts.multiline) {
                             self.textTyped("\n", false);
                         } else {
@@ -760,7 +773,7 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
             }
         },
         .text => |te| {
-            e.handled = true;
+            e.handle(@src(), self.data());
             var new = std.mem.sliceTo(te.txt, 0);
             if (self.init_opts.multiline) {
                 self.textTyped(new, te.selected);
@@ -779,8 +792,8 @@ pub fn processEvent(self: *TextEntryWidget, e: *Event, bubbling: bool) void {
         },
         .mouse => |me| {
             if (me.action == .focus) {
-                e.handled = true;
-                dvui.focusWidgetSelf(self.wd.id, e.num);
+                e.handle(@src(), self.data());
+                dvui.focusWidget(self.wd.id, null, e.num);
             }
         },
         else => {},

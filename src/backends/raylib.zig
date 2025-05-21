@@ -7,6 +7,8 @@ pub const c = @cImport({
     @cInclude("raymath.h");
     @cInclude("rlgl.h");
     @cInclude("raygui.h");
+
+    @cInclude("glfw3.h");
 });
 
 pub const kind: dvui.enums.Backend = .raylib;
@@ -173,23 +175,23 @@ pub fn sleep(_: *RaylibBackend, ns: u64) void {
     std.time.sleep(ns);
 }
 
-pub fn pixelSize(_: *RaylibBackend) dvui.Size {
+pub fn pixelSize(_: *RaylibBackend) dvui.Size.Physical {
     const w = c.GetRenderWidth();
     const h = c.GetRenderHeight();
-    return dvui.Size{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
+    return .{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
 }
 
-pub fn windowSize(_: *RaylibBackend) dvui.Size {
+pub fn windowSize(_: *RaylibBackend) dvui.Size.Natural {
     const w = c.GetScreenWidth();
     const h = c.GetScreenHeight();
-    return dvui.Size{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
+    return .{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
 }
 
 pub fn contentScale(_: *RaylibBackend) f32 {
     return 1.0;
 }
 
-pub fn drawClippedTriangles(self: *RaylibBackend, texture: ?dvui.Texture, vtx: []const dvui.Vertex, idx: []const u16, clipr_in: ?dvui.Rect) void {
+pub fn drawClippedTriangles(self: *RaylibBackend, texture: ?dvui.Texture, vtx: []const dvui.Vertex, idx: []const u16, clipr_in: ?dvui.Rect.Physical) void {
 
     //make sure all raylib draw calls are rendered
     //before rendering dvui elements
@@ -547,7 +549,7 @@ pub fn addAllEvents(self: *RaylibBackend, win: *dvui.Window) !bool {
     const mouse_move = c.GetMouseDelta();
     if (mouse_move.x != 0 or mouse_move.y != 0) {
         const mouse_pos = c.GetMousePosition();
-        if (try win.addEventMouseMotion(mouse_pos.x, mouse_pos.y)) disable_raylib_input = true;
+        if (try win.addEventMouseMotion(.{ .x = mouse_pos.x, .y = mouse_pos.y })) disable_raylib_input = true;
         if (self.log_events) {
             //std.debug.print("raylib event Mouse Moved\n", .{});
         }
@@ -804,10 +806,10 @@ pub fn dvuiColorToRaylib(color: dvui.Color) c.Color {
     return c.Color{ .r = @intCast(color.r), .b = @intCast(color.b), .g = @intCast(color.g), .a = @intCast(color.a) };
 }
 
-pub fn dvuiRectToRaylib(rect: dvui.Rect) c.Rectangle {
+pub fn dvuiRectToRaylib(rect: dvui.Rect.Physical) c.Rectangle {
     // raylib multiplies everything internally by the monitor scale, so we
     // have to divide by that
-    const r = rect.scale(1 / dvui.windowNaturalScale());
+    const r = rect.toNatural();
     return c.Rectangle{ .x = r.x, .y = r.y, .width = r.w, .height = r.h };
 }
 
@@ -861,13 +863,30 @@ pub fn main() !void {
 
         // marks end of dvui frame, don't call dvui functions after this
         // - sends all dvui stuff to backend for rendering, must be called before renderPresent()
-        _ = try win.end(.{});
+        const end_micros = try win.end(.{});
+        const wait_event_micros = win.waitTime(end_micros, null);
 
         // cursor management
         b.setCursor(win.cursorRequested());
 
-        // render frame to OS
-        c.EndDrawing();
+        if (wait_event_micros == std.math.maxInt(u32)) {
+            c.EnableEventWaiting();
+            // render frame to OS
+            c.EndDrawing();
+            c.DisableEventWaiting();
+        } else {
+            // render frame to OS
+            c.EndDrawing();
+
+            // should investigate raylib with SUPPORT_CUSTOM_FRAME_CONTROL that
+            // could let us do slightly better than this
+            // * if an event came in before EndDrawing, then we will wait anyway
+
+            // wait with timeout
+            const timeout: f64 = @as(f64, @floatFromInt(wait_event_micros)) / 1_000_000.0;
+            c.glfwWaitEventsTimeout(timeout);
+        }
+
         if (res != .ok) break :main_loop;
     }
 }

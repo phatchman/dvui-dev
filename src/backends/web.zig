@@ -15,7 +15,6 @@ const gpa = gpa_instance.allocator();
 pub var win: dvui.Window = undefined;
 pub var win_ok = false;
 var arena: std.mem.Allocator = undefined;
-var last_touch_enum: dvui.enums.Button = .none;
 var touchPoints: [10]?dvui.Point = [_]?dvui.Point{null} ** 10;
 var have_event = false;
 
@@ -277,7 +276,7 @@ fn add_event_raw(w: *dvui.Window, which: u8, int1: u32, int2: u32, float1: f32, 
     //    wasm.wasm_panic(msg.ptr, msg.len);
     //};
     switch (which) {
-        1 => _ = try w.addEventMouseMotion(float1, float2),
+        1 => _ = try w.addEventMouseMotion(.{ .x = float1, .y = float2 }),
         2 => _ = try w.addEventMouseButton(buttonFromJS(int1), .press),
         3 => _ = try w.addEventMouseButton(buttonFromJS(int1), .release),
         4 => _ = try w.addEventMouseWheel(if (float1 > 0) -20 else 20, if (int1 > 0) .vertical else .horizontal),
@@ -303,19 +302,16 @@ fn add_event_raw(w: *dvui.Window, which: u8, int1: u32, int2: u32, float1: f32, 
         },
         8 => {
             const touch: dvui.enums.Button = @enumFromInt(@intFromEnum(dvui.enums.Button.touch0) + int1);
-            last_touch_enum = touch;
             _ = try w.addEventPointer(touch, .press, .{ .x = float1, .y = float2 });
             touchPoints[int1] = .{ .x = float1, .y = float2 };
         },
         9 => {
             const touch: dvui.enums.Button = @enumFromInt(@intFromEnum(dvui.enums.Button.touch0) + int1);
-            last_touch_enum = touch;
             _ = try w.addEventPointer(touch, .release, .{ .x = float1, .y = float2 });
             touchPoints[int1] = null;
         },
         10 => {
             const touch: dvui.enums.Button = @enumFromInt(@intFromEnum(dvui.enums.Button.touch0) + int1);
-            last_touch_enum = touch;
             var dx: f32 = 0;
             var dy: f32 = 0;
             if (touchPoints[int1]) |p| {
@@ -510,19 +506,16 @@ fn web_mod_code_to_dvui(wmod: u8) dvui.enums.Mod {
 //            },
 //            8 => {
 //                const touch: dvui.enums.Button = @enumFromInt(@intFromEnum(dvui.enums.Button.touch0) + e.int1);
-//                self.last_touch_enum = touch;
 //                _ = try win.addEventPointer(touch, .press, .{ .x = e.float1, .y = e.float2 });
 //                self.touchPoints[e.int1] = .{ .x = e.float1, .y = e.float2 };
 //            },
 //            9 => {
 //                const touch: dvui.enums.Button = @enumFromInt(@intFromEnum(dvui.enums.Button.touch0) + e.int1);
-//                self.last_touch_enum = touch;
 //                _ = try win.addEventPointer(touch, .release, .{ .x = e.float1, .y = e.float2 });
 //                self.touchPoints[e.int1] = null;
 //            },
 //            10 => {
 //                const touch: dvui.enums.Button = @enumFromInt(@intFromEnum(dvui.enums.Button.touch0) + e.int1);
-//                self.last_touch_enum = touch;
 //                var dx: f32 = 0;
 //                var dy: f32 = 0;
 //                if (self.touchPoints[e.int1]) |p| {
@@ -571,19 +564,19 @@ pub fn end(_: *WebBackend) void {
     have_event = false;
 }
 
-pub fn pixelSize(_: *WebBackend) dvui.Size {
-    return dvui.Size{ .w = wasm.wasm_pixel_width(), .h = wasm.wasm_pixel_height() };
+pub fn pixelSize(_: *WebBackend) dvui.Size.Physical {
+    return .{ .w = wasm.wasm_pixel_width(), .h = wasm.wasm_pixel_height() };
 }
 
-pub fn windowSize(_: *WebBackend) dvui.Size {
-    return dvui.Size{ .w = wasm.wasm_canvas_width(), .h = wasm.wasm_canvas_height() };
+pub fn windowSize(_: *WebBackend) dvui.Size.Natural {
+    return .{ .w = wasm.wasm_canvas_width(), .h = wasm.wasm_canvas_height() };
 }
 
 pub fn contentScale(_: *WebBackend) f32 {
     return 1.0;
 }
 
-pub fn drawClippedTriangles(_: *WebBackend, texture: ?dvui.Texture, vtx: []const dvui.Vertex, idx: []const u16, maybe_clipr: ?dvui.Rect) void {
+pub fn drawClippedTriangles(_: *WebBackend, texture: ?dvui.Texture, vtx: []const dvui.Vertex, idx: []const u16, maybe_clipr: ?dvui.Rect.Physical) void {
     var x: i32 = std.math.maxInt(i32);
     var w: i32 = std.math.maxInt(i32);
     var y: i32 = std.math.maxInt(i32);
@@ -672,7 +665,7 @@ pub fn textureDestroy(_: *WebBackend, texture: dvui.Texture) void {
     wasm.wasm_textureDestroy(@intCast(@intFromPtr(texture.ptr)));
 }
 
-pub fn textInputRect(_: *WebBackend, rect: ?dvui.Rect) void {
+pub fn textInputRect(_: *WebBackend, rect: ?dvui.Rect.Natural) void {
     if (rect) |r| {
         wasm.wasm_text_input(r.x, r.y, r.w, r.h);
     } else {

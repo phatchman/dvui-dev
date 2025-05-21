@@ -1,12 +1,11 @@
 const dvui = @import("dvui.zig");
-
-const Point = dvui.Point;
-const Rect = dvui.Rect;
+const std = @import("std");
 
 const enums = dvui.enums;
 
 const Event = @This();
 
+/// Should not be set directly, use the `handle` method
 handled: bool = false,
 focus_windowId: ?u32 = null,
 focus_widgetId: ?u32 = null,
@@ -30,6 +29,24 @@ evt: union(enum) {
 // this helper at the end of processEvent().
 pub fn bubbleable(self: *const Event) bool {
     return (!self.handled and (self.evt != .mouse));
+}
+
+/// Mark the event as handled
+///
+/// In general, the `dvui.WidgetData` passed here should be the same one that
+/// matched this event, using `dvui.matchEvent` or similar.
+/// This makes it possible to see which widget handled the event.
+pub fn handle(self: *Event, src: std.builtin.SourceLocation, wd: *const dvui.WidgetData) void {
+    if (dvui.currentWindow().debug_handled_event) {
+        var action: []const u8 = "";
+        switch (self.evt) {
+            .mouse => action = @tagName(self.evt.mouse.action),
+            .key => action = @tagName(self.evt.key.action),
+            else => {},
+        }
+        dvui.log.debug("{s}:{d} {s} {s} event (num {d}) handled by {s} ({x})", .{ src.file, src.line, @tagName(self.evt), action, self.num, wd.options.name orelse "???", wd.id });
+    }
+    self.handled = true;
 }
 
 pub const Text = struct {
@@ -90,7 +107,7 @@ pub const Mouse = struct {
         // motion Point is the change in position
         // if you just want to react to the current mouse position if it got
         // moved at all, use the .position event with mouseTotalMotion()
-        motion: Point,
+        motion: dvui.Point.Physical,
 
         // always a single position event per frame, and it's always after all
         // other events, used to change mouse cursor and do widget highlighting
@@ -110,7 +127,7 @@ pub const Mouse = struct {
     // mouse motion will be a touch or .none
     button: enums.Button,
 
-    p: Point,
+    p: dvui.Point.Physical,
     floating_win: u32,
 };
 
@@ -127,11 +144,11 @@ pub const ClosePopup = struct {
 pub const ScrollDrag = struct {
 
     // mouse point from motion event
-    mouse_pt: Point,
+    mouse_pt: dvui.Point.Physical,
 
     // rect in screen coords of the widget doing the drag (scrolling will stop
     // if it wouldn't show more of this rect)
-    screen_rect: Rect,
+    screen_rect: dvui.Rect.Physical,
 
     // id of the widget that has mouse capture during the drag (needed to
     // inject synthetic motion events into the next frame to keep scrolling)
@@ -143,7 +160,7 @@ pub const ScrollTo = struct {
 
     // rect in screen coords we want to be visible (might be outside
     // scrollarea's clipping region - we want to scroll to bring it inside)
-    screen_rect: Rect,
+    screen_rect: dvui.Rect.Physical,
 
     // whether to scroll outside the current scroll bounds (useful if the
     // current action might be expanding the scroll area)
@@ -157,7 +174,7 @@ pub const ScrollTo = struct {
 pub const ScrollPropagate = struct {
     /// Motion field from the Mouse event that would have scrolled but we were
     /// at the edge.
-    motion: Point,
+    motion: dvui.Point.Physical,
 };
 
 test {
