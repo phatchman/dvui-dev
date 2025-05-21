@@ -1,10 +1,4 @@
 ### Todos
-- [X] Make rows always the same height (potentially there should be a way to override this if user really wants?)
-- [X] As above for headers.
-- [?] Make sure rows and headers can grow and shrink.
-- [X] Make it so different options can be provided for the cell vs the label? Or will these never overlap? 
-        - Using strip on hte options passed ot the label, causes height issues.
-- [X] Take the header clip from a measured height, rather than a constant 80.
 - [ ] Look into making the grid take a content width as an init_option. This would size the width of the 
       scroll area, so that a .expand layout can fill the whole space.
 - [ ] Get rid of the padding for the sortable header. It isn't const the size of the symbol is dependent on the font size?
@@ -12,7 +6,6 @@
 - [ ] Remove special casing of 0 for column width. It should either be no width provided, a positive width or get the default width if it is <= 0>.
 - [ ] Draws over horiztonal scroll bar. Need to adjust the clipping rect to take this into account.
 - [ ] Handle padding when header column width is smaller than the heading button width. Currently doesn't show the separator.
-- [ ] Fix issue with grid headers moving while virtual scrolling.
 
 ### Issues
 - [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.
@@ -20,6 +13,8 @@
 - [X] Checkbox doesn't expand to the full height of the header.
 - [ ] Grid header widget assumes vertical scroll bar width is 10 and that it will always be displayed. 
 - [ ] Example needs to be added to Example.zig, rather than a stand-alone.
+- [ ] Issue with grid headers moving while virtual scrolling. Header is set to scroll_info.vieport.y, but this is not always at the top of the viewport (due to floating point precision?)
+
 
 ### Future
 * Some better visual indication that columns are sortable.

@@ -116,7 +116,7 @@ pub fn columnLayoutProportional(grid: *dvui.GridWidget, ratio_widths: []f32, con
     }
 }
 
-const num_cars = 500;
+const num_cars = 500_000;
 pub const testing = false;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 var virtual_scrolling = true;

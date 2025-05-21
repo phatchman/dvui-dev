@@ -252,7 +252,7 @@ fn clipReset(self: *GridWidget) void {
 /// Only one header cell is allowed per column.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) !*BoxWidget {
-    const y = self.scroll.si.viewport.y - 1.0;
+    const y: f32 = self.scroll.si.viewport.y;
     const parent_rect = self.current_col.?.data().contentRect();
 
     const header_height: f32 = height: {
@@ -285,7 +285,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
     return cell;
 }
 
-var first_row = false;
+//var first_row = false;
 
 /// Create a new body cell within a column
 /// Returns a hbox, deinit() must be called on this hbox before creating a new cell.
@@ -309,9 +309,9 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         self.prev_clip_rect = dvui.clipGet();
         dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
     }
-    if (first_row) {
-        std.debug.print("ENTER Col {}: Cell h = {d}, row_height = {d}, shrinking = {}\n", .{ self.col_num, cell_height, self.row_height, self.resizing });
-    }
+    //    if (first_row) {
+    //        std.debug.print("ENTER Col {}: Cell h = {d}, row_height = {d}, shrinking = {}\n", .{ self.col_num, cell_height, self.row_height, self.resizing });
+    //    }
 
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
@@ -327,10 +327,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         self.row_height = @max(self.row_height, measured_cell_height);
     }
     self.next_row_y += self.row_height; // TODO: Does row_height or last_row_height look better when resizing?
-    if (first_row) {
-        first_row = false;
-        std.debug.print("EXIT Col {}: Cell h = {d}, row_height = {d}\n", .{ self.col_num, cell_height, self.row_height });
-    }
+    //    if (first_row) {
+    //        first_row = false;
+    //        std.debug.print("EXIT Col {}: Cell h = {d}, row_height = {d}\n", .{ self.col_num, cell_height, self.row_height });
+    //    }
 
     return cell;
 }
@@ -376,9 +376,8 @@ pub const GridVirtualScroller = struct {
         std.debug.print("PRE: {}\n", .{si});
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
         si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
-        const window_size: f32 = @floatFromInt(init_opts.window_size);
-        //        grid.offsetRowsBy(@max(0, @round(si.viewport.y / grid.row_height) * grid.row_height - grid.row_height * window_size));
-        grid.offsetRowsBy(@max(0, @trunc(si.viewport.y / grid.row_height) * grid.row_height - grid.row_height * window_size));
+        const first_row: f32 = @floatFromInt(_rowFirstRendered(grid, si, init_opts.total_rows, init_opts.window_size));
+        grid.offsetRowsBy(first_row * grid.row_height); // TODO: does last_row_height make a difference?
         std.debug.print("POST = {d}, {d}\n", .{ si.virtual_size.h, grid.y_offset });
         return .{
             .grid = grid,
@@ -388,20 +387,23 @@ pub const GridVirtualScroller = struct {
         };
     }
 
-    /// Return the first row within the visible scroll area, minus window_size
-    pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
-        if (self.grid.row_height < 1) {
+    fn _rowFirstRendered(grid: *GridWidget, si: *ScrollInfo, total_rows: usize, window_size: usize) usize {
+        if (grid.row_height < 1) {
             std.debug.print("row height < 1\n", .{});
             return 0;
         }
-        const first_row_in_viewport: usize = @intFromFloat(@round(self.si.viewport.y / self.grid.row_height));
-        if (first_row_in_viewport < self.window_size) {
-            std.debug.print("frivp1 = {}, tr = {} ws = {}\n", .{ first_row_in_viewport, self.total_rows, self.window_size });
+        const first_row_in_viewport: usize = @intFromFloat(@round(si.viewport.y / grid.row_height));
+        if (first_row_in_viewport < window_size) {
+            std.debug.print("frivp1 = {}, tr = {} ws = {}\n", .{ first_row_in_viewport, total_rows, window_size });
             //            return @min(first_row_in_viewport, self.total_rows);
             return 0;
         }
-        std.debug.print("frivp2 = {}, tr = {}\n", .{ first_row_in_viewport - self.window_size, self.total_rows });
-        return @min(first_row_in_viewport - self.window_size, self.total_rows);
+        std.debug.print("frivp2 = {}, tr = {}\n", .{ first_row_in_viewport - window_size, total_rows });
+        return @min(first_row_in_viewport - window_size, total_rows);
+    }
+    /// Return the first row within the visible scroll area, minus window_size
+    pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
+        return _rowFirstRendered(self.grid, self.si, self.total_rows, self.window_size);
     }
 
     /// Return the last row within the visible scroll area, plus the window size.
