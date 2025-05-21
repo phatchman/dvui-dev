@@ -123,10 +123,6 @@ pub fn headerCheckboxOptions() dvui.Options {
     }
 }
 
-//pub fn rowCheckboxOptions() dvui.Options {
-//    return headerCheckboxOptions();
-//}
-
 const col_widths_default: [7]f32 = .{ 50, 20, 30, 40, 50, 60, 70 };
 const col_widths_proportional: [7]f32 = .{ 50, -20, -30, -40, -20, -60, -70 };
 var col_widths: [col_widths_default.len]f32 = col_widths_default;
@@ -358,11 +354,6 @@ fn gui_frame() !void {
                 column_sizing = .expand;
                 resize_rows = true;
             }
-
-            // TODO: Add per-column sizing.
-            //            if (try dvui.radio(@src(), column_sizing == .fixed_width, "Fixed Width", .{})) {
-            //                column_sizing = .fixed_width;
-            //            }
         }
         _ = try dvui.checkbox(@src(), &horizontal_scrolling, "Horizontal scrolling", .{});
         _ = try dvui.checkbox(@src(), &selectable, "Selection", .{});
@@ -429,55 +420,15 @@ fn textAreaColumn(src: std.builtin.SourceLocation, g: *dvui.GridWidget, data: []
     }
 }
 
-// TODO: Is it worth providing in-built support for iterator population?
-// the grid is laid out by column, so iterator would need to:
-// 1) Implement a count if virtual scrolling.
-// 2) Implement a reset of use multiple iterators to lay out each column
-// Currently filtering uses a slice of pointers instead of iterators, due to the
-// awkward interface.
-// At least for large array-based data sets, user can store values in a MultiArrayList
-// so that it is optimised for iterating through each colunm.
-const CarsIterator = struct {
-    const FilterFN = *const fn (car: *const Car) bool;
-    filter_fn: FilterFN = undefined,
-    index: usize,
-    cars: []Car,
-
-    pub fn init(_cars: []Car, filter_fn: ?FilterFN) CarsIterator {
-        return .{
-            .index = 0,
-            .cars = _cars,
-            .filter_fn = filter_fn orelse filterNone,
-        };
-    }
-
-    pub fn next(self: *CarsIterator) ?*Car {
-        while (self.index < self.cars.len) : (self.index += 1) {
-            if (self.filter_fn(&cars[self.index])) {
-                self.index += 1;
-                return &cars[self.index - 1];
-            }
-        }
-        return null;
-    }
-
-    pub fn reset(self: *CarsIterator) void {
-        self.index = 0;
-    }
-
-    pub fn count(self: *CarsIterator) usize {
-        var result_count: usize = 0;
-        var count_itr: CarsIterator = .init(self.cars, self.filter_fn);
-        while (count_itr.next() != null) {
-            result_count += 1;
-        }
-        return result_count;
-    }
-
-    fn filterNone(_: *const Car) bool {
-        return true;
-    }
-};
+// This first_row global records the first "rendered" row. Need to add it to row_num to get the actual row.
+var first_row: usize = 0;
+fn bandedRows(_: usize, row_num: usize) dvui.GridWidget.CellOptions {
+    const result: dvui.GridWidget.CellOptions = .{
+        .color_fill = if ((first_row + row_num) % 2 == 0) .{ .name = .fill_press } else null,
+        .background = true,
+    };
+    return result;
+}
 
 var filtered_cars: []*Car = undefined;
 
@@ -578,14 +529,6 @@ const some_cars = [_]Car{
     .{ .model = "Beetle", .make = "Volkswagen", .year = 2006, .mileage = 142000, .condition = .Poor, .description = "Quirky, creaky, and still kinda cute." },
     .{ .model = "Mustang with a really long name", .make = "Ford", .year = 2020, .mileage = 24000, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
 };
-var first_row: usize = 0;
-fn bandedRows(_: usize, row_num: usize) dvui.GridWidget.CellOptions {
-    const result: dvui.GridWidget.CellOptions = .{
-        .color_fill = if ((first_row + row_num) % 2 == 0) .{ .name = .fill_press } else null,
-        .background = true,
-    };
-    return result;
-}
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {
