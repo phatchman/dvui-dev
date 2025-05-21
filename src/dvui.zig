@@ -3943,7 +3943,7 @@ pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opt
 /// Create a heading with a static label
 ///
 /// opts controls the styling for the label.
-pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, opts: dvui.Options) !void {
+pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, cell_opts: dvui.GridWidget.CellOptions, opts: dvui.Options) !void {
     const label_defaults: Options = .{
         .corner_radius = Rect.all(0),
         .expand = .horizontal,
@@ -3953,8 +3953,9 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
         .background = true,
     };
     const label_options = label_defaults.override(opts);
-    try g.headerCellBegin(src, opts);
-    defer g.headerCellEnd();
+    var cell = try g.headerCell(src, cell_opts);
+    defer cell.deinit();
+
     try labelNoFmt(@src(), heading, label_options);
     try separator(@src(), .{ .expand = .vertical });
 }
@@ -4138,7 +4139,6 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
         selected = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
         clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5, .gravity_x = 0.5 });
         dvui.dataSet(null, hbox.data().id, "_selected", selected);
-        //std.debug.print("{d}\n", .{hbox.data().contentRect().w});
     }
     try dvui.separator(@src(), .{ .expand = .vertical });
 
@@ -4156,7 +4156,15 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
 /// If field_name is null, T must be a bool.
 /// Otherwise field_name must refer to a bool field within a struct.
 /// opts is used to style the checkbox.
-pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, g: *dvui.GridWidget, comptime T: type, data: []T, comptime field_name: ?[]const u8, _opts: dvui.Options) !bool {
+pub fn gridColumnCheckbox(
+    src: std.builtin.SourceLocation,
+    g: *dvui.GridWidget,
+    comptime T: type,
+    data: []T,
+    comptime field_name: ?[]const u8,
+    cell_opts: GridWidget.CellOptions,
+    opts: dvui.Options,
+) !bool {
     if (T != bool) {
         if (field_name) |_field_name| {
             if (!@hasField(T, _field_name)) {
@@ -4168,10 +4176,6 @@ pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
             @compileError("data must be of type []bool when field_name is null.");
         }
     }
-    var opts = _opts;
-    opts.max_size_content = null;
-    opts.min_size_content = null;
-
     const cell_defaults: Options = .{
         .gravity_x = 0.5,
         .gravity_y = 0.5,
@@ -4179,7 +4183,7 @@ pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
 
     var selection_changed = false;
     for (data, 0..) |*item, i| {
-        var cell = try g.bodyCell(src, i, .{}); // TODO: Sort out opts.
+        var cell = try g.bodyCell(src, i, cell_opts);
         defer cell.deinit();
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
         const was_selected = is_selected.*;

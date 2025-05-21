@@ -75,7 +75,6 @@ pub const InitOpts = struct {
     col_widths: ?[]f32 = null,
     // Recalculate row heights. Only set this when row heights might have changed, .e.g on column resize.
     resize_rows: bool = false,
-    //content_width: ?f32, // TODO: Consider adding content width so that user can size the width of the scroll area?
 };
 pub const default_col_width: f32 = 100;
 

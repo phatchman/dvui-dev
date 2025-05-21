@@ -1,19 +1,20 @@
 ### Todos
-- [ ] Look into making the grid take a content width as an init_option. This would size the width of the 
-      scroll area, so that a .expand layout can fill the whole space.
 - [ ] Get rid of the padding for the sortable header. It isn't const the size of the symbol is dependent on the font size?
-- [X] Remove special casing of 0 for column width. It should either be no width provided, a positive width or get the default width if it is <= 0>.
-- [X] Draws over horiztonal scroll bar. Need to adjust the clipping rect to take this into account.
 - [ ] Handle padding when header column width is smaller than the heading button width. Currently doesn't show the separator.
-- [ ] Several issues around whether scrollbars are showing and if padding needs to be applied, including columnLayoutProportional
+- [ ] Draws over vertical scroll bar when horizontal scrolling. Need to change the clip or reserve space for the scrollbar.
+- [ ] Need some defalt padding, so the first column isn;t hard against the edge of the grid.
+- [ ] Fix checkbox padding or size? It's not shown the speparator.
 
 ### Issues
-- [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.
 - [ ] Is there a better name than window size for the scroller? It's not really a window size. It's a number of extra rows to render above and below the visible rows.
-- [X] Checkbox doesn't expand to the full height of the header.
+        - Windows size > 1 doesn't seem to make any difference really.
 - [ ] Grid header widget assumes vertical scroll bar width is 10 and that it will always be displayed. 
 - [ ] Example needs to be added to Example.zig, rather than a stand-alone.
 - [ ] Issue with grid headers moving while virtual scrolling. Header is set to scroll_info.vieport.y, but this is not always at the top of the viewport (due to floating point precision?)
+- [ ] Gravity is applied correctly when virtual scrolling? i..e things will only center when scrolling stops.
+        - It doesn't happen with non-virtual scrolling, so something is not expanding correctly?
+        - Actually, I'm not sure that is the case, They could just be being drawn in the wrong places and then corrected when the scrolling stops.
+        - Need to investigate further.
 
 
 ### Future
