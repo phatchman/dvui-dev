@@ -88,34 +88,6 @@ pub fn main() !void {
     }
 }
 
-pub fn columnLayoutProportional(grid: *dvui.GridWidget, ratio_widths: []f32, content_width: ?f32) void {
-    const scroll_bar_w: f32 = 10; // TODO: Don't necessarily know if SB is showing? There needs ot be a grid function to work this out.
-    const content_w: f32 = content_width orelse grid.data().contentRect().w;
-
-    // Count all of the positive widths as reserved widths.
-    // Total all of the negative widths.
-    const reserved_w, const ratio_w: f32 = blk: {
-        var res_width: f32 = 0;
-        var total_ratio_w: f32 = 0;
-        for (ratio_widths) |w| {
-            if (w <= 0) {
-                total_ratio_w += -w;
-            } else {
-                res_width += w;
-            }
-        }
-        break :blk .{ res_width, total_ratio_w };
-    };
-    const available_w = content_w - reserved_w - scroll_bar_w;
-
-    // For each negative width, replace it width a positive calcualted width.
-    for (ratio_widths) |*w| {
-        if (w.* <= 0) {
-            w.* = -w.* / ratio_w * available_w;
-        }
-    }
-}
-
 const num_cars = 5_000;
 pub const testing = false;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
@@ -180,13 +152,13 @@ fn headerCellOpts(opts: dvui.GridWidget.CellOptions) dvui.GridWidget.CellOptions
     return opts;
 }
 
-fn bodyCellOpts(opts: dvui.GridWidget.CellOptions) dvui.GridWidget.CellOptions {
+fn bodyCellOpts(opts: dvui.GridWidget.CellOptions) dvui.CellOptionsOrCallback {
     if (row_height > 0) {
         var result = opts;
         result.height = row_height;
-        return result;
+        return .{ .options = result };
     }
-    return opts;
+    return .{ .options = opts };
 }
 
 // both dvui and SDL drawing
@@ -242,8 +214,7 @@ fn gui_frame() !void {
             .col_info => @memcpy(&col_widths, &col_widths_default),
             .col_width, .expand => {},
         }
-        columnLayoutProportional(grid, col_widths[start_idx..], content_w);
-        //std.debug.print("col_info = {d}\n", .{col_info});
+        dvui.columnLayoutProportional(grid, col_widths[start_idx..], content_w);
         {
             const first: usize, const last: usize = range: {
                 if (virtual_scrolling) {
@@ -254,9 +225,8 @@ fn gui_frame() !void {
                 }
             };
             first_row = first;
-            std.debug.print("first = {}, last = {}\n", .{ first, last });
-            var sort_dir: dvui.GridWidget.SortDirection = undefined;
             var selection: dvui.GridColumnSelectAllState = undefined;
+            var sort_dir: dvui.GridWidget.SortDirection = undefined;
             if (selectable) {
                 var col = try grid.column(@src(), colOptions(.{}));
                 defer col.deinit();
@@ -282,7 +252,8 @@ fn gui_frame() !void {
                         sort("Make", sort_dir);
                     }
                     // TODO: was bodyCellOpts()
-                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", .{ .callback = bandedRows }, .{ .options = .{} });
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", bodyCellOpts(.{}), .none);
+                    //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[first..last], "make", "{s}", .{ .callback = bandedRows }, .{ .options = .{} });
                 }
                 {
                     var col = try grid.column(@src(), colOptions(.{}));
@@ -299,26 +270,26 @@ fn gui_frame() !void {
                     if (try dvui.gridHeadingSortable(@src(), grid, "Year", &sort_dir, .{}, .{})) {
                         sort("Year", sort_dir);
                     }
-                    try customColumn(@src(), grid, cars[first..last], bodyCellOpts(.{}));
+                    try customColumn(@src(), grid, cars[first..last], .{});
                 }
-                //                {
-                //                    var col = try grid.column(@src(), colOptions(.{}));
-                //                    defer col.deinit();
-                //
-                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{}, .{})) {
-                //                        sort("Mileage", sort_dir);
-                //                    }
-                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", .{}, .{ .gravity_x = 1.0 });
-                //                }
-                //                {
-                //                    var col = try grid.column(@src(), colOptions(.{}));
-                //                    defer col.deinit();
-                //
-                //                    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{}, .{})) {
-                //                        sort("Condition", sort_dir);
-                //                    }
-                //                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", .{}, .{ .gravity_x = 0.5 });
-                //                }
+                {
+                    var col = try grid.column(@src(), colOptions(.{}));
+                    defer col.deinit();
+
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &sort_dir, .{}, .{})) {
+                        sort("Mileage", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "mileage", "{d}", bodyCellOpts(.{}), .{ .options = .{ .gravity_x = 1.0 } });
+                }
+                {
+                    var col = try grid.column(@src(), colOptions(.{}));
+                    defer col.deinit();
+
+                    if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &sort_dir, .{}, .{})) {
+                        sort("Condition", sort_dir);
+                    }
+                    try dvui.gridColumnFromSlice(@src(), grid, Car, cars[0..], "condition", "{s}", bodyCellOpts(.{}), .{ .options = .{ .gravity_x = 0.5 } });
+                }
                 {
                     var col = try grid.column(@src(), colOptions(.{ .width = 0 }));
                     defer col.deinit();
@@ -592,7 +563,7 @@ const some_cars = [_]Car{
     .{ .model = "Mustang with a really long name", .make = "Ford", .year = 2020, .mileage = 24000, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
 };
 var first_row: usize = 0;
-fn bandedRows(row_num: usize) dvui.GridWidget.CellOptions {
+fn bandedRows(_: usize, row_num: usize) dvui.GridWidget.CellOptions {
     const result: dvui.GridWidget.CellOptions = .{
         .color_fill = if ((first_row + row_num) % 2 == 0) .{ .name = .fill_press } else null,
         .background = true,

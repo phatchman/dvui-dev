@@ -293,8 +293,12 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         const rect_scale = self.vbox.data().rectScale();
         const header_height_scaled = self.header_height * rect_scale.s;
 
+        var clip_rect = rect_scale.r;
+        clip_rect.y += header_height_scaled;
+        clip_rect.h = self.scroll.si.viewport.h * rect_scale.s - header_height_scaled;
+
         self.prev_clip_rect = dvui.clipGet();
-        dvui.clipSet(rect_scale.r.offset(.{ .y = header_height_scaled }));
+        dvui.clipSet(clip_rect);
     }
 
     var cell_opts = opts.toOptions();

@@ -3939,6 +3939,7 @@ pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opt
     return ret;
 }
 
+// TODO: Add col num to the styling callbacks. // TODO
 /// Create a heading with a static label
 ///
 /// opts controls the styling for the label.
@@ -4001,16 +4002,16 @@ pub fn gridHeadingSortable(
     return sort_changed;
 }
 
-const CellOptionsOrCallback = union(enum) {
+pub const CellOptionsOrCallback = union(enum) {
     options: GridWidget.CellOptions,
-    callback: fn (row_number: usize) GridWidget.CellOptions,
+    callback: *const fn (col_num: usize, row_num: usize) GridWidget.CellOptions,
 
     pub const none: CellOptionsOrCallback = .{ .options = .{} };
 };
 
-const OptionsOrCallback = union(enum) {
+pub const OptionsOrCallback = union(enum) {
     options: Options,
-    callback: fn (row_number: usize) Options,
+    callback: *const fn (col_num: usize, row_num: usize) Options,
 
     pub const none: OptionsOrCallback = .{ .options = .{} };
 };
@@ -4070,14 +4071,14 @@ pub fn gridColumnFromSlice(
         .callback => .{},
     };
     for (data, 0..) |item, row_num| {
-        // TODO: This copies both options for each row.
+        // TODO: This copies both sets of options for each row.
         const this_cell_opts: GridWidget.CellOptions = switch (cell_opts) {
             .options => default_cell_opts,
-            .callback => |cb| cb(row_num),
+            .callback => |cb| cb(g.col_num, row_num),
         };
         const this_label_opts = switch (opts) {
             .options => label_opts,
-            .callback => |cb| cb(row_num),
+            .callback => |cb| cb(g.col_num, row_num),
         };
         var cell = try g.bodyCell(src, row_num, this_cell_opts);
         defer cell.deinit();
@@ -4186,6 +4187,51 @@ pub fn gridColumnCheckbox(src: std.builtin.SourceLocation, g: *dvui.GridWidget, 
         selection_changed = selection_changed or was_selected != is_selected.*;
     }
     return selection_changed;
+}
+
+/// Size columns widths using ratios.
+///
+/// Positive widths are treated as fixed widths and are not modified.
+/// Negative widths are treated as ratios and are replaced by a calculated width.
+/// Results are returned in ratio_widths, which will contain calculated column widths.
+/// If content_width is null, the columns will be sized to the grid's visible portion.
+/// If content_w is supplied, all columns will be sized to content_w. If content_w is larger than the visible area,
+/// horizontal scrolling should be enabled via the grid's init_opts.
+///
+/// Examples:
+/// To lay out three columns with equal widths, use the same negative ratio for each column:
+///     { -1, -1, -1 } or { -0.33, -0.33, -0.33 }
+/// To make the second column with twice the width of the first, use a negative ratio twice as large.
+///     {-1, -2 } or { -50, -100 }
+/// To lay out a fixed column width with all other columns sharing the remaining, use a positive width for the fixed column and
+/// the same negative ratio for the variable columns.
+///     { -1, 50, -1 }.
+pub fn columnLayoutProportional(g: *dvui.GridWidget, ratio_widths: []f32, content_width: ?f32) void {
+    const scroll_bar_w: f32 = 10; // TODO: Don't necessarily know if SB is showing? There needs ot be a grid function to work this out.
+    const content_w: f32 = content_width orelse g.data().contentRect().w;
+
+    // Count all of the positive widths as reserved widths.
+    // Total all of the negative widths.
+    const reserved_w, const ratio_w: f32 = blk: {
+        var res_width: f32 = 0;
+        var total_ratio_w: f32 = 0;
+        for (ratio_widths) |w| {
+            if (w <= 0) {
+                total_ratio_w += -w;
+            } else {
+                res_width += w;
+            }
+        }
+        break :blk .{ res_width, total_ratio_w };
+    };
+    const available_w = content_w - reserved_w - scroll_bar_w;
+
+    // For each negative width, replace it width a positive calculated width.
+    for (ratio_widths) |*w| {
+        if (w.* <= 0) {
+            w.* = -w.* / ratio_w * available_w;
+        }
+    }
 }
 
 pub fn separator(src: std.builtin.SourceLocation, opts: Options) !void {

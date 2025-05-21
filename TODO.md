@@ -3,8 +3,9 @@
       scroll area, so that a .expand layout can fill the whole space.
 - [ ] Get rid of the padding for the sortable header. It isn't const the size of the symbol is dependent on the font size?
 - [X] Remove special casing of 0 for column width. It should either be no width provided, a positive width or get the default width if it is <= 0>.
-- [ ] Draws over horiztonal scroll bar. Need to adjust the clipping rect to take this into account.
+- [X] Draws over horiztonal scroll bar. Need to adjust the clipping rect to take this into account.
 - [ ] Handle padding when header column width is smaller than the heading button width. Currently doesn't show the separator.
+- [ ] Several issues around whether scrollbars are showing and if padding needs to be applied, including columnLayoutProportional
 
 ### Issues
 - [ ] When text is too wide for a column, the oversized text is displayed for 1 frame.
