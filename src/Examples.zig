@@ -3746,7 +3746,7 @@ fn gridStyling() !void {
                 .background = local.banding == .cols,
             });
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &local.sort_dir, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Fahrenheit", &local.sort_dir, .{}, .{})) {
                 grid.colSortSet(current_sort_dir.reverse());
             }
 
