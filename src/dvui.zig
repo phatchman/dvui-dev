@@ -4145,7 +4145,6 @@ pub const OptionsOrCallback = union(enum) {
 /// Other types are formatted using the supplied fmt string.
 /// cell_opts styles the cell's hbox
 /// opts styles the label
-/// // TODO: Cleanup variable names around options.
 pub fn gridColumnFromSlice(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
@@ -4183,25 +4182,23 @@ pub fn gridColumnFromSlice(
         .expand = .horizontal,
     };
     // If options are supplied create the default options.
-    const label_opts: Options = switch (opts) {
+    const row_label_opts: Options = switch (opts) {
         .options => |o| label_defaults.override(o),
-        .callback => label_defaults,
+        .callback => .{},
     };
-    const default_cell_opts: GridWidget.CellOptions = switch (cell_opts) {
+    const row_cell_opts: GridWidget.CellOptions = switch (cell_opts) {
         .options => |o| o,
         .callback => .{},
     };
     for (data, 0..) |item, row_num| {
-        // TODO: This copies both sets of options for each row.
-        const this_cell_opts: GridWidget.CellOptions = switch (cell_opts) {
-            .options => default_cell_opts,
-            .callback => |cb| cb(g.col_num, row_num),
-        };
-        const this_label_opts = switch (opts) {
-            .options => label_opts,
-            .callback => |cb| cb(g.col_num, row_num),
-        };
-        var cell = try g.bodyCell(src, row_num, this_cell_opts);
+        var cell = try g.bodyCell(
+            src,
+            row_num,
+            switch (cell_opts) {
+                .options => row_cell_opts,
+                .callback => |callback| callback(g.col_num, row_num),
+            },
+        );
         defer cell.deinit();
         const cell_value = value: {
             if (field_name) |_field_name| {
@@ -4224,7 +4221,10 @@ pub fn gridColumnFromSlice(
             @src(),
             fmt,
             .{cell_value},
-            this_label_opts,
+            switch (opts) {
+                .options => |o| row_label_opts.override(o),
+                .callback => |callback| label_defaults.override(callback(g.col_num, row_num)),
+            },
         );
     }
 }
@@ -4282,8 +4282,8 @@ pub fn gridColumnCheckbox(
     comptime T: type,
     data: []T,
     comptime field_name: ?[]const u8,
-    cell_opts: GridWidget.CellOptions,
-    opts: dvui.Options,
+    cell_opts: CellOptionsOrCallback,
+    opts: OptionsOrCallback,
 ) !bool {
     if (T != bool) {
         if (field_name) |_field_name| {
@@ -4296,18 +4296,37 @@ pub fn gridColumnCheckbox(
             @compileError("data must be of type []bool when field_name is null.");
         }
     }
-    const cell_defaults: Options = .{
+    const check_defaults: Options = .{
         .gravity_x = 0.5,
         .gravity_y = 0.5,
     };
+    const check_opts = switch (opts) {
+        .options => |o| check_defaults.override(o),
+        .callback => check_defaults,
+    };
 
     var selection_changed = false;
-    for (data, 0..) |*item, i| {
-        var cell = try g.bodyCell(src, i, cell_opts);
+    for (data, 0..) |*item, row_num| {
+        var cell = try g.bodyCell(
+            src,
+            row_num,
+            switch (cell_opts) {
+                .options => |o| o,
+                .callback => |callback| callback(g.col_num, row_num),
+            },
+        );
         defer cell.deinit();
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
         const was_selected = is_selected.*;
-        _ = try dvui.checkbox(@src(), is_selected, null, cell_defaults.override(opts));
+        _ = try dvui.checkbox(
+            @src(),
+            is_selected,
+            null,
+            switch (opts) {
+                .options => check_opts,
+                .callback => |callback| check_defaults.override(callback(g.col_num, row_num)),
+            },
+        );
         selection_changed = selection_changed or was_selected != is_selected.*;
     }
     return selection_changed;
@@ -4317,10 +4336,10 @@ pub fn gridColumnCheckbox(
 ///
 /// Positive widths are treated as fixed widths and are not modified.
 /// Negative widths are treated as ratios and are replaced by a calculated width.
-/// Results are returned in ratio_widths, which will contain calculated column widths.
+/// Results are returned in ratio_widths, containing calculated, positive column widths.
 /// If content_width is null, the columns will be sized to the grid's visible portion.
-/// If content_w is supplied, all columns will be sized to content_w. If content_w is larger than the visible area,
-/// horizontal scrolling should be enabled via the grid's init_opts.
+/// If content_width is supplied, all columns will be sized to content_width.
+/// If content_width is larger than the visible area, horizontal scrolling should be enabled via the grid's init_opts.
 ///
 /// Examples:
 /// To lay out three columns with equal widths, use the same negative ratio for each column:

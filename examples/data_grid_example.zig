@@ -88,7 +88,7 @@ pub fn main() !void {
     }
 }
 
-const num_cars = 500_000;
+const num_cars = 500;
 pub const testing = false;
 pub var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .given };
 var virtual_scrolling = true;
@@ -264,12 +264,11 @@ fn gui_frame() !void {
                     Car,
                     cars[first..last],
                     "selected",
-                    .{ .border = dvui.Rect.all(1) },
-                    .{},
+                    .{ .callback = bandedRows },
+                    .none,
                 );
                 if (changed) std.debug.print("selection changed\n", .{});
             }
-
             {
                 var col = try grid.column(@src(), colOptions(.{}));
                 defer col.deinit();
