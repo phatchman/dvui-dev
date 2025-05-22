@@ -318,7 +318,14 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     return cell;
 }
 
-/// Must be called whenever the sort order for any column has changed.
+/// Set the sort order when manually managing column sorting.
+pub fn colSortSet(self: *GridWidget, dir: SortDirection) void {
+    self.sort_col_number = self.col_num;
+    self.sort_direction = dir;
+}
+
+/// If the grid is managing the sort order, this must be called whenever
+/// the sort order for any column has changed.
 pub fn sortChanged(self: *GridWidget) void {
     // If sorting on a new column, change current sort column to unsorted.
     if (self.col_num != self.sort_col_number) {
