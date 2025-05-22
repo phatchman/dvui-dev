@@ -68,6 +68,13 @@ pub const SortDirection = enum {
     unsorted,
     ascending,
     descending,
+
+    pub fn reverse(dir: SortDirection) SortDirection {
+        return switch (dir) {
+            .descending => .ascending,
+            else => .descending,
+        };
+    }
 };
 
 pub const InitOpts = struct {

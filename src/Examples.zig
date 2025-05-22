@@ -3664,13 +3664,6 @@ pub fn grids() !void {
 fn gridStyling() !void {
     const static = struct {
         var sort_dir: dvui.GridWidget.SortDirection = .unsorted;
-
-        fn reverse(dir: dvui.GridWidget.SortDirection) dvui.GridWidget.SortDirection {
-            return switch (dir) {
-                .descending => .ascending,
-                else => .descending,
-            };
-        }
     };
 
     var grid = try dvui.grid(@src(), .{}, .{
@@ -3687,23 +3680,23 @@ fn gridStyling() !void {
     };
     std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Must finish loop on end_temp
 
-    // By default when hte sort column changes, it is sorted ascending, but
-    // because there are only two columns, it is better to always flip the sort order
-    // regardless of which column is clicked.
+    // Manually control sorting, so that sort direction is always reversed regardless of
+    // which column header is clicked.
     const initial_sort_dir = static.sort_dir;
 
     // First column displays temperature in Celcius.
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
-        // Set this column to be defaulty sorted ascending
+        // Set this column to be default sorted ascending if no sort order
         if (initial_sort_dir == .unsorted) {
             grid.colSortSet(.ascending);
         }
 
         if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &static.sort_dir, .{}, .{})) {
-            grid.colSortSet(static.reverse(initial_sort_dir));
+            grid.colSortSet(initial_sort_dir.reverse());
         }
+
         var temp: i32 = start_temp;
         var row_num: usize = 0;
         while (temp != end_temp + interval) : ({
@@ -3715,12 +3708,12 @@ fn gridStyling() !void {
             try dvui.label(@src(), "{d}", .{temp}, .{});
         }
     }
-    // Second column displays in Farenheight.
+    // Second column displays temperature in Farenheight.
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         if (try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &static.sort_dir, .{}, .{})) {
-            grid.colSortSet(static.reverse(initial_sort_dir));
+            grid.colSortSet(initial_sort_dir.reverse());
         }
 
         var temp: i32 = start_temp;
