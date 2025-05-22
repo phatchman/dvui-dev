@@ -3664,7 +3664,7 @@ pub fn grids() !void {
 }
 
 fn gridStyling() !void {
-    const static = struct {
+    const local = struct {
         var sort_dir: dvui.GridWidget.SortDirection = .unsorted;
         var borders: Rect = .all(0);
         var banding: Banding = .none;
@@ -3688,7 +3688,7 @@ fn gridStyling() !void {
 
     var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
     defer outer_hbox.deinit();
-    const row_background = static.banding == .rows or static.borders.nonZero();
+    const row_background = local.banding == .rows or local.borders.nonZero();
 
     {
         var grid = try dvui.grid(@src(), .{}, .{
@@ -3701,27 +3701,27 @@ fn gridStyling() !void {
         defer grid.deinit();
         const start_temp: i32, //
         const end_temp: i32, //
-        const interval: i32 = switch (static.sort_dir) {
+        const interval: i32 = switch (local.sort_dir) {
             .ascending, .unsorted => .{ 0, 100, 5 },
             .descending => .{ 100, 0, -5 },
         };
-        std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Must finish loop on end_temp
+        std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Range must be a multiple of interval
 
         // Manually control sorting, so that sort direction is always reversed regardless of
         // which column header is clicked.
-        const initial_sort_dir = static.sort_dir;
+        const current_sort_dir = local.sort_dir;
 
         // First column displays temperature in Celcius.
         {
-            var col = try grid.column(@src(), .{ .color_fill = static.colColorFill(0), .background = true });
+            var col = try grid.column(@src(), .{ .color_fill = local.colColorFill(0), .background = true });
             defer col.deinit();
-            // Set this column to be default sorted ascending if no sort order
-            if (initial_sort_dir == .unsorted) {
+            // Set column as the default sort
+            if (current_sort_dir == .unsorted) {
                 grid.colSortSet(.ascending);
             }
 
-            if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &static.sort_dir, .{}, .{})) {
-                grid.colSortSet(initial_sort_dir.reverse());
+            if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &local.sort_dir, .{}, .{})) {
+                grid.colSortSet(current_sort_dir.reverse());
             }
 
             var temp: i32 = start_temp;
@@ -3731,9 +3731,9 @@ fn gridStyling() !void {
                 row_num += 1;
             }) {
                 var cell = try grid.bodyCell(@src(), row_num, .{
-                    .border = static.borders,
+                    .border = local.borders,
                     .background = row_background,
-                    .color_fill = static.rowColorFill(row_num),
+                    .color_fill = local.rowColorFill(row_num),
                 });
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{temp}, .{ .gravity_x = 0.5, .expand = .horizontal });
@@ -3742,12 +3742,12 @@ fn gridStyling() !void {
         // Second column displays temperature in Farenheight.
         {
             var col = try grid.column(@src(), .{
-                .color_fill = static.colColorFill(1),
-                .background = static.banding == .cols,
+                .color_fill = local.colColorFill(1),
+                .background = local.banding == .cols,
             });
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &static.sort_dir, .{}, .{})) {
-                grid.colSortSet(initial_sort_dir.reverse());
+            if (try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &local.sort_dir, .{}, .{})) {
+                grid.colSortSet(current_sort_dir.reverse());
             }
 
             var temp: i32 = start_temp;
@@ -3757,9 +3757,9 @@ fn gridStyling() !void {
                 row_num += 1;
             }) {
                 var cell = try grid.bodyCell(@src(), row_num, .{
-                    .border = static.borders,
+                    .border = local.borders,
                     .background = row_background,
-                    .color_fill = static.rowColorFill(row_num),
+                    .color_fill = local.rowColorFill(row_num),
                 });
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{ .gravity_x = 0.5, .expand = .horizontal });
@@ -3776,10 +3776,10 @@ fn gridStyling() !void {
         defer outer_vbox.deinit();
 
         if (try dvui.expander(@src(), "Borders", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
-            var top: bool = static.borders.y > 0;
-            var bottom: bool = static.borders.h > 0;
-            var left: bool = static.borders.x > 0;
-            var right: bool = static.borders.w > 0;
+            var top: bool = local.borders.y > 0;
+            var bottom: bool = local.borders.h > 0;
+            var left: bool = local.borders.x > 0;
+            var right: bool = local.borders.w > 0;
             var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
             defer hbox.deinit();
             {
@@ -3794,28 +3794,28 @@ fn gridStyling() !void {
                 _ = try dvui.checkbox(@src(), &right, "Right", .{});
                 _ = try dvui.checkbox(@src(), &bottom, "Bottom", .{});
             }
-            static.borders = .{
+            local.borders = .{
                 .y = if (top) 1 else 0,
                 .h = if (bottom) 1 else 0,
                 .x = if (left) 1 else 0,
                 .w = if (right) 1 else 0,
             };
-            if (static.borders.nonZero() and static.banding == .cols) {
-                static.banding = .none;
+            if (local.borders.nonZero() and local.banding == .cols) {
+                local.banding = .none;
             }
         }
         if (try dvui.expander(@src(), "Banding", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
-            if (try dvui.radio(@src(), static.banding == .none, "None", .{})) {
-                static.banding = .none;
+            if (try dvui.radio(@src(), local.banding == .none, "None", .{})) {
+                local.banding = .none;
             }
-            if (try dvui.radio(@src(), static.banding == .rows, "Rows", .{})) {
-                static.banding = .rows;
+            if (try dvui.radio(@src(), local.banding == .rows, "Rows", .{})) {
+                local.banding = .rows;
             }
-            if (try dvui.radio(@src(), static.banding == .cols, "Cols", .{})) {
-                static.banding = .cols;
+            if (try dvui.radio(@src(), local.banding == .cols, "Cols", .{})) {
+                local.banding = .cols;
             }
-            if (static.banding == .cols) {
-                static.borders = Rect.all(0);
+            if (local.banding == .cols) {
+                local.borders = Rect.all(0);
             }
         }
     }
