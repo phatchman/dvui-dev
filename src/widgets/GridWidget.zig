@@ -345,51 +345,45 @@ pub const GridVirtualScroller = struct {
     pub const InitOpts = struct {
         // Total rows in the columns displayed
         total_rows: usize,
-        // The number of rows to render before and after the visible scroll area.
-        // Larger windows can result in smoother scrolling but will take longer to render each frame.
-        window_size: usize = 1,
         scroll_info: *ScrollInfo,
     };
     grid: *GridWidget,
     si: *ScrollInfo,
     total_rows: usize,
-    window_size: usize,
     pub fn init(grid: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
         const si = init_opts.scroll_info;
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
         si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
-        const first_row: f32 = @floatFromInt(_rowFirstRendered(grid, si, init_opts.total_rows, init_opts.window_size));
+        const first_row: f32 = @floatFromInt(_startRow(grid, si, init_opts.total_rows));
         grid.offsetRowsBy(first_row * grid.row_height); // TODO: does last_row_height make a difference?
         return .{
             .grid = grid,
             .si = si,
             .total_rows = init_opts.total_rows,
-            .window_size = init_opts.window_size,
         };
     }
 
-    fn _rowFirstRendered(grid: *GridWidget, si: *ScrollInfo, total_rows: usize, window_size: usize) usize {
+    fn _startRow(grid: *GridWidget, si: *ScrollInfo, total_rows: usize) usize {
         if (grid.row_height < 1) {
             return 0;
         }
         const first_row_in_viewport: usize = @intFromFloat(@round(si.viewport.y / grid.row_height));
-        if (first_row_in_viewport < window_size) {
+        if (first_row_in_viewport == 0) {
             return 0;
         }
-        return @min(first_row_in_viewport - window_size, total_rows);
+        return @min(first_row_in_viewport - 1, total_rows);
     }
-    /// Return the first row within the visible scroll area, minus window_size
-    pub fn rowFirstRendered(self: *const GridVirtualScroller) usize {
-        return _rowFirstRendered(self.grid, self.si, self.total_rows, self.window_size);
+    /// Return the first row to render (inclusive)
+    pub fn startRow(self: *const GridVirtualScroller) usize {
+        return _startRow(self.grid, self.si, self.total_rows);
     }
 
-    /// Return the last row within the visible scroll area, plus the window size.
-    /// TODO: This doesn't return the last row. It returns the last row + 1? Or at least it needs to for first..last to work.
-    pub fn rowLastRendered(self: *const GridVirtualScroller) usize {
+    /// Return the end row to render (exclusive)
+    pub fn endRow(self: *const GridVirtualScroller) usize {
         if (self.grid.row_height < 1) {
             return 1;
         }
         const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.grid.row_height));
-        return @min(last_row_in_viewport + self.window_size, self.total_rows);
+        return @min(last_row_in_viewport + 1, self.total_rows);
     }
 };

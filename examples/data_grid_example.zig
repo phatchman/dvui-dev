@@ -235,8 +235,8 @@ fn gui_frame() !void {
         {
             const first: usize, const last: usize = range: {
                 if (virtual_scrolling) {
-                    var scroller = dvui.GridWidget.GridVirtualScroller.init(grid, .{ .scroll_info = &scroll_info, .total_rows = cars.len, .window_size = 1 });
-                    break :range .{ scroller.rowFirstRendered(), scroller.rowLastRendered() };
+                    var scroller = dvui.GridWidget.GridVirtualScroller.init(grid, .{ .scroll_info = &scroll_info, .total_rows = cars.len });
+                    break :range .{ scroller.startRow(), scroller.endRow() };
                 } else {
                     break :range .{ 0, cars.len };
                 }

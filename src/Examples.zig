@@ -316,6 +316,7 @@ pub const demoKind = enum {
     animations,
     struct_ui,
     debugging,
+    grid,
 
     pub fn name(self: demoKind) []const u8 {
         return switch (self) {
@@ -335,6 +336,7 @@ pub const demoKind = enum {
             .animations => "Animations",
             .struct_ui => "Struct UI\n(Experimental)",
             .debugging => "Debugging",
+            .grid => "Grid",
         };
     }
 
@@ -356,6 +358,7 @@ pub const demoKind = enum {
             .animations => .{ .scale = 0.45, .offset = .{} },
             .struct_ui => .{ .scale = 0.45, .offset = .{} },
             .debugging => .{ .scale = 0.45, .offset = .{} },
+            .grid => .{ .scale = 0.45, .offset = .{} },
         };
     }
 };
@@ -466,6 +469,7 @@ pub fn demo() !void {
                     .animations => try animations(),
                     .struct_ui => try structUI(),
                     .debugging => try debuggingErrors(),
+                    .grid => try grids(),
                 }
             }
 
@@ -518,6 +522,7 @@ pub fn demo() !void {
             .animations => animations(),
             .struct_ui => structUI(),
             .debugging => debuggingErrors(),
+            .grid => grids(),
         };
     }
 
@@ -3649,6 +3654,59 @@ pub fn icon_browser(src: std.builtin.SourceLocation, show_flag: *bool, comptime 
         }
 
         cursor += settings.row_height;
+    }
+}
+
+pub fn grids() !void {
+    try gridStyling();
+}
+
+fn gridStyling() !void {
+    const static = struct {
+        var sort_dir: dvui.GridWidget.SortDirection = .unsorted;
+    };
+
+    var grid = try dvui.grid(@src(), .{}, .{ .expand = .both, .background = true });
+    defer grid.deinit();
+    const start_temp: i32, //
+    const end_temp: i32, //
+    const interval: i32 = switch (static.sort_dir) {
+        .ascending, .unsorted => .{ 0, 100, 5 },
+        .descending => .{ 100, 0, -5 },
+    };
+    std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Must finish loop on end_temp
+
+    // First column displays temperature in Celcius.
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        _ = try dvui.gridHeadingSortable(@src(), grid, "Celcius", &static.sort_dir, .{}, .{});
+        var temp: i32 = start_temp;
+        var row_num: usize = 0;
+        while (temp != end_temp + interval) : ({
+            temp += interval;
+            row_num += 1;
+        }) {
+            var cell = try grid.bodyCell(@src(), row_num, .{});
+            defer cell.deinit();
+            try dvui.label(@src(), "{d}", .{temp}, .{});
+        }
+    }
+    // Second column displays in Farenheight.
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        _ = try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &static.sort_dir, .{}, .{});
+        var temp: i32 = start_temp;
+        var row_num: usize = 0;
+        while (temp != end_temp + interval) : ({
+            temp += interval;
+            row_num += 1;
+        }) {
+            var cell = try grid.bodyCell(@src(), row_num, .{});
+            defer cell.deinit();
+            try dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{});
+        }
     }
 }
 
