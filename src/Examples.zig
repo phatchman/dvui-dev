@@ -3688,6 +3688,84 @@ fn gridStyling() !void {
 
     var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
     defer outer_hbox.deinit();
+    const row_background = static.banding == .rows or static.borders.nonZero();
+
+    {
+        var grid = try dvui.grid(@src(), .{}, .{
+            .expand = .both,
+            .background = true,
+            .max_size_content = .height(250),
+            .border = Rect.all(1),
+            .padding = .{ .x = 5 },
+        });
+        defer grid.deinit();
+        const start_temp: i32, //
+        const end_temp: i32, //
+        const interval: i32 = switch (static.sort_dir) {
+            .ascending, .unsorted => .{ 0, 100, 5 },
+            .descending => .{ 100, 0, -5 },
+        };
+        std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Must finish loop on end_temp
+
+        // Manually control sorting, so that sort direction is always reversed regardless of
+        // which column header is clicked.
+        const initial_sort_dir = static.sort_dir;
+
+        // First column displays temperature in Celcius.
+        {
+            var col = try grid.column(@src(), .{ .color_fill = static.colColorFill(0), .background = true });
+            defer col.deinit();
+            // Set this column to be default sorted ascending if no sort order
+            if (initial_sort_dir == .unsorted) {
+                grid.colSortSet(.ascending);
+            }
+
+            if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &static.sort_dir, .{}, .{})) {
+                grid.colSortSet(initial_sort_dir.reverse());
+            }
+
+            var temp: i32 = start_temp;
+            var row_num: usize = 0;
+            while (temp != end_temp + interval) : ({
+                temp += interval;
+                row_num += 1;
+            }) {
+                var cell = try grid.bodyCell(@src(), row_num, .{
+                    .border = static.borders,
+                    .background = row_background,
+                    .color_fill = static.rowColorFill(row_num),
+                });
+                defer cell.deinit();
+                try dvui.label(@src(), "{d}", .{temp}, .{ .gravity_x = 0.5, .expand = .horizontal });
+            }
+        }
+        // Second column displays temperature in Farenheight.
+        {
+            var col = try grid.column(@src(), .{
+                .color_fill = static.colColorFill(1),
+                .background = static.banding == .cols,
+            });
+            defer col.deinit();
+            if (try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &static.sort_dir, .{}, .{})) {
+                grid.colSortSet(initial_sort_dir.reverse());
+            }
+
+            var temp: i32 = start_temp;
+            var row_num: usize = 0;
+            while (temp != end_temp + interval) : ({
+                temp += interval;
+                row_num += 1;
+            }) {
+                var cell = try grid.bodyCell(@src(), row_num, .{
+                    .border = static.borders,
+                    .background = row_background,
+                    .color_fill = static.rowColorFill(row_num),
+                });
+                defer cell.deinit();
+                try dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{ .gravity_x = 0.5, .expand = .horizontal });
+            }
+        }
+    }
     {
         var outer_vbox = try dvui.box(@src(), .vertical, .{
             .min_size_content = grid_panel_size,
@@ -3739,80 +3817,6 @@ fn gridStyling() !void {
             if (static.banding == .cols) {
                 static.borders = Rect.all(0);
             }
-        }
-    }
-    const row_background = static.banding == .rows or static.borders.nonZero();
-
-    var grid = try dvui.grid(@src(), .{}, .{
-        .expand = .both,
-        .background = true,
-        .max_size_content = .height(250),
-    });
-    defer grid.deinit();
-    const start_temp: i32, //
-    const end_temp: i32, //
-    const interval: i32 = switch (static.sort_dir) {
-        .ascending, .unsorted => .{ 0, 100, 5 },
-        .descending => .{ 100, 0, -5 },
-    };
-    std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Must finish loop on end_temp
-
-    // Manually control sorting, so that sort direction is always reversed regardless of
-    // which column header is clicked.
-    const initial_sort_dir = static.sort_dir;
-
-    // First column displays temperature in Celcius.
-    {
-        var col = try grid.column(@src(), .{ .color_fill = static.colColorFill(0), .background = true });
-        defer col.deinit();
-        // Set this column to be default sorted ascending if no sort order
-        if (initial_sort_dir == .unsorted) {
-            grid.colSortSet(.ascending);
-        }
-
-        if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &static.sort_dir, .{}, .{})) {
-            grid.colSortSet(initial_sort_dir.reverse());
-        }
-
-        var temp: i32 = start_temp;
-        var row_num: usize = 0;
-        while (temp != end_temp + interval) : ({
-            temp += interval;
-            row_num += 1;
-        }) {
-            var cell = try grid.bodyCell(@src(), row_num, .{
-                .border = static.borders,
-                .background = row_background,
-                .color_fill = static.rowColorFill(row_num),
-            });
-            defer cell.deinit();
-            try dvui.label(@src(), "{d}", .{temp}, .{});
-        }
-    }
-    // Second column displays temperature in Farenheight.
-    {
-        var col = try grid.column(@src(), .{
-            .color_fill = static.colColorFill(1),
-            .background = static.banding == .cols,
-        });
-        defer col.deinit();
-        if (try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &static.sort_dir, .{}, .{})) {
-            grid.colSortSet(initial_sort_dir.reverse());
-        }
-
-        var temp: i32 = start_temp;
-        var row_num: usize = 0;
-        while (temp != end_temp + interval) : ({
-            temp += interval;
-            row_num += 1;
-        }) {
-            var cell = try grid.bodyCell(@src(), row_num, .{
-                .border = static.borders,
-                .background = row_background,
-                .color_fill = static.rowColorFill(row_num),
-            });
-            defer cell.deinit();
-            try dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{});
         }
     }
 }
