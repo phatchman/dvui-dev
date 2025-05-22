@@ -17,7 +17,7 @@
         - Actually, I don't think it is gravity, it is some cells being drawn too wide while scrolling and then corrected when the scrolling stops.
         - Also note in the demo there is an "Expand" column for Description. That's not really compatible with virtual scrolling.
         - Need to investigate further.
-- [ ] Grids within scroll areas and/or floating windows doesn't work. Clipping is wrong.
+- [X] Grids within scroll areas and/or floating windows doesn't work. Clipping is wrong.
 
 ### Future
 * Some better visual indication that columns are sortable.

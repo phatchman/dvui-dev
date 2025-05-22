@@ -303,8 +303,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         clip_rect.y += header_height_scaled;
         clip_rect.h = self.scroll.si.viewport.h * rect_scale.s - header_height_scaled;
 
-        self.prev_clip_rect = dvui.clipGet();
-        dvui.clipSet(clip_rect);
+        self.prev_clip_rect = dvui.clip(clip_rect);
     }
 
     var cell_opts = opts.toOptions();
