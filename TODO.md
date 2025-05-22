@@ -4,6 +4,7 @@
 - [ ] Draws over vertical scroll bar when horizontal scrolling. Need to change the clip or reserve space for the scrollbar.
 - [ ] Need some defalt padding, so the first column isn;t hard against the edge of the grid.
 - [ ] Fix checkbox padding or size? It's not shown the speparator.
+- [ ] Support single select vs multiple select on the checkbox columns?
 
 ### Issues
 - [ ] Is there a better name than window size for the scroller? It's not really a window size. It's a number of extra rows to render above and below the visible rows.

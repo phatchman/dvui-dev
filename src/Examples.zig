@@ -3657,6 +3657,8 @@ pub fn icon_browser(src: std.builtin.SourceLocation, show_flag: *bool, comptime 
     }
 }
 
+const grid_panel_size: Size = .{ .w = 250 };
+
 pub fn grids() !void {
     try gridStyling();
 }
@@ -3664,7 +3666,82 @@ pub fn grids() !void {
 fn gridStyling() !void {
     const static = struct {
         var sort_dir: dvui.GridWidget.SortDirection = .unsorted;
+        var borders: Rect = .all(0);
+        var banding: Banding = .none;
+
+        fn rowColorFill(row_num: usize) ?dvui.Options.ColorOrName {
+            if (banding == .rows and row_num % 2 == 0) {
+                return .{ .name = .fill_press };
+            }
+            return null;
+        }
+
+        fn colColorFill(col_num: usize) ?dvui.Options.ColorOrName {
+            if (banding == .cols and col_num % 2 == 0) {
+                return .{ .name = .fill_press };
+            }
+            return null;
+        }
+
+        const Banding = enum { none, rows, cols };
     };
+
+    var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+    defer outer_hbox.deinit();
+    {
+        var outer_vbox = try dvui.box(@src(), .vertical, .{
+            .min_size_content = grid_panel_size,
+            .max_size_content = .size(grid_panel_size),
+            .expand = .vertical,
+            .border = Rect.all(2),
+        });
+        defer outer_vbox.deinit();
+
+        if (try dvui.expander(@src(), "Borders", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
+            var top: bool = static.borders.y > 0;
+            var bottom: bool = static.borders.h > 0;
+            var left: bool = static.borders.x > 0;
+            var right: bool = static.borders.w > 0;
+            var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+            defer hbox.deinit();
+            {
+                var vbox = try dvui.box(@src(), .vertical, .{ .expand = .horizontal });
+                defer vbox.deinit();
+                _ = try dvui.checkbox(@src(), &top, "Top", .{});
+                _ = try dvui.checkbox(@src(), &left, "Left", .{});
+            }
+            {
+                var vbox = try dvui.box(@src(), .vertical, .{ .expand = .horizontal });
+                defer vbox.deinit();
+                _ = try dvui.checkbox(@src(), &right, "Right", .{});
+                _ = try dvui.checkbox(@src(), &bottom, "Bottom", .{});
+            }
+            static.borders = .{
+                .y = if (top) 1 else 0,
+                .h = if (bottom) 1 else 0,
+                .x = if (left) 1 else 0,
+                .w = if (right) 1 else 0,
+            };
+            if (static.borders.nonZero() and static.banding == .cols) {
+                static.banding = .none;
+            }
+        }
+        if (try dvui.expander(@src(), "Banding", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
+            if (try dvui.radio(@src(), static.banding == .none, "None", .{})) {
+                static.banding = .none;
+            }
+            if (try dvui.radio(@src(), static.banding == .rows, "Rows", .{})) {
+                static.banding = .rows;
+            }
+            if (try dvui.radio(@src(), static.banding == .cols, "Cols", .{})) {
+                static.banding = .cols;
+            }
+            if (static.banding == .cols) {
+                static.borders = Rect.all(0);
+            }
+        }
+    }
+    const row_background = static.banding == .rows or static.borders.nonZero();
 
     var grid = try dvui.grid(@src(), .{}, .{
         .expand = .both,
@@ -3686,7 +3763,7 @@ fn gridStyling() !void {
 
     // First column displays temperature in Celcius.
     {
-        var col = try grid.column(@src(), .{});
+        var col = try grid.column(@src(), .{ .color_fill = static.colColorFill(0), .background = true });
         defer col.deinit();
         // Set this column to be default sorted ascending if no sort order
         if (initial_sort_dir == .unsorted) {
@@ -3703,14 +3780,21 @@ fn gridStyling() !void {
             temp += interval;
             row_num += 1;
         }) {
-            var cell = try grid.bodyCell(@src(), row_num, .{});
+            var cell = try grid.bodyCell(@src(), row_num, .{
+                .border = static.borders,
+                .background = row_background,
+                .color_fill = static.rowColorFill(row_num),
+            });
             defer cell.deinit();
             try dvui.label(@src(), "{d}", .{temp}, .{});
         }
     }
     // Second column displays temperature in Farenheight.
     {
-        var col = try grid.column(@src(), .{});
+        var col = try grid.column(@src(), .{
+            .color_fill = static.colColorFill(1),
+            .background = static.banding == .cols,
+        });
         defer col.deinit();
         if (try dvui.gridHeadingSortable(@src(), grid, "Farenheight", &static.sort_dir, .{}, .{})) {
             grid.colSortSet(initial_sort_dir.reverse());
@@ -3722,7 +3806,11 @@ fn gridStyling() !void {
             temp += interval;
             row_num += 1;
         }) {
-            var cell = try grid.bodyCell(@src(), row_num, .{});
+            var cell = try grid.bodyCell(@src(), row_num, .{
+                .border = static.borders,
+                .background = row_background,
+                .color_fill = static.rowColorFill(row_num),
+            });
             defer cell.deinit();
             try dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{});
         }
