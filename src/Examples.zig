@@ -3703,7 +3703,7 @@ pub fn grids() !void {
     switch (local.active_grid) {
         .styling => try gridStyling(),
         .layout => try gridLayouts(),
-        .scrolling => {},
+        .scrolling => try gridVirtualScrolling(),
     }
 }
 
@@ -4165,6 +4165,83 @@ fn gridLayouts() !void {
                 if (try dvui.button(@src(), "Resize Rows", .{}, .{})) {
                     local.resize_rows = true;
                 }
+            }
+        }
+    }
+}
+
+fn gridVirtualScrolling() !void {
+    const num_rows = 1_000_000;
+    const local = struct {
+        var scroll_info: dvui.ScrollInfo = .{ .vertical = .given, .horizontal = .none };
+        var primes: std.StaticBitSet(num_rows) = .initFull();
+        var calculated_primes: bool = false;
+
+        fn genPrimes() void {
+            const limit = std.math.sqrt(num_rows);
+
+            var current: u32 = 2;
+            while (current < limit) : (current += 1) {
+                if (primes.isSet(current)) {
+                    var multiples = current * current;
+                    while (multiples < num_rows) : (multiples += current) {
+                        primes.unset(multiples);
+                    }
+                }
+            }
+        }
+
+        fn isPrime(num: usize) bool {
+            return primes.isSet(num);
+        }
+    };
+    if (!local.calculated_primes) {
+        local.genPrimes();
+        local.calculated_primes = true;
+    }
+
+    var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both });
+    defer vbox.deinit();
+    var grid = try dvui.grid(@src(), .{ .scroll_opts = .{ .scroll_info = &local.scroll_info } }, .{
+        .expand = .both,
+        .background = true,
+        .min_size_content = .{ .h = 300 },
+        .max_size_content = .height(300),
+        .border = Rect.all(1),
+        .padding = .{ .x = 5 },
+    });
+    defer grid.deinit();
+
+    const scroller: dvui.GridWidget.GridVirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
+    const first = scroller.startRow();
+    const last = scroller.endRow();
+
+    // Number column
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Number", .{}, .{});
+
+        for (first..last) |num| {
+            var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .x = 1, .w = 1, .h = 1 }, .background = true });
+            defer cell.deinit();
+            try dvui.label(@src(), "{d}", .{num}, .{});
+        }
+    }
+    // Prime column
+    {
+        const check_img = @embedFile("icons/entypo/check.tvg");
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Is prime?", .{}, .{});
+
+        for (first..last) |num| {
+            var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .w = 1, .h = 1 }, .background = true });
+            defer cell.deinit();
+            if (local.isPrime(num)) {
+                // TODO: I can't get this to centre in the grid.
+                const pad_w = cell.data().contentRect().w / 2 - 15;
+                try dvui.icon(@src(), "Check", check_img, .{ .gravity_x = 0.5, .gravity_y = 0.5, .padding = .{ .x = pad_w } });
             }
         }
     }
