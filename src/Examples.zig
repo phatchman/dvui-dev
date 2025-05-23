@@ -3880,11 +3880,12 @@ fn gridLayouts() !void {
     const local = struct {
         const num_cols = 7;
         const col_num_descr = 6;
+        const checkbox_w = 40;
 
-        var col_widths: [num_cols]f32 = @splat(100); // Default to widthg 100
-        const column_ratios = [num_cols]f32{ 40, -10, -10, -7, -10, -15, -30 };
-        const fixed_widths = [num_cols]f32{ 40, 80, 120, 80, 100, 100, 300 };
-        const equal_spacing = [num_cols]f32{ -1, -1, -1, -1, -1, -1, -1 };
+        var col_widths: [num_cols]f32 = @splat(100); // Default width to 100
+        const column_ratios = [num_cols]f32{ checkbox_w, -10, -10, -7, -10, -15, -30 };
+        const fixed_widths = [num_cols]f32{ checkbox_w, 80, 120, 80, 100, 100, 300 };
+        const equal_spacing = [num_cols]f32{ checkbox_w, -1, -1, -1, -1, -1, -1 };
         var selection_state: dvui.GridColumnSelectAllState = .select_none;
         var sort_dir: GridWidget.SortDirection = .unsorted;
         var layout: Layout = .proportional;
@@ -4005,6 +4006,8 @@ fn gridLayouts() !void {
             .padding = .{ .x = 5 },
         });
         defer grid.deinit();
+
+        // Fit columns to the grid visible area, or to the virtual scroll area if horizontal scorlling is enabled.
         if (local.layout != .fit_window) {
             const ratio = switch (local.layout) {
                 .equal_spacing => &local.equal_spacing,
@@ -4018,7 +4021,8 @@ fn gridLayouts() !void {
 
         // Selection
         {
-            var col = try grid.column(@src(), .{});
+            // Make the checkbox column fixed width. (This width is used if init_opts.col_widths is null)
+            var col = try grid.column(@src(), .{ .width = local.checkbox_w });
             defer col.deinit();
             if (try dvui.gridHeadingCheckbox(@src(), grid, &local.selection_state, .{}, .{})) {
                 for (all_cars) |*car| {
