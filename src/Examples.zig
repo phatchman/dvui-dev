@@ -3663,8 +3663,48 @@ pub fn icon_browser(src: std.builtin.SourceLocation, show_flag: *bool, comptime 
 const grid_panel_size: Size = .{ .w = 250 };
 
 pub fn grids() !void {
-    try gridStyling();
-    try gridLayouts();
+    const GridType = enum {
+        styling,
+        layout,
+        scrolling,
+        const num_grids = @typeInfo(@This()).@"enum".fields.len;
+    };
+    const local = struct {
+        var active_grid: GridType = .styling;
+
+        fn tabSelected(grid_type: GridType) bool {
+            return active_grid == grid_type;
+        }
+
+        fn tabName(grid_type: GridType) []const u8 {
+            return switch (grid_type) {
+                .styling => "Styling and sorting",
+                .layout => "Layouts and data",
+                .scrolling => "Virtual scrolling",
+            };
+        }
+    };
+
+    var tbox = try dvui.box(@src(), .vertical, .{ .border = Rect.all(1), .expand = .horizontal });
+    defer tbox.deinit();
+    {
+        var tabs = dvui.TabsWidget.init(@src(), .{ .dir = .horizontal }, .{ .expand = .horizontal });
+        try tabs.install();
+        defer tabs.deinit();
+
+        for (0..GridType.num_grids) |tab_num| {
+            const this_tab: GridType = @enumFromInt(tab_num);
+
+            if (try tabs.addTabLabel(local.tabSelected(this_tab), local.tabName(this_tab))) {
+                local.active_grid = this_tab;
+            }
+        }
+    }
+    switch (local.active_grid) {
+        .styling => try gridStyling(),
+        .layout => try gridLayouts(),
+        .scrolling => {},
+    }
 }
 
 fn gridStyling() !void {
@@ -3693,7 +3733,6 @@ fn gridStyling() !void {
         const Banding = enum { none, rows, cols };
     };
 
-    try dvui.labelNoFmt(@src(), "Styling and Sorting", .{ .font_style = .heading });
     var outer_hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
     defer outer_hbox.deinit();
     const row_background = local.banding == .rows or local.borders.nonZero();
@@ -3878,14 +3917,14 @@ fn gridLayouts() !void {
     };
 
     const local = struct {
-        const num_cols = 7;
-        const col_num_descr = 6;
+        const num_cols = 6;
+        const col_num_descr = 5;
         const checkbox_w = 40;
 
         var col_widths: [num_cols]f32 = @splat(100); // Default width to 100
-        const column_ratios = [num_cols]f32{ checkbox_w, -10, -10, -7, -10, -15, -30 };
-        const fixed_widths = [num_cols]f32{ checkbox_w, 80, 120, 80, 100, 100, 300 };
-        const equal_spacing = [num_cols]f32{ checkbox_w, -1, -1, -1, -1, -1, -1 };
+        const column_ratios = [num_cols]f32{ checkbox_w, -10, -10, -7, -15, -30 };
+        const fixed_widths = [num_cols]f32{ checkbox_w, 80, 120, 80, 100, 300 };
+        const equal_spacing = [num_cols]f32{ checkbox_w, -1, -1, -1, -1, -1 };
         var selection_state: dvui.GridColumnSelectAllState = .select_none;
         var sort_dir: GridWidget.SortDirection = .unsorted;
         var layout: Layout = .proportional;
@@ -3980,7 +4019,6 @@ fn gridLayouts() !void {
     };
     const all_cars = local.all_cars[0..];
 
-    try dvui.labelNoFmt(@src(), "Layouts and data columns", .{ .font_style = .heading });
     //var outer_hbox = try dvui.box(@src(), ., .{ .expand = .horizontal });
     //defer outer_hbox.deinit();
     {
@@ -4063,14 +4101,14 @@ fn gridLayouts() !void {
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "year", "{d}", .{ .callback = local.rowBanding }, .none);
         }
         // Mileage
-        {
-            var col = try grid.column(@src(), .{});
-            defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &local.sort_dir, .{}, .{ .gravity_x = 1.0 })) {
-                local.sort("Mileage");
-            }
-            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "mileage", "{d}", .{ .callback = local.rowBanding }, .none);
-        }
+        //{
+        //    var col = try grid.column(@src(), .{});
+        //    defer col.deinit();
+        //    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &local.sort_dir, .{}, .{ .gravity_x = 1.0 })) {
+        //        local.sort("Mileage");
+        //    }
+        //    try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "mileage", "{d}", .{ .callback = local.rowBanding }, .none);
+        //}
         // Condition
         {
             var col = try grid.column(@src(), .{});
