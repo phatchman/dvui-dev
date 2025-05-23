@@ -4179,7 +4179,8 @@ fn gridVirtualScrolling() !void {
 
         fn genPrimes() void {
             const limit = std.math.sqrt(num_rows);
-
+            primes.unset(0);
+            primes.unset(1);
             var current: u32 = 2;
             while (current < limit) : (current += 1) {
                 if (primes.isSet(current)) {
@@ -4239,7 +4240,7 @@ fn gridVirtualScrolling() !void {
             var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .w = 1, .h = 1 }, .background = true });
             defer cell.deinit();
             if (local.isPrime(num)) {
-                // TODO: I can't get this to centre in the grid.
+                // TODO: Can't use gravity to centre the icon as it can't .expand. So pad it instead.
                 const pad_w = cell.data().contentRect().w / 2 - 15;
                 try dvui.icon(@src(), "Check", check_img, .{ .gravity_x = 0.5, .gravity_y = 0.5, .padding = .{ .x = pad_w } });
             }
