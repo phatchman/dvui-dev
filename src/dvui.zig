@@ -4275,7 +4275,7 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
         var hbox = try dvui.box(@src(), .horizontal, header_options);
         defer hbox.deinit();
         selected = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
-        clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = 0.5, .gravity_x = 0.5 });
+        clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = header_options.gravity_y, .gravity_x = header_options.gravity_x });
         dvui.dataSet(null, hbox.data().id, "_selected", selected);
     }
     try dvui.separator(@src(), .{ .expand = .vertical });
@@ -4354,10 +4354,8 @@ pub fn gridColumnCheckbox(
 ///
 /// Positive widths are treated as fixed widths and are not modified.
 /// Negative widths are treated as ratios and are replaced by a calculated width.
-/// Results are returned in ratio_widths, containing calculated, positive column widths.
-/// If content_width is null, the columns will be sized to the grid's visible portion.
-/// If content_width is supplied, all columns will be sized to content_width.
-/// If content_width is larger than the visible area, horizontal scrolling should be enabled via the grid's init_opts.
+/// Results are returned in col_widths, which will always be positive (or zero) values.
+/// If content_width is larger than the grid's visible area, horizontal scrolling should be enabled via the grid's init_opts.
 ///
 /// Examples:
 /// To lay out three columns with equal widths, use the same negative ratio for each column:
@@ -4367,13 +4365,13 @@ pub fn gridColumnCheckbox(
 /// To lay out a fixed column width with all other columns sharing the remaining, use a positive width for the fixed column and
 /// the same negative ratio for the variable columns.
 ///     { -1, 50, -1 }.
-pub fn columnLayoutProportional(g: *dvui.GridWidget, ratio_widths: []f32, content_width: ?f32) void {
+pub fn columnLayoutProportional(ratio_widths: []const f32, col_widths: []f32, content_width: f32) void {
     const scroll_bar_w: f32 = 10; // TODO: Don't necessarily know if SB is showing? There needs ot be a grid function to work this out.
-    const content_w: f32 = content_width orelse g.data().contentRect().w;
+    std.debug.assert(ratio_widths.len == col_widths.len); // input and output slices must be the same length
 
     // Count all of the positive widths as reserved widths.
     // Total all of the negative widths.
-    const reserved_w, const ratio_w: f32 = blk: {
+    const reserved_w, const ratio_w_total: f32 = blk: {
         var res_width: f32 = 0;
         var total_ratio_w: f32 = 0;
         for (ratio_widths) |w| {
@@ -4385,12 +4383,14 @@ pub fn columnLayoutProportional(g: *dvui.GridWidget, ratio_widths: []f32, conten
         }
         break :blk .{ res_width, total_ratio_w };
     };
-    const available_w = content_w - reserved_w - scroll_bar_w;
+    const available_w = content_width - reserved_w - scroll_bar_w;
 
     // For each negative width, replace it width a positive calculated width.
-    for (ratio_widths) |*w| {
-        if (w.* <= 0) {
-            w.* = -w.* / ratio_w * available_w;
+    for (col_widths, ratio_widths) |*col_w, ratio_w| {
+        if (ratio_w <= 0) {
+            col_w.* = -ratio_w / ratio_w_total * available_w;
+        } else {
+            col_w.* = ratio_w;
         }
     }
 }
