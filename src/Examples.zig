@@ -3771,7 +3771,7 @@ fn gridStyling() !void {
             .min_size_content = grid_panel_size,
             .max_size_content = .size(grid_panel_size),
             .expand = .vertical,
-            .border = Rect.all(2),
+            .border = Rect.all(1),
         });
         defer outer_vbox.deinit();
 
