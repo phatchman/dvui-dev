@@ -3667,9 +3667,12 @@ pub fn grids() !void {
 
 fn gridStyling() !void {
     const local = struct {
+        var resize_rows: bool = false;
         var sort_dir: dvui.GridWidget.SortDirection = .unsorted;
         var borders: Rect = .all(0);
         var banding: Banding = .none;
+        var margin: f32 = 0;
+        var padding: f32 = 0;
 
         fn rowColorFill(row_num: usize) ?dvui.Options.ColorOrName {
             if (banding == .rows and row_num % 2 == 0) {
@@ -3693,21 +3696,24 @@ fn gridStyling() !void {
     const row_background = local.banding == .rows or local.borders.nonZero();
 
     {
-        var grid = try dvui.grid(@src(), .{}, .{
+        var grid = try dvui.grid(@src(), .{ .resize_rows = local.resize_rows }, .{
             .expand = .both,
             .background = true,
-            .max_size_content = .height(250),
+            .max_size_content = .height(300),
             .border = Rect.all(1),
             .padding = .{ .x = 5 },
         });
         defer grid.deinit();
+        local.resize_rows = false; // Make sure to only resize rows when needed.
+
+        // Set start, end and interval based on sort direction.
         const start_temp: i32, //
         const end_temp: i32, //
         const interval: i32 = switch (local.sort_dir) {
             .ascending, .unsorted => .{ 0, 100, 5 },
             .descending => .{ 100, 0, -5 },
         };
-        std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Range must be a multiple of interval
+        std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Temperature range must be a multiple of interval
 
         // Manually control sorting, so that sort direction is always reversed regardless of
         // which column header is clicked.
@@ -3717,9 +3723,10 @@ fn gridStyling() !void {
         {
             var col = try grid.column(@src(), .{ .color_fill = local.colColorFill(0), .background = true });
             defer col.deinit();
-            // Set column as the default sort
+            // Set this column as the default sort
             if (current_sort_dir == .unsorted) {
-                grid.colSortSet(.ascending);
+                local.sort_dir = .ascending;
+                grid.colSortSet(local.sort_dir);
             }
 
             if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &local.sort_dir, .{}, .{})) {
@@ -3736,6 +3743,8 @@ fn gridStyling() !void {
                     .border = local.borders,
                     .background = row_background,
                     .color_fill = local.rowColorFill(row_num),
+                    .margin = Rect.all(local.margin),
+                    .padding = Rect.all(local.padding),
                 });
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{temp}, .{ .gravity_x = 0.5, .expand = .horizontal });
@@ -3762,6 +3771,8 @@ fn gridStyling() !void {
                     .border = local.borders,
                     .background = row_background,
                     .color_fill = local.rowColorFill(row_num),
+                    .margin = Rect.all(local.margin),
+                    .padding = Rect.all(local.padding),
                 });
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{ .gravity_x = 0.5, .expand = .horizontal });
@@ -3815,9 +3826,29 @@ fn gridStyling() !void {
             }
             if (try dvui.radio(@src(), local.banding == .cols, "Cols", .{})) {
                 local.banding = .cols;
-            }
-            if (local.banding == .cols) {
                 local.borders = Rect.all(0);
+            }
+        }
+        if (try dvui.expander(@src(), "Other", .{ .default_expanded = true }, .{ .expand = .horizontal })) {
+            {
+                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+                defer hbox.deinit();
+                try dvui.labelNoFmt(@src(), "Margin:", .{ .min_size_content = .{ .w = 60 }, .gravity_y = 0.5 });
+                const result = try dvui.textEntryNumber(@src(), f32, .{ .min = 0, .max = 10, .value = &local.margin, .show_min_max = true }, .{});
+                if (result.changed and result.value == .Valid) {
+                    local.margin = result.value.Valid;
+                    local.resize_rows = true;
+                }
+            }
+            {
+                var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+                defer hbox.deinit();
+                try dvui.labelNoFmt(@src(), "Padding:", .{ .min_size_content = .{ .w = 60 }, .gravity_y = 0.5 });
+                const result = try dvui.textEntryNumber(@src(), f32, .{ .min = 0, .max = 10, .value = &local.padding, .show_min_max = true }, .{});
+                if (result.changed and result.value == .Valid) {
+                    local.padding = result.value.Valid;
+                    local.resize_rows = true;
+                }
             }
         }
     }
