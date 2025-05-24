@@ -3667,6 +3667,7 @@ pub fn grids() !void {
         styling,
         layout,
         scrolling,
+        row_heights,
         const num_grids = @typeInfo(@This()).@"enum".fields.len;
     };
     const local = struct {
@@ -3681,6 +3682,7 @@ pub fn grids() !void {
                 .styling => "Styling and sorting",
                 .layout => "Layouts and data",
                 .scrolling => "Virtual scrolling",
+                .row_heights => "Variable row heigts",
             };
         }
     };
@@ -3704,6 +3706,7 @@ pub fn grids() !void {
         .styling => try gridStyling(),
         .layout => try gridLayouts(),
         .scrolling => try gridVirtualScrolling(),
+        .row_heights => try gridVariableRowHeights(),
     }
 }
 
@@ -4245,6 +4248,28 @@ fn gridVirtualScrolling() !void {
                 try dvui.icon(@src(), "Check", check_img, .{ .gravity_x = 0.5, .gravity_y = 0.5, .padding = .{ .x = pad_w } });
             }
         }
+    }
+}
+
+// TODO: Find out why this is slow to draw the full
+fn gridVariableRowHeights() !void {
+    //const grid_size = Size.cast(dvui.parentGet().data().contentRect());
+
+    var grid = try dvui.grid(@src(), .{}, .{
+        .expand = .both,
+        //        .max_size_content = .size(grid_size),
+        //        .min_size_content = grid_size,
+    });
+    defer grid.deinit();
+
+    var col = try grid.column(@src(), .{});
+    defer col.deinit();
+    for (1..10) |row_num| {
+        const row_num_i: i32 = @intCast(row_num);
+        const row_height = 70 - (@abs(row_num_i - 5) * 10);
+        var cell = try grid.bodyCell(@src(), row_num, .{ .height = @floatFromInt(row_height), .border = Rect.all(1) });
+        defer cell.deinit();
+        try dvui.label(@src(), "h = {d}", .{row_height}, .{ .gravity_x = 0.5, .expand = .horizontal });
     }
 }
 

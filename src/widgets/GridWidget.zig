@@ -319,7 +319,8 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         const measured_cell_height = cell.data().rect.h;
         self.row_height = @max(self.row_height, measured_cell_height);
     }
-    self.next_row_y += self.row_height; // TODO: Does row_height or last_row_height look better when resizing?
+
+    self.next_row_y += if (opts.height) |height| height else self.row_height;
 
     return cell;
 }

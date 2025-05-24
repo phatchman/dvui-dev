@@ -19,6 +19,8 @@
         - Also note in the demo there is an "Expand" column for Description. That's not really compatible with virtual scrolling.
         - Need to investigate further.
 - [X] Grids within scroll areas and/or floating windows doesn't work. Clipping is wrong.
+- [ ] The variable row heights example takes several frames to draw correctly. Why??
+- [ ] Should the grid restrict it's size ot the parent window size and then start scrolling? Or should it expand?
 
 ### Future
 * Some better visual indication that columns are sortable.
