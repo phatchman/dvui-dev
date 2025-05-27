@@ -4209,8 +4209,8 @@ fn gridVirtualScrolling() !void {
             return primes.isSet(num);
         }
 
-        fn highlightIfHovered(box: *dvui.BoxWidget, row_num: usize) !void {
-            if (highlighted_row != null and highlighted_row.? == row_num) {
+        fn highlightIfHovered(box: *dvui.BoxWidget, hovered: bool) !void {
+            if (hovered) {
                 box.wd.options.background = true;
                 box.wd.options.color_fill = .fill_hover;
                 try box.drawBackground();
@@ -4235,27 +4235,28 @@ fn gridVirtualScrolling() !void {
 
     // Check if a row is being hovered.
     const evts = dvui.events();
-    for (evts) |*e| {
-        if (dvui.eventMatchSimple(e, grid.scroll.data())) {
-            if (e.evt == .mouse and e.evt.mouse.action == .position) {
-                if (grid.row_height > 1) {
-                    // Convert mouse screen co-ords into co-ords relative to the scroll area's top-left.
-                    const scroll_rect = grid.scroll.data().rectScale();
-                    const offset = scroll_rect.pointFromPhysical(e.evt.mouse.p).y - grid.header_height;
-                    if (offset > 0) {
-                        // If the mouse is in the body part, not in the header part of the scroll area
-                        local.highlighted_row = @intFromFloat((local.scroll_info.viewport.y + offset) / grid.row_height);
-                        break;
+    const highlighted_row: ?usize = row: {
+        for (evts) |*e| {
+            if (dvui.eventMatchSimple(e, grid.scroll.data())) {
+                if (e.evt == .mouse and e.evt.mouse.action == .position) {
+                    if (grid.row_height > 1) {
+                        // Convert mouse screen co-ords into co-ords relative to the scroll area's top-left.
+                        const scroll_rect = grid.scroll.data().rectScale();
+                        const offset = scroll_rect.pointFromPhysical(e.evt.mouse.p).y - grid.header_height;
+                        if (offset > 0) {
+                            // If the mouse is in the body part, not in the header part of the scroll area
+                            break :row @intFromFloat((local.scroll_info.viewport.y + offset) / grid.row_height);
+                        }
                     }
                 }
             }
         }
-        local.highlighted_row = null;
-    }
+        break :row null;
+    };
 
     const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
-    const last = scroller.endRow(); // Note that endRow is exclusive meaning it can be used as a slice ending index.
+    const last = scroller.endRow(); // Note that endRow is exclusive, meaning it can be used as a slice end index.
 
     // Number column
     {
@@ -4266,7 +4267,7 @@ fn gridVirtualScrolling() !void {
         for (first..last) |num| {
             var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .x = 1, .w = 1, .h = 1 }, .background = true });
             defer cell.deinit();
-            try local.highlightIfHovered(cell, num);
+            try local.highlightIfHovered(cell, num == highlighted_row);
             try dvui.label(@src(), "{d}", .{num}, .{});
         }
     }
@@ -4280,7 +4281,7 @@ fn gridVirtualScrolling() !void {
         for (first..last) |num| {
             var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .w = 1, .h = 1 }, .background = true });
             defer cell.deinit();
-            try local.highlightIfHovered(cell, num);
+            try local.highlightIfHovered(cell, num == highlighted_row);
             if (local.isPrime(num)) {
                 // TODO: Can't currently use gravity to centre the icon as it can't .expand. So pad it instead.
                 const pad_w = cell.data().contentRect().w / 2 - 15;
