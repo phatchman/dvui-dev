@@ -472,7 +472,7 @@ pub fn demo() !void {
                     .animations => try animations(),
                     .struct_ui => try structUI(),
                     .debugging => try debuggingErrors(),
-                    .grid => try grids(),
+                    .grid => try grids(0),
                 }
             }
 
@@ -525,7 +525,7 @@ pub fn demo() !void {
             .animations => animations(),
             .struct_ui => structUI(),
             .debugging => debuggingErrors(),
-            .grid => grids(),
+            .grid => grids(scroll.si.viewport.h - hbox.data().rect.h - 10),
         };
     }
 
@@ -3662,7 +3662,20 @@ pub fn icon_browser(src: std.builtin.SourceLocation, show_flag: *bool, comptime 
 
 const grid_panel_size: Size = .{ .w = 250 };
 
-pub fn grids() !void {
+pub fn grids(height: f32) !void {
+    // Below is a workaround for standaline demos being placed in a scroll-area.
+    // By default the scroll-area will scroll instead of the grid.
+    // Fix the height of the     // grid to the scroll area's viewport to prevent this.
+    // This would not be required for normal usage.
+    const vbox = if (height > 0)
+        try dvui.box(@src(), .vertical, .{ .min_size_content = .{ .h = height }, .max_size_content = .height(height), .expand = .horizontal })
+    else
+        null;
+
+    defer if (vbox) |vb| {
+        vb.deinit();
+    };
+
     const GridType = enum {
         styling,
         layout,
@@ -3686,19 +3699,20 @@ pub fn grids() !void {
             };
         }
     };
-
-    var tbox = try dvui.box(@src(), .vertical, .{ .border = Rect.all(1), .expand = .horizontal });
-    defer tbox.deinit();
     {
-        var tabs = dvui.TabsWidget.init(@src(), .{ .dir = .horizontal }, .{ .expand = .horizontal });
-        try tabs.install();
-        defer tabs.deinit();
+        var tbox = try dvui.box(@src(), .vertical, .{ .border = Rect.all(1), .expand = .horizontal });
+        defer tbox.deinit();
+        {
+            var tabs = dvui.TabsWidget.init(@src(), .{ .dir = .horizontal }, .{ .expand = .horizontal });
+            try tabs.install();
+            defer tabs.deinit();
 
-        for (0..GridType.num_grids) |tab_num| {
-            const this_tab: GridType = @enumFromInt(tab_num);
+            for (0..GridType.num_grids) |tab_num| {
+                const this_tab: GridType = @enumFromInt(tab_num);
 
-            if (try tabs.addTabLabel(local.tabSelected(this_tab), local.tabName(this_tab))) {
-                local.active_grid = this_tab;
+                if (try tabs.addTabLabel(local.tabSelected(this_tab), local.tabName(this_tab))) {
+                    local.active_grid = this_tab;
+                }
             }
         }
     }
@@ -3744,7 +3758,6 @@ fn gridStyling() !void {
         var grid = try dvui.grid(@src(), .{ .resize_rows = local.resize_rows }, .{
             .expand = .both,
             .background = true,
-            .max_size_content = .height(300),
             .border = Rect.all(1),
             .padding = .{ .x = 5 },
         });
@@ -3956,12 +3969,16 @@ fn gridLayouts() !void {
 
         /// Set the text color of the Condition text, based on the condition.
         fn conditionTextColor(_: usize, row_num: usize) Options {
-            return switch (all_cars[row_num].condition) {
-                .New => .{ .color_text = .{ .color = dvui.Color.fromHex("#4bbfc3") } },
-                .Excellent => .{ .color_text = .{ .color = dvui.Color.fromHex("#6ca96c") } },
-                .Good => .{ .color_text = .{ .color = dvui.Color.fromHex("#a3b76b") } },
-                .Fair => .{ .color_text = .{ .color = dvui.Color.fromHex("#d3b95f") } },
-                .Poor => .{ .color_text = .{ .color = dvui.Color.fromHex("#c96b6b") } },
+            return .{
+                .expand = .horizontal,
+                .gravity_x = 0.5,
+                .color_text = switch (all_cars[row_num].condition) {
+                    .New => .{ .color = dvui.Color.fromHex("#4bbfc3") },
+                    .Excellent => .{ .color = dvui.Color.fromHex("#6ca96c") },
+                    .Good => .{ .color = dvui.Color.fromHex("#a3b76b") },
+                    .Fair => .{ .color = dvui.Color.fromHex("#d3b95f") },
+                    .Poor => .{ .color = dvui.Color.fromHex("#c96b6b") },
+                },
             };
         }
 
@@ -4022,8 +4039,8 @@ fn gridLayouts() !void {
     };
     const all_cars = local.all_cars[0..];
 
-    //var outer_hbox = try dvui.box(@src(), ., .{ .expand = .horizontal });
-    //defer outer_hbox.deinit();
+    const panel_height = 250;
+    const content_h = dvui.parentGet().data().contentRect().h - panel_height;
     {
         const scroll_opts: ?dvui.ScrollAreaWidget.InitOpts = if (local.h_scroll)
             .{ .horizontal = .auto, .horizontal_bar = .show, .vertical = .auto, .vertical_bar = .show }
@@ -4042,8 +4059,9 @@ fn gridLayouts() !void {
         }, .{
             .expand = .both,
             .background = true,
-            .max_size_content = .height(300),
             .border = Rect.all(2),
+            .min_size_content = .{ .h = content_h },
+            .max_size_content = .height(content_h),
             .padding = .{ .x = 5 },
         });
         defer grid.deinit();
@@ -4178,12 +4196,13 @@ fn gridVirtualScrolling() !void {
     const local = struct {
         var scroll_info: dvui.ScrollInfo = .{ .vertical = .given, .horizontal = .none };
         var primes: std.StaticBitSet(num_rows) = .initFull();
-        var calculated_primes: bool = false;
+        var generated_primes: bool = false;
+        var highlighted_row: ?usize = null;
 
-        fn genPrimes() void {
+        fn generatePrimes() void {
             const limit = std.math.sqrt(num_rows);
-            primes.unset(0);
-            primes.unset(1);
+            if (num_rows > 0) primes.unset(0);
+            if (num_rows > 1) primes.unset(1);
             var current: u32 = 2;
             while (current < limit) : (current += 1) {
                 if (primes.isSet(current)) {
@@ -4198,10 +4217,19 @@ fn gridVirtualScrolling() !void {
         fn isPrime(num: usize) bool {
             return primes.isSet(num);
         }
+
+        fn highlightIfHovered(box: *dvui.BoxWidget, row_num: usize) !void {
+            if (highlighted_row != null and highlighted_row.? == row_num) {
+                box.wd.options.background = true;
+                box.wd.options.color_fill = .fill_hover;
+                try box.drawBackground();
+            }
+        }
     };
-    if (!local.calculated_primes) {
-        local.genPrimes();
-        local.calculated_primes = true;
+
+    if (!local.generated_primes) {
+        local.generatePrimes();
+        local.generated_primes = true;
     }
 
     var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both });
@@ -4209,16 +4237,34 @@ fn gridVirtualScrolling() !void {
     var grid = try dvui.grid(@src(), .{ .scroll_opts = .{ .scroll_info = &local.scroll_info } }, .{
         .expand = .both,
         .background = true,
-        .min_size_content = .{ .h = 300 },
-        .max_size_content = .height(300),
         .border = Rect.all(1),
         .padding = .{ .x = 5 },
     });
     defer grid.deinit();
 
+    // Check if a row is being hovered.
+    const evts = dvui.events();
+    for (evts) |*e| {
+        if (dvui.eventMatchSimple(e, grid.scroll.data())) {
+            if (e.evt == .mouse and e.evt.mouse.action == .position) {
+                if (grid.row_height > 1) {
+                    // Convert physical mouse co-ords into co-ords relative to the scroll area's top-left.
+                    const scroll_rect = grid.scroll.data().rectScale();
+                    const offset = scroll_rect.pointFromPhysical(e.evt.mouse.p).y - grid.header_height;
+                    if (offset > 0) {
+                        // If mouse is in the body part, not in the header part of the scroll area
+                        local.highlighted_row = @intFromFloat((local.scroll_info.viewport.y + offset) / grid.row_height);
+                        break;
+                    }
+                }
+            }
+        }
+        local.highlighted_row = null;
+    }
+
     const scroller: dvui.GridWidget.GridVirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
-    const last = scroller.endRow();
+    const last = scroller.endRow(); // Note that endRow is exclusive meaning it can be used as a slice ending index.
 
     // Number column
     {
@@ -4229,6 +4275,7 @@ fn gridVirtualScrolling() !void {
         for (first..last) |num| {
             var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .x = 1, .w = 1, .h = 1 }, .background = true });
             defer cell.deinit();
+            try local.highlightIfHovered(cell, num);
             try dvui.label(@src(), "{d}", .{num}, .{});
         }
     }
@@ -4242,23 +4289,19 @@ fn gridVirtualScrolling() !void {
         for (first..last) |num| {
             var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .w = 1, .h = 1 }, .background = true });
             defer cell.deinit();
+            try local.highlightIfHovered(cell, num);
             if (local.isPrime(num)) {
-                // TODO: Can't use gravity to centre the icon as it can't .expand. So pad it instead.
+                // TODO: Can't currently use gravity to centre the icon as it can't .expand. So pad it instead.
                 const pad_w = cell.data().contentRect().w / 2 - 15;
-                try dvui.icon(@src(), "Check", check_img, .{ .gravity_x = 0.5, .gravity_y = 0.5, .padding = .{ .x = pad_w } });
+                try dvui.icon(@src(), "Check", check_img, .{ .gravity_x = 0.5, .gravity_y = 0.5, .padding = .{ .x = pad_w }, .background = false });
             }
         }
     }
 }
 
-// TODO: Find out why this is slow to draw the full
 fn gridVariableRowHeights() !void {
-    //const grid_size = Size.cast(dvui.parentGet().data().contentRect());
-
     var grid = try dvui.grid(@src(), .{}, .{
         .expand = .both,
-        //        .max_size_content = .size(grid_size),
-        //        .min_size_content = grid_size,
     });
     defer grid.deinit();
 

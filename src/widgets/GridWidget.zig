@@ -2,7 +2,7 @@ const std = @import("std");
 const dvui = @import("../dvui.zig");
 
 const Options = dvui.Options;
-const ColorOrName = dvui.Options.ColorOrName;
+const ColorOrName = Options.ColorOrName;
 const Rect = dvui.Rect;
 const Size = dvui.Size;
 const MaxSize = Options.MaxSize;
@@ -12,6 +12,24 @@ const BoxWidget = dvui.BoxWidget;
 const ScrollAreaWidget = dvui.ScrollAreaWidget;
 const GridWidget = @This();
 
+pub const ColOptions = struct {
+    width: ?f32 = null,
+    border: ?Rect = null,
+    background: ?bool = null,
+    color_fill: ?ColorOrName = null,
+    color_border: ?ColorOrName = null,
+
+    pub fn toOptions(self: *const ColOptions) Options {
+        return .{
+            // height is not converted
+            .border = self.border,
+            .background = self.background,
+            .color_fill = self.color_fill,
+            .color_border = self.color_border,
+        };
+    }
+};
+
 pub const CellOptions = struct {
     height: ?f32 = null,
     margin: ?Rect = null,
@@ -19,40 +37,16 @@ pub const CellOptions = struct {
     padding: ?Rect = null,
     background: ?bool = null,
     color_fill: ?ColorOrName = null,
-    color_fill_hover: ?ColorOrName = null,
     color_border: ?ColorOrName = null,
 
-    // TODO: provide override???
     pub fn toOptions(self: *const CellOptions) Options {
         return .{
-            // height is not converted as cell height is set via rect.
+            // does not convert height
             .margin = self.margin,
             .border = self.border,
             .padding = self.padding,
             .background = self.background,
             .color_fill = self.color_fill,
-            .color_fill_hover = self.color_fill_hover,
-            .color_border = self.color_border,
-        };
-    }
-};
-
-pub const ColOptions = struct {
-    width: ?f32 = null,
-    border: ?Rect = null,
-    background: ?bool = null,
-    color_fill: ?ColorOrName = null,
-    color_fill_hover: ?ColorOrName = null, // TODO: Not currently supported.
-    color_border: ?ColorOrName = null,
-
-    // TODO: provide override???
-    pub fn toOptions(self: *const ColOptions) Options {
-        return .{
-            // height is not converted as cell height is set via rect.
-            .border = self.border,
-            .background = self.background,
-            .color_fill = self.color_fill,
-            .color_fill_hover = self.color_fill_hover, // TODO: Not currently supported.
             .color_border = self.color_border,
         };
     }
@@ -85,11 +79,10 @@ pub const InitOpts = struct {
 };
 pub const default_col_width: f32 = 100;
 
-vbox: BoxWidget = undefined, // Outer container
+vbox: BoxWidget = undefined,
 scroll: ScrollAreaWidget = undefined,
-hbox: BoxWidget = undefined, // Horizontal box for column layout
+hbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
-num_cols: f32 = undefined,
 current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
 last_height: f32 = 0,
@@ -143,7 +136,7 @@ pub fn install(self: *GridWidget) !void {
     try self.vbox.install();
     try self.vbox.drawBackground();
 
-    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .expand = .both });
+    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
     try self.scroll.install();
 
     // Lay out columns horizontally.
@@ -369,7 +362,7 @@ pub const GridVirtualScroller = struct {
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
         si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
         const first_row: f32 = @floatFromInt(_startRow(grid, si, init_opts.total_rows));
-        grid.offsetRowsBy(first_row * grid.row_height); // TODO: does last_row_height make a difference?
+        grid.offsetRowsBy(first_row * grid.row_height);
         return .{
             .grid = grid,
             .si = si,
@@ -377,7 +370,7 @@ pub const GridVirtualScroller = struct {
         };
     }
 
-    fn _startRow(grid: *GridWidget, si: *ScrollInfo, total_rows: usize) usize {
+    fn _startRow(grid: *const GridWidget, si: *ScrollInfo, total_rows: usize) usize {
         if (grid.row_height < 1) {
             return 0;
         }
@@ -394,10 +387,11 @@ pub const GridVirtualScroller = struct {
 
     /// Return the end row to render (exclusive)
     pub fn endRow(self: *const GridVirtualScroller) usize {
-        if (self.grid.row_height < 1) {
-            return 1;
-        }
-        const last_row_in_viewport: usize = @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.grid.row_height));
+        const last_row_in_viewport: usize =
+            if (self.grid.row_height < 1)
+                0
+            else
+                @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.grid.row_height));
         return @min(last_row_in_viewport + 1, self.total_rows);
     }
 };
