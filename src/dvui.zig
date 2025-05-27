@@ -4077,10 +4077,7 @@ pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opt
     return ret;
 }
 
-// TODO: Add col num to the styling callbacks. // TODO
 /// Create a heading with a static label
-///
-/// opts controls the styling for the label.
 pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, cell_opts: dvui.GridWidget.CellOptions, opts: dvui.Options) !void {
     const label_defaults: Options = .{
         .corner_radius = Rect.all(0),
@@ -4102,7 +4099,6 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
 ///
 /// Returns true if the sort direction has changed.
 /// sort_dir is an out parameter containing the current sort direction.
-/// opts controls the styling for the button label used for the heading.
 pub fn gridHeadingSortable(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
@@ -4161,8 +4157,6 @@ pub const OptionsOrCallback = union(enum) {
 /// Enums are displayed as their @tagName and fmt must be "{s}"
 /// Bools are displayed as Y or N and fmt must be "{s}"
 /// Other types are formatted using the supplied fmt string.
-/// cell_opts styles the cell's hbox
-/// opts styles the label
 pub fn gridColumnFromSlice(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
@@ -4293,7 +4287,6 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
 /// Returns true if any selections have changed.
 /// If field_name is null, T must be a bool.
 /// Otherwise field_name must refer to a bool field within a struct.
-/// opts is used to style the checkbox.
 pub fn gridColumnCheckbox(
     src: std.builtin.SourceLocation,
     g: *dvui.GridWidget,

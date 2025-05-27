@@ -11,6 +11,11 @@ const WidgetData = dvui.WidgetData;
 const BoxWidget = dvui.BoxWidget;
 const ScrollAreaWidget = dvui.ScrollAreaWidget;
 const GridWidget = @This();
+pub var defaults: Options = .{
+    .name = "GridWidget",
+    .background = true,
+    .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
+};
 
 pub const ColOptions = struct {
     width: ?f32 = null,
@@ -52,12 +57,6 @@ pub const CellOptions = struct {
     }
 };
 
-pub var defaults: Options = .{
-    .name = "GridWidget",
-    .background = true,
-    .corner_radius = Rect{ .x = 0, .y = 0, .w = 5, .h = 5 },
-};
-
 pub const SortDirection = enum {
     unsorted,
     ascending,
@@ -74,7 +73,7 @@ pub const SortDirection = enum {
 pub const InitOpts = struct {
     scroll_opts: ?ScrollAreaWidget.InitOpts = null,
     col_widths: ?[]f32 = null,
-    // Recalculate row heights. Only set this when row heights might have changed, .e.g on column resize.
+    // Recalculate row heights. Only set this when row heights could have changed, .e.g on column resize.
     resize_rows: bool = false,
 };
 pub const default_col_width: f32 = 100;
@@ -92,9 +91,9 @@ last_row_height: f32 = 0,
 col_num: usize = std.math.maxInt(usize),
 sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
-prev_clip_rect: ?Rect.Physical = null,
+saved_clip_rect: ?Rect.Physical = null,
 resizing: bool = false,
-y_offset: f32 = 0,
+rows_y_offset: f32 = 0,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -147,10 +146,6 @@ pub fn install(self: *GridWidget) !void {
     try self.hbox.drawBackground();
 }
 
-pub fn data(self: *GridWidget) *WidgetData {
-    return &self.vbox.wd;
-}
-
 pub fn deinit(self: *GridWidget) void {
     self.clipReset();
 
@@ -171,10 +166,14 @@ pub fn deinit(self: *GridWidget) void {
     self.vbox.deinit();
 }
 
+pub fn data(self: *GridWidget) *WidgetData {
+    return &self.vbox.wd;
+}
+
 /// Set the starting y value to begin rendering rows.
 /// Used for setting the y location of the first row when virtual scrolling.
 pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
-    self.y_offset = offset;
+    self.rows_y_offset = offset;
 }
 
 /// Start a new grid column.
@@ -183,17 +182,14 @@ pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
 /// Column width is determined from:
 /// 1) init_opts.col_width if supplied
 /// 2) opts.width if supplied
-/// 3) If not width is provided it will expand to the available space.
-/// It is highly recommended that widths are provided for all columns.
+/// 3) Otherewise column will expand to the available space.
+/// It is recommended that widths are provided for all columns.
 pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) !*BoxWidget {
     self.clipReset();
     self.current_col = null;
-    if (self.col_num == std.math.maxInt(usize)) {
-        self.col_num = 0;
-    } else {
-        self.col_num += 1;
-    }
-    self.next_row_y = self.y_offset;
+
+    self.col_num +%= 1; // maxint wraps to 0 for first col.
+    self.next_row_y = self.rows_y_offset;
 
     const w: f32, const expand: ?Options.Expand = width: {
         // Take width from col_opts if it is set.
@@ -234,14 +230,14 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
 
 /// Restore saved clip region.
 fn clipReset(self: *GridWidget) void {
-    if (self.prev_clip_rect) |cr| {
+    if (self.saved_clip_rect) |cr| {
         dvui.clipSet(cr);
-        self.prev_clip_rect = null;
+        self.saved_clip_rect = null;
     }
 }
 
 /// Create a new header cell within a column
-/// Returns a hbox, deinit() must be called on this hbox before creating a new cell.
+/// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
 /// Only one header cell is allowed per column.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) !*BoxWidget {
@@ -274,7 +270,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
 }
 
 /// Create a new body cell within a column
-/// Returns a hbox, deinit() must be called on this hbox before creating a new cell.
+/// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) !*BoxWidget {
     const parent_rect = self.current_col.?.data().contentRect();
@@ -287,8 +283,8 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         }
     };
 
-    // Prevent the header for being overwritten when scrolling.
-    if (self.prev_clip_rect == null) {
+    // Prevent the header from being overwritten when scrolling.
+    if (self.saved_clip_rect == null) {
         const rect_scale = self.vbox.data().rectScale();
         const header_height_scaled = self.header_height * rect_scale.s;
 
@@ -296,7 +292,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         clip_rect.y += header_height_scaled;
         clip_rect.h = self.scroll.si.viewport.h * rect_scale.s - header_height_scaled;
 
-        self.prev_clip_rect = dvui.clip(clip_rect);
+        self.saved_clip_rect = dvui.clip(clip_rect);
     }
 
     var cell_opts = opts.toOptions();
@@ -313,18 +309,20 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         self.row_height = @max(self.row_height, measured_cell_height);
     }
 
+    // If user provided a height, use that to position the next row, otherwise use the
+    // calculated row_height.
     self.next_row_y += if (opts.height) |height| height else self.row_height;
 
     return cell;
 }
 
-/// Set the sort order when manually managing column sorting.
+/// Set the grid's sort order when manually managing column sorting.
 pub fn colSortSet(self: *GridWidget, dir: SortDirection) void {
     self.sort_col_number = self.col_num;
     self.sort_direction = dir;
 }
 
-/// If the grid is managing the sort order, this must be called whenever
+/// For automatic management of sort order, this must be called whenever
 /// the sort order for any column has changed.
 pub fn sortChanged(self: *GridWidget) void {
     // If sorting on a new column, change current sort column to unsorted.
@@ -348,7 +346,9 @@ pub fn colSortOrder(self: *const GridWidget) SortDirection {
 /// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.
 /// GridVirtualScroller requires that a scroll_info has been passed as an init_option
 /// to the GridBodyWidget.
-pub const GridVirtualScroller = struct {
+/// Note: Requires all rows to be the same height for the entire dataset. It is recommended
+/// to supply row heights to each cell when using the virtual scroller.
+pub const VirtualScroller = struct {
     pub const InitOpts = struct {
         // Total rows in the columns displayed
         total_rows: usize,
@@ -357,7 +357,7 @@ pub const GridVirtualScroller = struct {
     grid: *GridWidget,
     si: *ScrollInfo,
     total_rows: usize,
-    pub fn init(grid: *GridWidget, init_opts: GridVirtualScroller.InitOpts) GridVirtualScroller {
+    pub fn init(grid: *GridWidget, init_opts: VirtualScroller.InitOpts) VirtualScroller {
         const si = init_opts.scroll_info;
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
         si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
@@ -381,12 +381,12 @@ pub const GridVirtualScroller = struct {
         return @min(first_row_in_viewport - 1, total_rows);
     }
     /// Return the first row to render (inclusive)
-    pub fn startRow(self: *const GridVirtualScroller) usize {
+    pub fn startRow(self: *const VirtualScroller) usize {
         return _startRow(self.grid, self.si, self.total_rows);
     }
 
     /// Return the end row to render (exclusive)
-    pub fn endRow(self: *const GridVirtualScroller) usize {
+    pub fn endRow(self: *const VirtualScroller) usize {
         const last_row_in_viewport: usize =
             if (self.grid.row_height < 1)
                 0

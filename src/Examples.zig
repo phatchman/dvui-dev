@@ -4121,15 +4121,6 @@ fn gridLayouts() !void {
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "year", "{d}", .{ .callback = local.rowBanding }, .none);
         }
-        // Mileage
-        //{
-        //    var col = try grid.column(@src(), .{});
-        //    defer col.deinit();
-        //    if (try dvui.gridHeadingSortable(@src(), grid, "Mileage", &local.sort_dir, .{}, .{ .gravity_x = 1.0 })) {
-        //        local.sort("Mileage");
-        //    }
-        //    try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "mileage", "{d}", .{ .callback = local.rowBanding }, .none);
-        //}
         // Condition
         {
             var col = try grid.column(@src(), .{});
@@ -4248,11 +4239,11 @@ fn gridVirtualScrolling() !void {
         if (dvui.eventMatchSimple(e, grid.scroll.data())) {
             if (e.evt == .mouse and e.evt.mouse.action == .position) {
                 if (grid.row_height > 1) {
-                    // Convert physical mouse co-ords into co-ords relative to the scroll area's top-left.
+                    // Convert mouse screen co-ords into co-ords relative to the scroll area's top-left.
                     const scroll_rect = grid.scroll.data().rectScale();
                     const offset = scroll_rect.pointFromPhysical(e.evt.mouse.p).y - grid.header_height;
                     if (offset > 0) {
-                        // If mouse is in the body part, not in the header part of the scroll area
+                        // If the mouse is in the body part, not in the header part of the scroll area
                         local.highlighted_row = @intFromFloat((local.scroll_info.viewport.y + offset) / grid.row_height);
                         break;
                     }
@@ -4262,7 +4253,7 @@ fn gridVirtualScrolling() !void {
         local.highlighted_row = null;
     }
 
-    const scroller: dvui.GridWidget.GridVirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
+    const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
     const last = scroller.endRow(); // Note that endRow is exclusive meaning it can be used as a slice ending index.
 
