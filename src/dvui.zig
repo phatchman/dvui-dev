@@ -4091,8 +4091,8 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
     var cell = try g.headerCell(src, cell_opts);
     defer cell.deinit();
 
+    try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
     try labelNoFmt(@src(), heading, label_options);
-    try separator(@src(), .{ .expand = .vertical });
 }
 
 /// Create a heading and allow the column to be sorted.
@@ -4123,6 +4123,8 @@ pub fn gridHeadingSortable(
     var cell = try g.headerCell(src, cell_opts);
     defer cell.deinit();
 
+    try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
+
     const sort_changed = switch (g.colSortOrder()) {
         .unsorted => try button(@src(), heading, .{ .draw_focus = false }, padding_opts.override(heading_opts)),
         .ascending => try buttonLabelAndIcon(@src(), heading, icon_ascending, .{ .draw_focus = false }, heading_opts),
@@ -4132,7 +4134,6 @@ pub fn gridHeadingSortable(
     if (sort_changed) {
         g.sortChanged();
     }
-    try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
     dir.* = g.sort_direction;
     return sort_changed;
 }
@@ -4260,19 +4261,22 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
         .gravity_y = 0.5,
     };
     const header_options = header_defaults.override(opts);
+
     var cell = try g.headerCell(src, cell_opts);
     defer cell.deinit();
 
     var clicked = false;
     var selected = false;
     {
+        try dvui.separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
+
         var hbox = try dvui.box(@src(), .horizontal, header_options);
         defer hbox.deinit();
-        selected = dvui.dataGet(null, hbox.data().id, "_selected", bool) orelse false;
+
+        selected = dvui.dataGet(null, cell.data().id, "selected", bool) orelse false;
         clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = header_options.gravity_y, .gravity_x = header_options.gravity_x });
-        dvui.dataSet(null, hbox.data().id, "_selected", selected);
+        dvui.dataSet(null, cell.data().id, "selected", selected);
     }
-    try dvui.separator(@src(), .{ .expand = .vertical });
 
     if (clicked) {
         selection.* = if (selected) .select_all else .select_none;
@@ -4299,7 +4303,7 @@ pub fn gridColumnCheckbox(
     if (T != bool) {
         if (field_name) |_field_name| {
             if (!@hasField(T, _field_name)) {
-                @compileError(std.fmt.comptimePrint("'{s}' does has no member named {s}.", .{ @typeName(T), _field_name }));
+                @compileError(std.fmt.comptimePrint("'{s}' doesn't contain a member named {s}.", .{ @typeName(T), _field_name }));
             } else if (@FieldType(T, _field_name) != bool) {
                 @compileError(std.fmt.comptimePrint("{s}.{s} must be of type bool.", .{ @typeName(T), _field_name }));
             }
@@ -4310,6 +4314,7 @@ pub fn gridColumnCheckbox(
     const check_defaults: Options = .{
         .gravity_x = 0.5,
         .gravity_y = 0.5,
+        .margin = ButtonWidget.defaults.margin,
     };
     const check_opts = switch (opts) {
         .options => |o| check_defaults.override(o),
@@ -4859,8 +4864,8 @@ pub fn buttonLabelAndIcon(src: std.builtin.SourceLocation, label_str: []const u8
         var hbox = try box(src, .horizontal, .{ .expand = .horizontal });
         defer hbox.deinit();
 
+        try icon(@src(), label_str, tvg_bytes, opts.strip().override(.{ .gravity_y = 0.5, .gravity_x = 1.0 }));
         try labelNoFmt(@src(), label_str, options.override(.{ .expand = .horizontal }));
-        try icon(@src(), label_str, tvg_bytes, opts.strip().override(.{ .gravity_y = 0.5 }));
     }
 
     const click = bw.clicked();
