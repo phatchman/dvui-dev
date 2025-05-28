@@ -322,8 +322,8 @@ pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
 }
 
 /// Converts a physical point (e.g. a mouse position) into a logical point
-/// relative to the top-left of the body area of the grid.
-/// Return the logical point if the point is located within the grid body,
+/// relative to the top-left of the grid's body.
+/// Return the logical point if it point is located within the grid body,
 /// otherwise return null.
 pub fn pointToBodyRelative(self: *GridWidget, point: Point.Physical) ?Point {
     const scroll_rect = self.scroll.data().rectScale();
