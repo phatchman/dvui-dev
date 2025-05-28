@@ -311,7 +311,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
 
     // If user provided a height, use that to position the next row, otherwise use the
     // calculated row_height.
-    self.next_row_y += if (opts.height) |height| height else self.row_height;
+    self.next_row_y += opts.height orelse self.row_height;
 
     return cell;
 }
