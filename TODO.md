@@ -11,11 +11,10 @@
 - [X] Ability to highlight hovered rows (userland)
 
 ### Todos
-- [ ] Get rid of the padding for the sortable header. It isn't const the size of the symbol is dependent on the font size?
-- [ ] Handle padding when header column width is smaller than the heading button width. Currently doesn't show the separator.
-- [ ] Need some defalt padding, so the first column isn;t hard against the edge of the grid.
-- [ ] Support single select vs multiple select on the checkbox columns?
-- [ ] Fix checkbox separator when placed in an oversized column (or too small column)
+- [X] Get rid of the padding for the sortable header. It isn't const the size of the symbol is dependent on the font size?
+- [X] Handle padding when header column width is smaller than the heading button width. Currently doesn't show the separator.
+- [X] Need some defalt padding, so the first column isn;t hard against the edge of the grid.
+- [X] Fix checkbox separator when placed in an oversized column (or too small column)
 - [ ] Submit PR to remove debug flag from tabs widget
 - [ ] Change mouse pointer and behavior when hovering over grid. i.e. stop the "move window" functionality that happens when clicking on a demo grid today.
 

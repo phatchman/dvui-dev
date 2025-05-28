@@ -3693,7 +3693,7 @@ pub fn grids(height: f32) !void {
                 .styling => "Styling and sorting",
                 .layout => "Layouts and data",
                 .scrolling => "Virtual scrolling",
-                .row_heights => "Variable row heigts",
+                .row_heights => "Variable row heights",
             };
         }
     };
