@@ -5,12 +5,15 @@ const Options = dvui.Options;
 const ColorOrName = Options.ColorOrName;
 const Rect = dvui.Rect;
 const Size = dvui.Size;
+const Point = dvui.Point;
 const MaxSize = Options.MaxSize;
 const ScrollInfo = dvui.ScrollInfo;
 const WidgetData = dvui.WidgetData;
 const BoxWidget = dvui.BoxWidget;
 const ScrollAreaWidget = dvui.ScrollAreaWidget;
+
 const GridWidget = @This();
+
 pub var defaults: Options = .{
     .name = "GridWidget",
     .background = true,
@@ -172,12 +175,6 @@ pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
 }
 
-/// Set the starting y value to begin rendering rows.
-/// Used for setting the y location of the first row when virtual scrolling.
-pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
-    self.rows_y_offset = offset;
-}
-
 /// Start a new grid column.
 /// Returns a vbox.
 /// Ensure deinit() is called on the returned vbox before creating a new column.
@@ -316,6 +313,26 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     self.next_row_y += opts.height orelse self.row_height;
 
     return cell;
+}
+
+/// Set the starting y value to begin rendering rows.
+/// Used for setting the y location of the first row when virtual scrolling.
+pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
+    self.rows_y_offset = offset;
+}
+
+/// Converts a physical point (e.g. a mouse position) into a logical point
+/// relative to the top-left of the body area of the grid.
+/// Return the logical point if the point is located within the grid body,
+/// otherwise return null.
+pub fn pointToBodyRelative(self: *GridWidget, point: Point.Physical) ?Point {
+    const scroll_rect = self.scroll.data().rectScale();
+    var result = scroll_rect.pointFromPhysical(point);
+    if (self.scroll.data().rect.contains(result) and result.y > self.header_height) {
+        result.y -= self.header_height;
+        return result;
+    }
+    return null;
 }
 
 /// Set the grid's sort order when manually managing column sorting.

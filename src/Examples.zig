@@ -4232,15 +4232,11 @@ fn gridVirtualScrolling() !void {
     const evts = dvui.events();
     const highlighted_row: ?usize = row: {
         for (evts) |*e| {
-            if (dvui.eventMatchSimple(e, grid.scroll.data())) {
+            if (dvui.eventMatchSimple(e, grid.data())) {
                 if (e.evt == .mouse and e.evt.mouse.action == .position) {
                     if (grid.row_height > 1) {
-                        // Convert mouse screen co-ords into co-ords relative to the scroll area's top-left.
-                        const scroll_rect = grid.scroll.data().rectScale();
-                        const offset = scroll_rect.pointFromPhysical(e.evt.mouse.p).y - grid.header_height;
-                        if (offset > 0) {
-                            // If the mouse is in the body part, not in the header part of the scroll area
-                            break :row @intFromFloat((local.scroll_info.viewport.y + offset) / grid.row_height);
+                        if (grid.pointToBodyRelative(e.evt.mouse.p)) |point| {
+                            break :row @intFromFloat((local.scroll_info.viewport.y + point.y) / grid.row_height);
                         }
                     }
                 }
