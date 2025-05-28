@@ -3665,16 +3665,14 @@ const grid_panel_size: Size = .{ .w = 250 };
 pub fn grids(height: f32) !void {
     // Below is a workaround for standaline demos being placed in a scroll-area.
     // By default the scroll-area will scroll instead of the grid.
-    // Fix the height of the     // grid to the scroll area's viewport to prevent this.
+    // Fix the height of the box around the tabs to prevent this.
     // This would not be required for normal usage.
-    const vbox = if (height > 0)
-        try dvui.box(@src(), .vertical, .{ .min_size_content = .{ .h = height }, .max_size_content = .height(height), .expand = .horizontal })
-    else
-        null;
-
-    defer if (vbox) |vb| {
-        vb.deinit();
-    };
+    var min_size_content: ?Size = null;
+    var max_size_content: ?Options.MaxSize = null;
+    if (height > 0) {
+        min_size_content = .{ .h = height };
+        max_size_content = .height(height);
+    }
 
     const GridType = enum {
         styling,
@@ -3699,23 +3697,23 @@ pub fn grids(height: f32) !void {
             };
         }
     };
+
+    var tbox = try dvui.box(@src(), .vertical, .{ .border = Rect.all(1), .expand = .horizontal, .min_size_content = min_size_content, .max_size_content = max_size_content });
+    defer tbox.deinit();
     {
-        var tbox = try dvui.box(@src(), .vertical, .{ .border = Rect.all(1), .expand = .horizontal });
-        defer tbox.deinit();
-        {
-            var tabs = dvui.TabsWidget.init(@src(), .{ .dir = .horizontal }, .{ .expand = .horizontal });
-            try tabs.install();
-            defer tabs.deinit();
+        var tabs = dvui.TabsWidget.init(@src(), .{ .dir = .horizontal }, .{ .expand = .horizontal });
+        try tabs.install();
+        defer tabs.deinit();
 
-            for (0..GridType.num_grids) |tab_num| {
-                const this_tab: GridType = @enumFromInt(tab_num);
+        for (0..GridType.num_grids) |tab_num| {
+            const this_tab: GridType = @enumFromInt(tab_num);
 
-                if (try tabs.addTabLabel(local.tabSelected(this_tab), local.tabName(this_tab))) {
-                    local.active_grid = this_tab;
-                }
+            if (try tabs.addTabLabel(local.tabSelected(this_tab), local.tabName(this_tab))) {
+                local.active_grid = this_tab;
             }
         }
     }
+
     switch (local.active_grid) {
         .styling => try gridStyling(),
         .layout => try gridLayouts(),
