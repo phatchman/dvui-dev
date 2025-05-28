@@ -3757,7 +3757,6 @@ fn gridStyling() !void {
             .expand = .both,
             .background = true,
             .border = Rect.all(1),
-            .padding = .{ .x = 5 },
         });
         defer grid.deinit();
         local.resize_rows = false; // Only resize rows when needed.
@@ -4060,7 +4059,6 @@ fn gridLayouts() !void {
             .border = Rect.all(2),
             .min_size_content = .{ .h = content_h },
             .max_size_content = .height(content_h),
-            .padding = .{ .x = 5 },
         });
         defer grid.deinit();
 
@@ -4227,7 +4225,6 @@ fn gridVirtualScrolling() !void {
         .expand = .both,
         .background = true,
         .border = Rect.all(1),
-        .padding = .{ .x = 5 },
     });
     defer grid.deinit();
 
