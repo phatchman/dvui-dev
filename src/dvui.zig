@@ -4109,11 +4109,8 @@ pub fn gridHeadingSortable(
 ) !bool {
     const icon_ascending = @embedFile("icons/entypo/chevron-small-down.tvg");
     const icon_descending = @embedFile("icons/entypo/chevron-small-up.tvg");
-    const icon_width = 27.5; // TODO: This is not const.
-    const padding = ButtonWidget.defaults.padding orelse Rect.all(6);
 
     // Pad buttons with extra space if there is no sort indicator.
-    const padding_opts: Options = .{ .padding = .{ .x = icon_width / 2.0, .w = icon_width / 2.0, .y = padding.y, .h = padding.h } };
     const heading_defaults: Options = .{
         .expand = .horizontal,
         .corner_radius = Rect.all(0),
@@ -4126,7 +4123,7 @@ pub fn gridHeadingSortable(
     try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
 
     const sort_changed = switch (g.colSortOrder()) {
-        .unsorted => try button(@src(), heading, .{ .draw_focus = false }, padding_opts.override(heading_opts)),
+        .unsorted => try button(@src(), heading, .{ .draw_focus = false }, heading_opts),
         .ascending => try buttonLabelAndIcon(@src(), heading, icon_ascending, .{ .draw_focus = false }, heading_opts),
         .descending => try buttonLabelAndIcon(@src(), heading, icon_descending, .{ .draw_focus = false }, heading_opts),
     };
