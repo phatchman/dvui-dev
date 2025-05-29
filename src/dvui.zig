@@ -4074,6 +4074,7 @@ pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opt
     const ret = try currentWindow().arena().create(GridWidget);
     ret.* = try GridWidget.init(src, init_opts, opts);
     try ret.install();
+    ret.processEvents();
     return ret;
 }
 

@@ -6,6 +6,7 @@ const ColorOrName = Options.ColorOrName;
 const Rect = dvui.Rect;
 const Size = dvui.Size;
 const Point = dvui.Point;
+const Event = dvui.Event;
 const MaxSize = Options.MaxSize;
 const ScrollInfo = dvui.ScrollInfo;
 const WidgetData = dvui.WidgetData;
@@ -168,11 +169,51 @@ pub fn deinit(self: *GridWidget) void {
 
     self.hbox.deinit();
     self.scroll.deinit();
+
+    self.processEventsAfter();
     self.vbox.deinit();
 }
 
 pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
+}
+
+pub fn processEvent(self: *GridWidget, e: *Event, bubbling: bool) void {
+    _ = bubbling;
+
+    if (e.bubbleable()) {
+        self.data().parent.processEvent(e, true);
+    }
+}
+
+pub fn processEvents(self: *GridWidget) void {
+    const evts = dvui.events();
+    for (evts) |*e| {
+        if (!self.matchEvent(e))
+            continue;
+
+        self.processEvent(e, false);
+    }
+}
+
+pub fn processEventsAfter(self: *GridWidget) void {
+    const evts = dvui.events();
+    for (evts) |*e| {
+        if (!dvui.eventMatchSimple(e, self.data()))
+            continue;
+
+        switch (e.evt) {
+            .mouse => {
+                // Don't allow mouse events to propagate to the floating window.
+                e.handle(@src(), self.data());
+            },
+            else => {},
+        }
+    }
+}
+
+pub fn matchEvent(self: *GridWidget, e: *Event) bool {
+    return dvui.eventMatchSimple(e, self.data());
 }
 
 /// Start a new grid column.
@@ -323,12 +364,12 @@ pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
 
 /// Converts a physical point (e.g. a mouse position) into a logical point
 /// relative to the top-left of the grid's body.
-/// Return the logical point if it point is located within the grid body,
+/// Return the logical point if it is located within the grid body,
 /// otherwise return null.
 pub fn pointToBodyRelative(self: *GridWidget, point: Point.Physical) ?Point {
-    const scroll_rect = self.scroll.data().rectScale();
-    var result = scroll_rect.pointFromPhysical(point);
-    if (self.scroll.data().rect.contains(result) and result.y > self.header_height) {
+    const scroll_wd = self.scroll.data();
+    var result = scroll_wd.rectScale().pointFromPhysical(point);
+    if (scroll_wd.rect.contains(result) and result.y >= self.header_height) {
         result.y -= self.header_height;
         return result;
     }
