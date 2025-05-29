@@ -4186,15 +4186,17 @@ fn gridVirtualScrolling() !void {
         var generated_primes: bool = false;
         var highlighted_row: ?usize = null;
 
+        // Generate prime numbers using The Sieve of Eratosthenes.
         fn generatePrimes() void {
-            const limit = std.math.sqrt(num_rows);
             if (num_rows > 0) primes.unset(0);
             if (num_rows > 1) primes.unset(1);
-            var current: u32 = 2;
-            while (current < limit) : (current += 1) {
-                if (primes.isSet(current)) {
-                    var multiples = current * current;
-                    while (multiples < num_rows) : (multiples += current) {
+
+            const limit = std.math.sqrt(num_rows);
+            var factor: u32 = 2;
+            while (factor < limit) : (factor += 1) {
+                if (primes.isSet(factor)) {
+                    var multiples = factor * factor;
+                    while (multiples < num_rows) : (multiples += factor) {
                         primes.unset(multiples);
                     }
                 }
@@ -4232,13 +4234,13 @@ fn gridVirtualScrolling() !void {
     const evts = dvui.events();
     const highlighted_row: ?usize = row: {
         for (evts) |*e| {
-            if (dvui.eventMatchSimple(e, grid.data())) {
-                if (e.evt == .mouse and e.evt.mouse.action == .position) {
-                    if (grid.row_height > 1) {
-                        if (grid.pointToBodyRelative(e.evt.mouse.p)) |point| {
-                            break :row @intFromFloat((local.scroll_info.viewport.y + point.y) / grid.row_height);
-                        }
-                    }
+            if (dvui.eventMatchSimple(e, grid.data()) and
+                (e.evt == .mouse and e.evt.mouse.action == .position) and
+                (grid.row_height > 1))
+            {
+                // Translate mouse screen position to a logical position relative to the top-left of the grid body.
+                if (grid.pointToBodyRelative(e.evt.mouse.p)) |point| {
+                    break :row @intFromFloat((local.scroll_info.viewport.y + point.y) / grid.row_height);
                 }
             }
         }
@@ -4295,7 +4297,7 @@ fn gridVariableRowHeights() !void {
         const row_height = 70 - (@abs(row_num_i - 5) * 10);
         var cell = try grid.bodyCell(@src(), row_num, .{ .height = @floatFromInt(row_height), .border = Rect.all(1) });
         defer cell.deinit();
-        try dvui.label(@src(), "h = {d}", .{row_height}, .{ .gravity_x = 0.5, .expand = .horizontal });
+        try dvui.label(@src(), "h = {d}", .{row_height}, .{ .gravity_x = 0.5, .gravity_y = 0.5, .expand = .both });
     }
 }
 
