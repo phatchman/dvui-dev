@@ -4374,8 +4374,6 @@ fn gridVirtualScrolling() !void {
             defer cell.deinit();
             try local.highlightIfHovered(cell, num == highlighted_row);
             if (local.isPrime(num)) {
-                // TODO: Can't currently use gravity to centre the icon as it can't .expand. So pad it instead.
-                //                const pad_w = cell.data().contentRect().w / 2 - 15;
                 try dvui.icon(@src(), "Check", check_img, .{}, .{ .gravity_x = 0.5, .gravity_y = 0.5, .background = false });
             }
         }
