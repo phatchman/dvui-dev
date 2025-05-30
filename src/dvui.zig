@@ -4324,12 +4324,17 @@ pub const GridColumnSelectAllState = enum {
 pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, selection: *GridColumnSelectAllState, cell_opts: GridWidget.CellOptions, opts: Options) !bool {
     const header_defaults: Options = .{
         .background = true,
-        .color_fill = .{ .name = .fill_control },
-        .margin = ButtonWidget.defaults.margin,
-        .expand = .vertical,
+        .expand = .both,
+        .margin = ButtonWidget.defaults.marginGet(),
+        .color_fill = .fill_control,
+        .gravity_x = 0.5,
         .gravity_y = 0.5,
     };
     const header_options = header_defaults.override(opts);
+    var checkbox_opts: Options = header_options.strip();
+    checkbox_opts.padding = ButtonWidget.defaults.paddingGet();
+    checkbox_opts.gravity_x = header_options.gravity_x;
+    checkbox_opts.gravity_y = header_options.gravity_y;
 
     var cell = try g.headerCell(src, cell_opts);
     defer cell.deinit();
@@ -4343,7 +4348,7 @@ pub fn gridHeadingCheckbox(src: std.builtin.SourceLocation, g: *GridWidget, sele
         defer hbox.deinit();
 
         selected = dvui.dataGet(null, cell.data().id, "selected", bool) orelse false;
-        clicked = try dvui.checkbox(@src(), &selected, null, .{ .gravity_y = header_options.gravity_y, .gravity_x = header_options.gravity_x });
+        clicked = try dvui.checkbox(@src(), &selected, null, checkbox_opts);
         dvui.dataSet(null, cell.data().id, "selected", selected);
     }
 
@@ -4383,6 +4388,7 @@ pub fn gridColumnCheckbox(
     const check_defaults: Options = .{
         .gravity_x = 0.5,
         .gravity_y = 0.5,
+        .margin = ButtonWidget.defaults.marginGet(),
     };
     const check_opts = switch (opts) {
         .options => |o| check_defaults.override(o),
