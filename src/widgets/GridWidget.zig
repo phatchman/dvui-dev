@@ -6,12 +6,12 @@ const ColorOrName = Options.ColorOrName;
 const Rect = dvui.Rect;
 const Size = dvui.Size;
 const Point = dvui.Point;
-const Event = dvui.Event;
 const MaxSize = Options.MaxSize;
 const ScrollInfo = dvui.ScrollInfo;
 const WidgetData = dvui.WidgetData;
 const BoxWidget = dvui.BoxWidget;
 const ScrollAreaWidget = dvui.ScrollAreaWidget;
+const ScrollBarWidget = dvui.ScrollBarWidget;
 
 const GridWidget = @This();
 
@@ -22,6 +22,8 @@ pub var defaults: Options = .{
     // Small padding to separate first column from left edge of the grid
     .padding = .{ .x = 5 },
 };
+
+pub var scrollbar_padding_defaults: Size = .{ .h = 10, .w = 10 };
 
 pub const ColOptions = struct {
     width: ?f32 = null,
@@ -170,50 +172,11 @@ pub fn deinit(self: *GridWidget) void {
     self.hbox.deinit();
     self.scroll.deinit();
 
-    self.processEventsAfter();
     self.vbox.deinit();
 }
 
 pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
-}
-
-pub fn processEvent(self: *GridWidget, e: *Event, bubbling: bool) void {
-    _ = bubbling;
-
-    if (e.bubbleable()) {
-        self.data().parent.processEvent(e, true);
-    }
-}
-
-pub fn processEvents(self: *GridWidget) void {
-    const evts = dvui.events();
-    for (evts) |*e| {
-        if (!self.matchEvent(e))
-            continue;
-
-        self.processEvent(e, false);
-    }
-}
-
-pub fn processEventsAfter(self: *GridWidget) void {
-    const evts = dvui.events();
-    for (evts) |*e| {
-        if (!dvui.eventMatchSimple(e, self.data()))
-            continue;
-
-        switch (e.evt) {
-            .mouse => {
-                // Don't allow mouse events to propagate to the floating window.
-                e.handle(@src(), self.data());
-            },
-            else => {},
-        }
-    }
-}
-
-pub fn matchEvent(self: *GridWidget, e: *Event) bool {
-    return dvui.eventMatchSimple(e, self.data());
 }
 
 /// Start a new grid column.
@@ -420,7 +383,7 @@ pub const VirtualScroller = struct {
     pub fn init(grid: *GridWidget, init_opts: VirtualScroller.InitOpts) VirtualScroller {
         const si = init_opts.scroll_info;
         const total_rows_f: f32 = @floatFromInt(init_opts.total_rows);
-        si.virtual_size.h = @max(total_rows_f * grid.row_height + 10, si.viewport.h); // TODO: 10 = scrollbar padding
+        si.virtual_size.h = @max(total_rows_f * grid.row_height + scrollbar_padding_defaults.h, si.viewport.h);
         const first_row: f32 = @floatFromInt(_startRow(grid, si, init_opts.total_rows));
         grid.offsetRowsBy(first_row * grid.row_height);
         return .{

@@ -4074,7 +4074,6 @@ pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opt
     const ret = try currentWindow().arena().create(GridWidget);
     ret.* = try GridWidget.init(src, init_opts, opts);
     try ret.install();
-    ret.processEvents();
     return ret;
 }
 
@@ -4363,7 +4362,7 @@ pub fn gridColumnCheckbox(
 /// the same negative ratio for the variable columns.
 ///     { -1, 50, -1 }.
 pub fn columnLayoutProportional(ratio_widths: []const f32, col_widths: []f32, content_width: f32) void {
-    const scroll_bar_w: f32 = 10; // TODO: Don't necessarily know if SB is showing? There needs ot be a grid function to work this out.
+    const scroll_bar_w: f32 = GridWidget.scrollbar_padding_defaults.w;
     std.debug.assert(ratio_widths.len == col_widths.len); // input and output slices must be the same length
 
     // Count all of the positive widths as reserved widths.
