@@ -4380,11 +4380,9 @@ pub fn gridColumnCheckbox(
             @compileError("data must be of type []bool when field_name is null.");
         }
     }
-    const margin_defaults = ButtonWidget.defaults.marginGet();
     const check_defaults: Options = .{
         .gravity_x = 0.5,
         .gravity_y = 0.5,
-        .margin = .{ .x = margin_defaults.x, .w = margin_defaults.w },
     };
     const check_opts = switch (opts) {
         .options => |o| check_defaults.override(o),
