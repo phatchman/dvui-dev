@@ -14,6 +14,54 @@ const Widget = @This();
 ptr: *anyopaque,
 vtable: *const VTable,
 
+pub const OOMWidget = struct {
+    pub fn rectFor(_: *OOMWidget, _: dvui.WidgetId, _: Size, _: Options.Expand, _: Options.Gravity) Rect {
+        std.debug.print("OOM: rectFor()\n", .{});
+        return .{};
+    }
+
+    pub fn screenRectScale(_: *OOMWidget, _: Rect) RectScale {
+        std.debug.print("OOM: screenRectScale()\n", .{});
+        return .{};
+    }
+
+    pub fn minSizeForChild(_: *OOMWidget, _: Size) void {
+        std.debug.print("OOM: minSizeForChild()\n", .{});
+    }
+
+    pub fn processEvent(_: *OOMWidget, _: *Event, _: bool) void {
+        std.debug.print("OOM: processEvent()\n", .{});
+    }
+
+    pub fn data(_: *OOMWidget) *WidgetData {
+        return &WidgetData.oom_widget_data;
+    }
+
+    pub fn widget(self: *OOMWidget) Widget {
+        return Widget.init(
+            self,
+            OOMWidget.data,
+            OOMWidget.rectFor,
+            OOMWidget.screenRectScale,
+            OOMWidget.minSizeForChild,
+            OOMWidget.processEvent,
+        );
+    }
+};
+
+pub var oom_widget: OOMWidget = .{};
+
+pub fn initOOMWidget() void {
+    oom_widget.init(
+        &oom_widget,
+        OOMWidget.data,
+        OOMWidget.rectFor,
+        OOMWidget.screenRectScale,
+        OOMWidget.minSizeForChild,
+        OOMWidget.processEvent,
+    );
+}
+
 const VTable = struct {
     data: *const fn (ptr: *anyopaque) *WidgetData,
     rectFor: *const fn (ptr: *anyopaque, id: WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect,

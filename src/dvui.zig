@@ -4082,11 +4082,14 @@ pub fn overlay(src: std.builtin.SourceLocation, opts: Options) !*OverlayWidget {
 /// See `boxEqual` and `flexbox`.
 ///
 /// Only valid between `Window.begin`and `Window.end`.
+var box_count: usize = 0;
 pub fn box(src: std.builtin.SourceLocation, dir: enums.Direction, opts: Options) !*BoxWidget {
+    box_count += 1;
     var ret = try currentWindow().arena().create(BoxWidget);
     ret.* = BoxWidget.init(src, dir, false, opts);
-    try ret.install();
-    try ret.drawBackground();
+    if (box_count % 6 == 0) return &BoxWidget.oom_widget;
+    ret.install() catch return &BoxWidget.oom_widget;
+    ret.drawBackground() catch return &BoxWidget.oom_widget;
     return ret;
 }
 
@@ -4717,11 +4720,14 @@ pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, arg
     return ret;
 }
 
+var label_count: usize = 0;
 pub fn label(src: std.builtin.SourceLocation, comptime fmt: []const u8, args: anytype, opts: Options) !void {
+    label_count += 1;
     var lw = LabelWidget.init(src, fmt, args, opts);
-    try lw.install();
+    if (label_count % 5 == 0) return &LabelWidget.oom_widget;
+    lw.install() catch return &LabelWidget.oom_widget;
     lw.processEvents();
-    try lw.draw();
+    try lw.draw() catch return &LabelWidget.oom_widget;
     lw.deinit();
 }
 

@@ -19,6 +19,8 @@ const Data = struct {
     single_child: bool,
 };
 
+pub var oom_widget: BoxWidget = .initOOM();
+
 wd: WidgetData = undefined,
 dir: enums.Direction = undefined,
 equal_space: bool = undefined,
@@ -38,6 +40,14 @@ pub fn init(src: std.builtin.SourceLocation, dir: enums.Direction, equal_space: 
     self.dir = dir;
     self.equal_space = equal_space;
     self.data_prev = dvui.dataGet(null, self.wd.id, "_data", Data);
+    return self;
+}
+
+pub fn initOOM() BoxWidget {
+    var self = BoxWidget{};
+    self.wd = WidgetData.initOOM();
+    self.dir = .horizontal;
+    self.equal_space = false;
     return self;
 }
 

@@ -9,6 +9,8 @@ const WidgetData = dvui.WidgetData;
 
 const LabelWidget = @This();
 
+pub var oom_widget: LabelWidget = .initOOM();
+
 pub var defaults: Options = .{
     .name = "Label",
     .padding = Rect.all(6),
@@ -38,6 +40,13 @@ pub fn initNoFmt(src: std.builtin.SourceLocation, label_str: []const u8, opts: O
 
     self.wd = WidgetData.init(src, .{}, options.override(.{ .min_size_content = size }));
 
+    return self;
+}
+
+pub fn initOOM() LabelWidget {
+    var self = LabelWidget{};
+    self.label_str = "";
+    self.wd = &LabelWidget.oom_widget;
     return self;
 }
 

@@ -11,6 +11,8 @@ const WidgetId = dvui.WidgetId;
 
 const WidgetData = @This();
 
+pub var oom_widget_data: WidgetData = .initOOM();
+
 pub const InitOptions = struct {
     // if true, don't send our rect through our parent because we aren't located inside our parent
     subwindow: bool = false,
@@ -55,6 +57,18 @@ pub fn init(src: std.builtin.SourceLocation, init_options: InitOptions, opts: Op
         }
         self.rect = self.parent.rectFor(self.id, ms, self.options.expandGet(), self.options.gravityGet());
     }
+
+    return self;
+}
+
+pub fn initOOM() WidgetData {
+    const src = @src();
+    var self = WidgetData{ .src = src };
+    self.init_options = .{};
+    self.options = .{};
+
+    self.parent = Widget.oom_widget.widget(); //dvui.parentGet(); // Major TODO
+    self.id = .zero; // TODO: Maybe? or maxint? Some sort of "reserved" id anyway.
 
     return self;
 }
