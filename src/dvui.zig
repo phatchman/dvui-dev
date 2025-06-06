@@ -81,6 +81,7 @@ pub const TextEntryWidget = widgets.TextEntryWidget;
 pub const TextLayoutWidget = widgets.TextLayoutWidget;
 pub const VirtualParentWidget = widgets.VirtualParentWidget;
 pub const GridWidget = widgets.GridWidget;
+pub const GrabHandleWidget = widgets.GrabHandleWidget;
 const se = @import("structEntry.zig");
 pub const structEntry = se.structEntry;
 pub const structEntryEx = se.structEntryEx;
@@ -4257,6 +4258,29 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
 
     try labelNoFmt(@src(), heading, label_options);
     try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
+}
+
+/// Create a heading with a static label
+pub fn gridHeadingResizable(src: std.builtin.SourceLocation, g: *GridWidget, heading: []const u8, width: *f32, cell_opts: dvui.GridWidget.CellOptions, opts: dvui.Options) !void {
+    const label_defaults: Options = .{
+        .corner_radius = Rect.all(0),
+        .expand = .horizontal,
+        .gravity_x = 0.5,
+        .gravity_y = 0.5,
+        .color_fill = .{ .name = .fill_control },
+        .background = true,
+    };
+    const label_options = label_defaults.override(opts);
+    var cell = try g.headerCell(src, cell_opts);
+    defer cell.deinit();
+
+    try labelNoFmt(@src(), heading, label_options);
+    var handle = dvui.GrabHandleWidget.init(@src(), .{ .direction = .vertical, .w = width }, .{ .expand = .vertical, .gravity_x = 1.0 });
+    try handle.install();
+    handle.processEvents();
+    handle.deinit();
+
+    //try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
 }
 
 /// Create a heading and allow the column to be sorted.
