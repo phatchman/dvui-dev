@@ -37,6 +37,9 @@ const defaults: Options = .{
 wd: WidgetData = undefined,
 direction: Direction = undefined,
 init_opts: InitOptions = undefined,
+// When user drags less than min_size or more than max_size
+// this offset is used to make them return the mouse back
+// to the min/max size resizing can start again.
 offset: Point = .{},
 
 pub fn init(src: std.builtin.SourceLocation, dir: Direction, init_options: InitOptions, opts: Options) GrabHandleWidget {
