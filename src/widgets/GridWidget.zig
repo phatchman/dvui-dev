@@ -102,6 +102,7 @@ sort_direction: SortDirection = .unsorted,
 saved_clip_rect: ?Rect.Physical = null,
 resizing: bool = false,
 rows_y_offset: f32 = 0,
+locked_content_size: ?Size = null,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) !GridWidget {
     var self = GridWidget{};
@@ -364,6 +365,15 @@ pub fn colSortOrder(self: *const GridWidget) SortDirection {
     } else {
         return .unsorted;
     }
+}
+
+pub fn scrollContentSizeLock(self: *const GridWidget) void {
+    self.locked_content_size = self.scroll.data().contentRect().justSize();
+    std.debug.print("locked_size= {d}\n", self.locked_content_size);
+}
+
+pub fn scrollContentSizeUnlock(self: *const GridWidget) void {
+    self.locked_content_size = null;
 }
 
 /// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.

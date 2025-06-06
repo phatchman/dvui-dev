@@ -37,10 +37,11 @@ const defaults: Options = .{
 wd: WidgetData = undefined,
 direction: Direction = undefined,
 init_opts: InitOptions = undefined,
-// When user drags less than min_size or more than max_size
-// this offset is used to make them return the mouse back
-// to the min/max size resizing can start again.
+// This offset is used to keep the mouse pointer and drag handle
+// synchronized when the user drags less than the min or more
+// than the max size.
 offset: Point = .{},
+grid: *dvui.GridWidget = undefined,
 
 pub fn init(src: std.builtin.SourceLocation, dir: Direction, init_options: InitOptions, opts: Options) GrabHandleWidget {
     var self = GrabHandleWidget{};
@@ -128,6 +129,7 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
                     switch (self.direction) {
                         .vertical => {
+                            //const init_w = self.init_opts.value.*;
                             const unclamped_width = self.init_opts.value.* + dps.x / rs.s + self.offset.x;
                             self.init_opts.value.* = std.math.clamp(
                                 unclamped_width,

@@ -4257,10 +4257,10 @@ pub fn gridHeading(src: std.builtin.SourceLocation, g: *GridWidget, heading: []c
     defer cell.deinit();
 
     try labelNoFmt(@src(), heading, label_options);
-    try gridHeadingSeparator(resize_opts);
+    try gridHeadingSeparator(resize_opts, g);
 }
 
-pub fn gridHeadingSeparator(resize_options: ?dvui.GrabHandleWidget.InitOptions) !void {
+pub fn gridHeadingSeparator(resize_options: ?dvui.GrabHandleWidget.InitOptions, g: *dvui.GridWidget) !void {
     if (resize_options) |resize_opts| {
         var handle = dvui.GrabHandleWidget.init(
             @src(),
@@ -4268,6 +4268,7 @@ pub fn gridHeadingSeparator(resize_options: ?dvui.GrabHandleWidget.InitOptions) 
             resize_opts,
             .{ .gravity_x = 1.0 },
         );
+        handle.grid = g;
         try handle.install();
         handle.processEvents();
         handle.deinit();
@@ -4302,7 +4303,7 @@ pub fn gridHeadingSortable(
     var cell = try g.headerCell(src, cell_opts);
     defer cell.deinit();
 
-    try gridHeadingSeparator(resize_opts);
+    try gridHeadingSeparator(resize_opts, g);
 
     const sort_changed = switch (g.colSortOrder()) {
         .unsorted => try button(@src(), heading, .{ .draw_focus = false }, heading_opts),
