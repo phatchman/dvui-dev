@@ -128,6 +128,9 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
         self.sort_direction = sort_direction;
     }
+    if (dvui.dataGet(null, self.data().id, "_locked_size", ?Size)) |size| {
+        self.locked_content_size = size;
+    }
     // Ensure resize on first initialization.
     if (self.last_height == 0) {
         self.resizing = true;
@@ -144,7 +147,11 @@ pub fn install(self: *GridWidget) !void {
     try self.vbox.install();
     try self.vbox.drawBackground();
 
-    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
+    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{
+        .name = "GridWidgetScrollArea",
+        .expand = .both,
+        .min_size_content = self.locked_content_size,
+    });
     try self.scroll.install();
 
     // Lay out columns horizontally.
@@ -163,12 +170,23 @@ pub fn deinit(self: *GridWidget) void {
         self.init_opts.resize_rows or
         !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01);
 
+    if (self.scroll.si.virtual_size.w < (self.locked_content_size orelse Size.all(0)).w) {
+        std.debug.print("boxing\n", .{});
+        var pad_box = BoxWidget.init(@src(), .vertical, false, .{
+            .min_size_content = .{ .w = self.locked_content_size.?.w - self.scroll.si.virtual_size.w },
+            .expand = .vertical,
+        });
+        pad_box.install() catch {};
+        pad_box.deinit();
+    }
+
     dvui.dataSet(null, self.data().id, "_last_height", self.next_row_y);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
     dvui.dataSet(null, self.data().id, "_resizing", self.resizing);
     dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
+    dvui.dataSet(null, self.data().id, "_locked_size", self.locked_content_size);
 
     self.hbox.deinit();
     self.scroll.deinit();
@@ -367,13 +385,16 @@ pub fn colSortOrder(self: *const GridWidget) SortDirection {
     }
 }
 
-pub fn scrollContentSizeLock(self: *const GridWidget) void {
-    self.locked_content_size = self.scroll.data().contentRect().justSize();
-    std.debug.print("locked_size= {d}\n", self.locked_content_size);
+pub fn scrollContentSizeLock(self: *GridWidget) void {
+    if (self.locked_content_size == null) {
+        self.locked_content_size = Size.cast(self.scroll.si.virtual_size);
+    }
+    std.debug.print("locked_size= {d}\n", .{self.locked_content_size.?});
 }
 
-pub fn scrollContentSizeUnlock(self: *const GridWidget) void {
+pub fn scrollContentSizeUnlock(self: *GridWidget) void {
     self.locked_content_size = null;
+    std.debug.print("locked_size= {?}\n", .{self.locked_content_size});
 }
 
 /// Provides vitrual scrolling for a grid so that only the visibile rows are rendered.

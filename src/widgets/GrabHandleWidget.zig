@@ -123,10 +123,12 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
                 dvui.captureMouse(null);
                 dvui.dragEnd();
                 self.offset = .{};
+                self.grid.scrollContentSizeUnlock();
             } else if (e.evt.mouse.action == .motion and dvui.captured(self.wd.id)) {
                 e.handle(@src(), self.data());
                 // move if dragging
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
+                    self.grid.scrollContentSizeLock();
                     switch (self.direction) {
                         .vertical => {
                             //const init_w = self.init_opts.value.*;
