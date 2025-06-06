@@ -88,7 +88,6 @@ pub fn main() !void {
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
-    //std.debug.print("frame: {d}\n", .{frame_count});
     defer frame_count += 1;
     const backend = g_backend orelse return;
     _ = backend;
@@ -104,7 +103,6 @@ fn gui_frame() !void {
     var main_hbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
     {
-        std.debug.print("PRE = {d}\n", .{col_widths});
         var grid = try dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .horizontal = .auto } }, .{ .expand = .both });
         defer grid.deinit();
         {

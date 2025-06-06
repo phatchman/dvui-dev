@@ -32,6 +32,7 @@ const defaults: Options = .{
 
 wd: WidgetData = undefined,
 init_opts: InitOptions = undefined,
+offset: Point = .{},
 
 pub fn init(src: std.builtin.SourceLocation, init_options: InitOptions, opts: Options) GrabHandleWidget {
     var self = GrabHandleWidget{};
@@ -44,6 +45,10 @@ pub fn init(src: std.builtin.SourceLocation, init_options: InitOptions, opts: Op
 
     self.init_opts = init_options;
     self.wd = WidgetData.init(src, .{}, widget_opts);
+
+    if (dvui.dataGet(null, self.wd.id, "_offset", Point)) |offset| {
+        self.offset = offset;
+    }
 
     return self;
 }
@@ -108,19 +113,26 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
                 // capture and start drag
                 dvui.captureMouse(self.data());
                 dvui.dragPreStart(e.evt.mouse.p, .{ .cursor = cursor });
+                self.offset = .{};
             } else if (e.evt.mouse.action == .release and e.evt.mouse.button.pointer()) {
                 e.handle(@src(), self.data());
                 // stop possible drag and capture
                 dvui.captureMouse(null);
                 dvui.dragEnd();
+                self.offset = .{};
             } else if (e.evt.mouse.action == .motion and dvui.captured(self.wd.id)) {
                 e.handle(@src(), self.data());
                 // move if dragging
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
                     switch (self.init_opts.direction) {
                         .vertical => {
-                            self.init_opts.w.* += dps.x / rs.s;
-                            self.init_opts.w.* = std.math.clamp(self.init_opts.w.*, self.init_opts.min_width orelse 1, self.init_opts.max_width orelse dvui.max_float_safe);
+                            const unclamped = self.init_opts.w.* + dps.x / rs.s + self.offset.x;
+                            self.init_opts.w.* = std.math.clamp(
+                                unclamped,
+                                self.init_opts.min_width orelse 1,
+                                self.init_opts.max_width orelse dvui.max_float_safe,
+                            );
+                            self.offset.x = unclamped - self.init_opts.w.*;
                         },
                         .horizontal => {
                             self.init_opts.w.* += dps.y / rs.s;
@@ -139,7 +151,7 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
 }
 
 pub fn deinit(self: *GrabHandleWidget) void {
-    _ = self;
+    dvui.dataSet(null, self.wd.id, "_offset", self.offset);
 }
 
 test {

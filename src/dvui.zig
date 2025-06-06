@@ -4275,7 +4275,7 @@ pub fn gridHeadingResizable(src: std.builtin.SourceLocation, g: *GridWidget, hea
     defer cell.deinit();
 
     try labelNoFmt(@src(), heading, label_options);
-    var handle = dvui.GrabHandleWidget.init(@src(), .{ .direction = .vertical, .w = width, .min_width = 100 }, .{ .gravity_x = 1.0 });
+    var handle = dvui.GrabHandleWidget.init(@src(), .{ .direction = .vertical, .w = width, .min_width = 100, .max_width = 500 }, .{ .gravity_x = 1.0 });
     try handle.install();
     handle.processEvents();
     handle.deinit();
