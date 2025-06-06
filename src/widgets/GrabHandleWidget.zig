@@ -128,22 +128,22 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
                     switch (self.direction) {
                         .vertical => {
-                            const unclamped = self.init_opts.value.* + dps.x / rs.s + self.offset.x;
+                            const unclamped_width = self.init_opts.value.* + dps.x / rs.s + self.offset.x;
                             self.init_opts.value.* = std.math.clamp(
-                                unclamped,
+                                unclamped_width,
                                 self.init_opts.min_size orelse 1,
                                 self.init_opts.max_size orelse dvui.max_float_safe,
                             );
-                            self.offset.x = unclamped - self.init_opts.value.*;
+                            self.offset.x = unclamped_width - self.init_opts.value.*;
                         },
                         .horizontal => {
-                            const unclamped = self.init_opts.value.* + dps.y / rs.s + self.offset.y;
+                            const unclamped_height = self.init_opts.value.* + dps.y / rs.s + self.offset.y;
                             self.init_opts.value.* = std.math.clamp(
-                                unclamped,
+                                unclamped_height,
                                 self.init_opts.min_size orelse 1,
                                 self.init_opts.max_size orelse dvui.max_float_safe,
                             );
-                            self.offset.y = unclamped - self.init_opts.value.*;
+                            self.offset.y = unclamped_height - self.init_opts.value.*;
                         },
                     }
                 }

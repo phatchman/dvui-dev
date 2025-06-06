@@ -133,18 +133,30 @@ fn gui_frame() !void {
         {
             var col3 = try grid.column(@src(), .{});
             defer col3.deinit();
-            _ = try dvui.gridHeadingSortable(@src(), grid, "One", &sort_dir, .{ .value = &col_widths[2] }, .{}, .{});
+            _ = try dvui.gridHeadingSortable(@src(), grid, "Three", &sort_dir, null, .{}, .{});
             for (60..90) |i| {
                 var cell = try grid.bodyCell(@src(), i, .{});
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{i}, .{});
             }
         }
+        // Testing fixed with with last col taking up the slack.
+        const total_w: f32 = sum(col_widths);
+        const leftover = grid.data().contentRect().w - total_w - dvui.GridWidget.scrollbar_padding_defaults.w;
+        col_widths[2] += leftover;
     }
 }
 
 var width: f32 = 0;
 var col_widths: [3]f32 = .{ 150, 150, 50 };
+
+fn sum(slice: anytype) @TypeOf(slice[0]) {
+    var total: @TypeOf(slice[0]) = 0;
+    for (slice) |item| {
+        total += item;
+    }
+    return total;
+}
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {

@@ -4285,7 +4285,7 @@ pub fn gridHeadingSortable(
     g: *GridWidget,
     heading: []const u8,
     dir: *GridWidget.SortDirection,
-    resize_opts: dvui.GrabHandleWidget.InitOptions,
+    resize_opts: ?dvui.GrabHandleWidget.InitOptions,
     cell_opts: GridWidget.CellOptions,
     opts: dvui.Options,
 ) !bool {
