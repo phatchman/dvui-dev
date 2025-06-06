@@ -17,7 +17,7 @@ const GrabHandleWidget = @This();
 pub const InitOptions = struct {
     direction: enums.Direction,
     w: *f32,
-    grab_extra_w: f32 = 5,
+    grab_extra_w: f32 = 10,
     min_width: ?f32 = null,
     max_width: ?f32 = null,
 };
@@ -61,13 +61,15 @@ pub fn matchEvent(self: *GrabHandleWidget, e: *Event) bool {
     } else {
         var rs = self.wd.rectScale();
 
-        const grab_pad = self.init_opts.grab_extra_w;
+        const grab_width = self.init_opts.grab_extra_w / 2 * rs.s;
         switch (self.init_opts.direction) {
             .vertical => {
-                rs.r.w += grab_pad * rs.s;
+                rs.r.x -= grab_width;
+                rs.r.w += grab_width;
             },
             .horizontal => {
-                rs.r.h += grab_pad * rs.s;
+                rs.r.y -= grab_width;
+                rs.r.h += grab_width;
             },
         }
 
@@ -89,6 +91,8 @@ pub fn data(self: *GrabHandleWidget) *WidgetData {
     return &self.wd;
 }
 
+// TODO: Handle case where user drags mouse too far left and then moves right again.
+// Column should not start expanding until mouse is back to the dargging area.
 pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
     _ = bubbling;
     if (e.evt == .mouse) {

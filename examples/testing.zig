@@ -105,13 +105,13 @@ fn gui_frame() !void {
     defer main_hbox.deinit();
     {
         std.debug.print("PRE = {d}\n", .{col_widths});
-        var grid = try dvui.grid(@src(), .{ .col_widths = &col_widths }, .{ .expand = .both });
+        var grid = try dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .horizontal = .auto } }, .{ .expand = .both });
         defer grid.deinit();
         {
             var col1 = try grid.column(@src(), .{});
             defer col1.deinit();
             try dvui.gridHeadingResizable(@src(), grid, "One", &col_widths[0], .{}, .{});
-            for (0..10) |i| {
+            for (0..30) |i| {
                 var cell = try grid.bodyCell(@src(), i, .{});
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{i}, .{});
@@ -121,7 +121,7 @@ fn gui_frame() !void {
             var col2 = try grid.column(@src(), .{});
             defer col2.deinit();
             try dvui.gridHeadingResizable(@src(), grid, "Two", &col_widths[1], .{}, .{});
-            for (10..20) |i| {
+            for (30..60) |i| {
                 var cell = try grid.bodyCell(@src(), i, .{});
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{i}, .{});
