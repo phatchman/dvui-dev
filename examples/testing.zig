@@ -127,17 +127,6 @@ fn gui_frame() !void {
                 try dvui.label(@src(), "{d}", .{i}, .{});
             }
         }
-        if (false) {
-            var hbox = try dvui.box(@src(), .horizontal, .{ .min_size_content = .{ .w = width } });
-            defer hbox.deinit();
-            width = hbox.data().rect.w;
-            var handle = dvui.GrabHandleWidget.init(@src(), .{ .direction = .vertical, .w = &width }, .{ .expand = .vertical, .gravity_x = 1.0 });
-            try handle.install();
-            handle.processEvents();
-            handle.deinit();
-            try dvui.labelNoFmt(@src(), "Heading Text", .{ .expand = .horizontal, .gravity_x = 0.5 });
-        }
-        std.debug.print("POST = {d}\n", .{col_widths});
     }
 }
 

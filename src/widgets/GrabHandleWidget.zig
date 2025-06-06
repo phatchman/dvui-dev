@@ -17,6 +17,9 @@ const GrabHandleWidget = @This();
 pub const InitOptions = struct {
     direction: enums.Direction,
     w: *f32,
+    grab_extra_w: f32 = 5,
+    min_width: ?f32 = null,
+    max_width: ?f32 = null,
 };
 
 const defaults: Options = .{
@@ -24,7 +27,7 @@ const defaults: Options = .{
     .background = true, // TODO: remove this when border and background are no longer coupled
     .color_fill = .{ .name = .border },
     .min_size_content = .{ .w = 1, .h = 1 },
-    .margin = .{ .x = 5, .w = 5 },
+    //    .margin = .{ .x = 5, .w = 5 },
 };
 
 wd: WidgetData = undefined,
@@ -33,9 +36,15 @@ init_opts: InitOptions = undefined,
 pub fn init(src: std.builtin.SourceLocation, init_options: InitOptions, opts: Options) GrabHandleWidget {
     var self = GrabHandleWidget{};
 
+    var widget_opts = defaults.override(opts);
+    widget_opts.expand = switch (init_options.direction) {
+        .horizontal => .horizontal,
+        .vertical => .vertical,
+    };
+
     self.init_opts = init_options;
-    //const expand: Options.Expand = if (init_options.direction == .horizontal) .horizontal else .vertical;
-    self.wd = WidgetData.init(src, .{}, defaults.override(opts));
+    self.wd = WidgetData.init(src, .{}, widget_opts);
+
     return self;
 }
 
@@ -52,14 +61,12 @@ pub fn matchEvent(self: *GrabHandleWidget, e: *Event) bool {
     } else {
         var rs = self.wd.rectScale();
 
-        const grab_pad: f32 = 5;
+        const grab_pad = self.init_opts.grab_extra_w;
         switch (self.init_opts.direction) {
             .vertical => {
-                //                rs.r.x -= grab_pad * rs.s;
                 rs.r.w += grab_pad * rs.s;
             },
             .horizontal => {
-                //                rs.r.y -= grab_pad * rs.s;
                 rs.r.h += grab_pad * rs.s;
             },
         }
@@ -85,25 +92,13 @@ pub fn data(self: *GrabHandleWidget) *WidgetData {
 pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
     _ = bubbling;
     if (e.evt == .mouse) {
-        var rs = self.wd.rectScale();
-        const grab_pad: f32 = 5;
-        switch (self.init_opts.direction) {
-            .vertical => {
-                //                rs.r.x -= grab_pad * rs.s;
-                rs.r.w += grab_pad * rs.s;
-            },
-            .horizontal => {
-                //                rs.r.y -= grab_pad * rs.s;
-                rs.r.h += grab_pad * rs.s;
-            },
-        }
+        const rs = self.wd.rectScale();
         const cursor: enums.Cursor = switch (self.init_opts.direction) {
             .vertical => .arrow_w_e,
             .horizontal => .arrow_n_s,
         };
 
-        //        if (dvui.captured(self.wd.id) or rs.r.contains(e.evt.mouse.p)) {
-        if (true or dvui.captured(self.wd.id) or rs.r.contains(e.evt.mouse.p)) {
+        if (true) {
             if (e.evt.mouse.action == .press and e.evt.mouse.button.pointer()) {
                 e.handle(@src(), self.data());
                 // capture and start drag
@@ -118,13 +113,13 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
                 e.handle(@src(), self.data());
                 // move if dragging
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
-                    _ = dps;
                     switch (self.init_opts.direction) {
                         .vertical => {
-                            self.init_opts.w.* += e.evt.mouse.p.x - rs.r.x;
+                            self.init_opts.w.* += dps.x / rs.s;
+                            self.init_opts.w.* = std.math.clamp(self.init_opts.w.*, self.init_opts.min_width orelse 1, self.init_opts.max_width orelse dvui.max_float_safe);
                         },
                         .horizontal => {
-                            self.init_opts.w.* += e.evt.mouse.p.y - rs.r.y;
+                            self.init_opts.w.* += dps.y / rs.s;
                         },
                     }
                 }
@@ -141,8 +136,6 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
 
 pub fn deinit(self: *GrabHandleWidget) void {
     _ = self;
-    //    dvui.clipSet(self.prevClip);
-    //dvui.parentReset(self.wd.id, self.wd.parent);
 }
 
 test {
