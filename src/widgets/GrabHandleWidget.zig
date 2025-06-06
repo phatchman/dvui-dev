@@ -9,40 +9,42 @@ const RectScale = dvui.RectScale;
 const Size = dvui.Size;
 const Widget = dvui.Widget;
 const WidgetData = dvui.WidgetData;
-
 const enums = dvui.enums;
+const Direction = enums.Direction;
 
 const GrabHandleWidget = @This();
 
 pub const InitOptions = struct {
-    direction: enums.Direction,
-    w: *f32,
-    grab_extra_w: f32 = 10,
-    min_width: ?f32 = null,
-    max_width: ?f32 = null,
+    // Resulting height/width
+    value: *f32,
+    // clicking on these extra pixels before/after or above/below the handle
+    // count as clicking on the handle
+    tolerance: f32 = 5,
+    min_size: ?f32 = null,
+    max_size: ?f32 = null,
 };
 
 const defaults: Options = .{
-    .name = "Grab",
+    .name = "GrabHandle",
     .background = true, // TODO: remove this when border and background are no longer coupled
     .color_fill = .{ .name = .border },
     .min_size_content = .{ .w = 1, .h = 1 },
-    //    .margin = .{ .x = 5, .w = 5 },
 };
 
 wd: WidgetData = undefined,
+direction: Direction = undefined,
 init_opts: InitOptions = undefined,
 offset: Point = .{},
 
-pub fn init(src: std.builtin.SourceLocation, init_options: InitOptions, opts: Options) GrabHandleWidget {
+pub fn init(src: std.builtin.SourceLocation, dir: Direction, init_options: InitOptions, opts: Options) GrabHandleWidget {
     var self = GrabHandleWidget{};
 
     var widget_opts = defaults.override(opts);
-    widget_opts.expand = switch (init_options.direction) {
+    widget_opts.expand = switch (dir) {
         .horizontal => .horizontal,
         .vertical => .vertical,
     };
-
+    self.direction = dir;
     self.init_opts = init_options;
     self.wd = WidgetData.init(src, .{}, widget_opts);
 
@@ -61,25 +63,21 @@ pub fn install(self: *GrabHandleWidget) !void {
 }
 
 pub fn matchEvent(self: *GrabHandleWidget, e: *Event) bool {
-    if (false) {
-        return dvui.eventMatchSimple(e, self.data());
-    } else {
-        var rs = self.wd.rectScale();
+    var rs = self.wd.rectScale();
 
-        const grab_width = self.init_opts.grab_extra_w / 2 * rs.s;
-        switch (self.init_opts.direction) {
-            .vertical => {
-                rs.r.x -= grab_width;
-                rs.r.w += grab_width;
-            },
-            .horizontal => {
-                rs.r.y -= grab_width;
-                rs.r.h += grab_width;
-            },
-        }
-
-        return dvui.eventMatch(e, .{ .id = self.wd.id, .r = rs.r });
+    // Clicking near the handle counts as clicking on the handle.
+    const grab_extra = self.init_opts.tolerance * rs.s;
+    switch (self.direction) {
+        .vertical => {
+            rs.r.x -= grab_extra;
+            rs.r.w += grab_extra;
+        },
+        .horizontal => {
+            rs.r.y -= grab_extra;
+            rs.r.h += grab_extra;
+        },
     }
+    return dvui.eventMatch(e, .{ .id = self.wd.id, .r = rs.r });
 }
 
 pub fn processEvents(self: *GrabHandleWidget) void {
@@ -96,13 +94,11 @@ pub fn data(self: *GrabHandleWidget) *WidgetData {
     return &self.wd;
 }
 
-// TODO: Handle case where user drags mouse too far left and then moves right again.
-// Column should not start expanding until mouse is back to the dargging area.
 pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
     _ = bubbling;
     if (e.evt == .mouse) {
         const rs = self.wd.rectScale();
-        const cursor: enums.Cursor = switch (self.init_opts.direction) {
+        const cursor: enums.Cursor = switch (self.direction) {
             .vertical => .arrow_w_e,
             .horizontal => .arrow_n_s,
         };
@@ -124,18 +120,24 @@ pub fn processEvent(self: *GrabHandleWidget, e: *Event, bubbling: bool) void {
                 e.handle(@src(), self.data());
                 // move if dragging
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
-                    switch (self.init_opts.direction) {
+                    switch (self.direction) {
                         .vertical => {
-                            const unclamped = self.init_opts.w.* + dps.x / rs.s + self.offset.x;
-                            self.init_opts.w.* = std.math.clamp(
+                            const unclamped = self.init_opts.value.* + dps.x / rs.s + self.offset.x;
+                            self.init_opts.value.* = std.math.clamp(
                                 unclamped,
-                                self.init_opts.min_width orelse 1,
-                                self.init_opts.max_width orelse dvui.max_float_safe,
+                                self.init_opts.min_size orelse 1,
+                                self.init_opts.max_size orelse dvui.max_float_safe,
                             );
-                            self.offset.x = unclamped - self.init_opts.w.*;
+                            self.offset.x = unclamped - self.init_opts.value.*;
                         },
                         .horizontal => {
-                            self.init_opts.w.* += dps.y / rs.s;
+                            const unclamped = self.init_opts.value.* + dps.y / rs.s + self.offset.y;
+                            self.init_opts.value.* = std.math.clamp(
+                                unclamped,
+                                self.init_opts.min_size orelse 1,
+                                self.init_opts.max_size orelse dvui.max_float_safe,
+                            );
+                            self.offset.y = unclamped - self.init_opts.value.*;
                         },
                     }
                 }

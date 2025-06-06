@@ -103,12 +103,15 @@ fn gui_frame() !void {
     var main_hbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
     defer main_hbox.deinit();
     {
+        var sort_dir: dvui.GridWidget.SortDirection = undefined;
+
         var grid = try dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .horizontal = .auto } }, .{ .expand = .both });
         defer grid.deinit();
         {
             var col1 = try grid.column(@src(), .{});
             defer col1.deinit();
-            try dvui.gridHeadingResizable(@src(), grid, "One", &col_widths[0], .{}, .{});
+            _ = try dvui.gridHeadingSortable(@src(), grid, "One", &sort_dir, .{ .value = &col_widths[0], .min_size = 100, .max_size = 500 }, .{}, .{});
+            //            try dvui.gridHeading(@src(), grid, "One", .{ .w = &col_widths[0], .min_size = 100, .max_size = 500 }, .{}, .{});
             for (0..30) |i| {
                 var cell = try grid.bodyCell(@src(), i, .{});
                 defer cell.deinit();
@@ -118,8 +121,20 @@ fn gui_frame() !void {
         {
             var col2 = try grid.column(@src(), .{});
             defer col2.deinit();
-            try dvui.gridHeadingResizable(@src(), grid, "Two", &col_widths[1], .{}, .{});
+            //try dvui.gridHeading(@src(), grid, "Two", null, .{}, .{});
+            try dvui.gridHeading(@src(), grid, "Two", .{ .value = &col_widths[0], .min_size = 100, .max_size = 500 }, .{}, .{});
             for (30..60) |i| {
+                var cell = try grid.bodyCell(@src(), i, .{});
+                defer cell.deinit();
+                try dvui.label(@src(), "{d}", .{i}, .{});
+            }
+        }
+
+        {
+            var col3 = try grid.column(@src(), .{});
+            defer col3.deinit();
+            _ = try dvui.gridHeadingSortable(@src(), grid, "One", &sort_dir, .{ .value = &col_widths[2] }, .{}, .{});
+            for (60..90) |i| {
                 var cell = try grid.bodyCell(@src(), i, .{});
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{i}, .{});
@@ -129,7 +144,7 @@ fn gui_frame() !void {
 }
 
 var width: f32 = 0;
-var col_widths: [2]f32 = .{ 150, 150 };
+var col_widths: [3]f32 = .{ 150, 150, 50 };
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {
