@@ -15,12 +15,15 @@ const Direction = enums.Direction;
 const GrabHandleWidget = @This();
 
 pub const InitOptions = struct {
-    // Resulting height/width
+    // Initial and resulting width (.vertical) or height (.horizontal)
     value: *f32,
-    // clicking on these extra pixels before/after or above/below the handle
-    // count as clicking on the handle
-    tolerance: f32 = 5,
+    // clicking on these extra pixels before/after (.vertical)
+    // or above/below the handle (.horizontal) also count
+    // as clicking on the handle.
+    grab_tolerance: f32 = 5,
+    // Will not resize to less than this value
     min_size: ?f32 = null,
+    // Will not resize to more than this value
     max_size: ?f32 = null,
 };
 
@@ -66,7 +69,7 @@ pub fn matchEvent(self: *GrabHandleWidget, e: *Event) bool {
     var rs = self.wd.rectScale();
 
     // Clicking near the handle counts as clicking on the handle.
-    const grab_extra = self.init_opts.tolerance * rs.s;
+    const grab_extra = self.init_opts.grab_tolerance * rs.s;
     switch (self.direction) {
         .vertical => {
             rs.r.x -= grab_extra;
