@@ -4129,12 +4129,14 @@ fn gridLayouts() !void {
             return std.mem.lessThan(u8, rhs.make, lhs.make);
         }
 
+        const resize_min = 80;
+        const resize_max = 500;
         fn headerResizeOptions(col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
             if (layout_style != .user_resizable) return .fixed;
             return .{
                 .size = &col_widths[col_num],
-                .min_size = 100,
-                .max_size = 500,
+                .min_size = resize_min,
+                .max_size = resize_max,
             };
         }
 
@@ -4293,6 +4295,9 @@ fn gridLayouts() !void {
                 }
                 if (try dvui.radio(@src(), local.layout_style == .user_resizable, "Resizable", .{})) {
                     local.layout_style = .user_resizable;
+                    for (local.col_widths[1..]) |*w| {
+                        w.* = std.math.clamp(w.*, local.resize_min, local.resize_max);
+                    }
                 }
             }
             {
