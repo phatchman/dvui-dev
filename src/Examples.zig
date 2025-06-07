@@ -3897,7 +3897,7 @@ fn gridStyling() !void {
                 grid.colSortSet(local.sort_dir);
             }
 
-            if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &local.sort_dir, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Celcius", &local.sort_dir, .fixed, .{}, .{})) {
                 grid.colSortSet(current_sort_dir.reverse());
             }
 
@@ -3925,7 +3925,7 @@ fn gridStyling() !void {
                 .background = local.banding == .cols,
             });
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Fahrenheit", &local.sort_dir, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Fahrenheit", &local.sort_dir, .fixed, .{}, .{})) {
                 grid.colSortSet(current_sort_dir.reverse());
             }
 
@@ -4207,7 +4207,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Make", &local.sort_dir, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Make", &local.sort_dir, .fixed, .{}, .{})) {
                 local.sort("Make");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "make", "{s}", .{ .callback = local.rowBanding }, .none);
@@ -4216,7 +4216,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Model", &local.sort_dir, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Model", &local.sort_dir, .fixed, .{}, .{})) {
                 local.sort("Model");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "model", "{s}", .{ .callback = local.rowBanding }, .none);
@@ -4225,7 +4225,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Year", &local.sort_dir, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Year", &local.sort_dir, .fixed, .{}, .{})) {
                 local.sort("Year");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "year", "{d}", .{ .callback = local.rowBanding }, .none);
@@ -4234,7 +4234,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &local.sort_dir, .{}, .{ .gravity_x = 0.5, .expand = .horizontal })) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &local.sort_dir, .fixed, .{}, .{ .gravity_x = 0.5, .expand = .horizontal })) {
                 local.sort("Condition");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "condition", "{s}", .{ .callback = local.rowBanding }, .{ .callback = local.conditionTextColor });
@@ -4243,7 +4243,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Description", &local.sort_dir, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Description", &local.sort_dir, .fixed, .{}, .{})) {
                 local.sort("Description");
             }
             try local.customDescriptionColumn(@src(), grid, all_cars[0..], .{});
@@ -4368,7 +4368,7 @@ fn gridVirtualScrolling() !void {
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
-        try dvui.gridHeading(@src(), grid, "Number", .{}, .{});
+        try dvui.gridHeading(@src(), grid, "Number", .fixed, .{}, .{});
 
         for (first..last) |num| {
             var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .x = 1, .w = 1, .h = 1 }, .background = true });
@@ -4382,7 +4382,7 @@ fn gridVirtualScrolling() !void {
         const check_img = @embedFile("icons/entypo/check.tvg");
         var col = try grid.column(@src(), .{});
         defer col.deinit();
-        try dvui.gridHeading(@src(), grid, "Is prime?", .{}, .{});
+        try dvui.gridHeading(@src(), grid, "Is prime?", .fixed, .{}, .{});
 
         for (first..last) |num| {
             var cell = try grid.bodyCell(@src(), num, .{ .border = .{ .w = 1, .h = 1 }, .background = true });
