@@ -4293,7 +4293,7 @@ pub fn gridHeadingSortable(
     g: *GridWidget,
     heading: []const u8,
     dir: *GridWidget.SortDirection,
-    resize_opts: GridWidget.HeaderResizeWidget.InitOptions,
+    resize_opts: ?GridWidget.HeaderResizeWidget.InitOptions,
     cell_opts: GridWidget.CellOptions,
     opts: dvui.Options,
 ) !bool {
