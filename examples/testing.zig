@@ -122,7 +122,7 @@ fn gui_frame() !void {
             var col2 = try grid.column(@src(), .{});
             defer col2.deinit();
             //try dvui.gridHeading(@src(), grid, "Two", null, .{}, .{});
-            try dvui.gridHeading(@src(), grid, "Two", .{ .value = &col_widths[0], .min_size = 100, .max_size = 500 }, .{}, .{});
+            try dvui.gridHeading(@src(), grid, "Two", .{ .value = &col_widths[1], .min_size = 10, .max_size = 800 }, .{}, .{});
             for (30..60) |i| {
                 var cell = try grid.bodyCell(@src(), i, .{});
                 defer cell.deinit();
@@ -133,17 +133,17 @@ fn gui_frame() !void {
         {
             var col3 = try grid.column(@src(), .{});
             defer col3.deinit();
-            _ = try dvui.gridHeadingSortable(@src(), grid, "Three", &sort_dir, null, .{}, .{});
+            _ = try dvui.gridHeadingSortable(@src(), grid, "Three", &sort_dir, .{ .value = &col_widths[2] }, .{}, .{});
             for (60..90) |i| {
                 var cell = try grid.bodyCell(@src(), i, .{});
                 defer cell.deinit();
                 try dvui.label(@src(), "{d}", .{i}, .{});
             }
         }
-        // Testing fixed with with last col taking up the slack.
-        const total_w: f32 = sum(col_widths);
-        const leftover = grid.data().contentRect().w - total_w - dvui.GridWidget.scrollbar_padding_defaults.w;
-        col_widths[2] += leftover;
+        //// Testing fixed with with last col taking up the slack.
+        //const total_w: f32 = sum(col_widths);
+        //const leftover = grid.data().contentRect().w - total_w - dvui.GridWidget.scrollbar_padding_defaults.w;
+        //col_widths[2] += leftover;
     }
 }
 
