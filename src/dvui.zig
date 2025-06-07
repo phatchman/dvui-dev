@@ -4266,7 +4266,7 @@ pub fn gridHeadingSeparator(resize_options: ?GridWidget.HeaderResizeWidget.InitO
         handle.processEvents();
         handle.deinit();
     } else {
-        try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
+        _ = try separator(@src(), .{ .expand = .vertical, .gravity_x = 1.0 });
     }
 }
 
