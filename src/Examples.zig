@@ -4040,6 +4040,7 @@ fn gridLayouts() !void {
         equal_spacing,
         fixed_width,
         fit_window,
+        user_resizable,
     };
 
     const local = struct {
@@ -4053,7 +4054,7 @@ fn gridLayouts() !void {
         const equal_spacing = [num_cols]f32{ checkbox_w, -1, -1, -1, -1, -1 };
         var selection_state: dvui.GridColumnSelectAllState = .select_none;
         var sort_dir: GridWidget.SortDirection = .unsorted;
-        var layout: Layout = .proportional;
+        var layout_style: Layout = .proportional;
         var h_scroll: bool = false;
         var resize_rows: bool = false;
 
@@ -4122,6 +4123,15 @@ fn gridLayouts() !void {
             return std.mem.lessThan(u8, rhs.make, lhs.make);
         }
 
+        fn headerResizeOptions(col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
+            if (layout_style != .user_resizable) return .fixed;
+            return .{
+                .value = &col_widths[col_num],
+                .min_size = 100,
+                .max_size = 500,
+            };
+        }
+
         var all_cars = [_]Car{
             .{ .model = "Civic", .make = "Honda", .year = 2022, .mileage = 8500, .condition = .New, .description = "Still smells like optimism and plastic wrap." },
             .{ .model = "Model 3", .make = "Tesla", .year = 2021, .mileage = 15000, .condition = .Excellent, .description = "Drives itself better than I drive myself." },
@@ -4157,7 +4167,7 @@ fn gridLayouts() !void {
         else
             null;
 
-        const col_widths: ?[]f32 = switch (local.layout) {
+        const col_widths: ?[]f32 = switch (local.layout_style) {
             .fit_window => null,
             else => &local.col_widths,
         };
@@ -4176,13 +4186,14 @@ fn gridLayouts() !void {
         defer grid.deinit();
 
         // Fit columns to the grid visible area, or to the virtual scroll area if horizontal scorlling is enabled.
-        if (local.layout != .fit_window) {
-            const ratio = switch (local.layout) {
-                .equal_spacing => &local.equal_spacing,
-                .fixed_width => &local.fixed_widths,
-                .proportional => &local.column_ratios,
-                .fit_window => unreachable,
-            };
+        const maybe_ratio = switch (local.layout_style) {
+            .equal_spacing => &local.equal_spacing,
+            .fixed_width => &local.fixed_widths,
+            .proportional => &local.column_ratios,
+            .fit_window => null,
+            .user_resizable => null,
+        };
+        if (maybe_ratio) |ratio| {
             dvui.columnLayoutProportional(ratio, &local.col_widths, if (local.h_scroll) 1024 else grid.data().contentRect().w);
         }
         local.resize_rows = false;
@@ -4207,7 +4218,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Make", &local.sort_dir, .fixed, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Make", &local.sort_dir, local.headerResizeOptions(1), .{}, .{})) {
                 local.sort("Make");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "make", "{s}", .{ .callback = local.rowBanding }, .none);
@@ -4216,7 +4227,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Model", &local.sort_dir, .fixed, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Model", &local.sort_dir, local.headerResizeOptions(2), .{}, .{})) {
                 local.sort("Model");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "model", "{s}", .{ .callback = local.rowBanding }, .none);
@@ -4225,7 +4236,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Year", &local.sort_dir, .fixed, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Year", &local.sort_dir, local.headerResizeOptions(3), .{}, .{})) {
                 local.sort("Year");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "year", "{d}", .{ .callback = local.rowBanding }, .none);
@@ -4234,7 +4245,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &local.sort_dir, .fixed, .{}, .{ .gravity_x = 0.5, .expand = .horizontal })) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &local.sort_dir, local.headerResizeOptions(4), .{}, .{ .gravity_x = 0.5, .expand = .horizontal })) {
                 local.sort("Condition");
             }
             try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "condition", "{s}", .{ .callback = local.rowBanding }, .{ .callback = local.conditionTextColor });
@@ -4243,7 +4254,7 @@ fn gridLayouts() !void {
         {
             var col = try grid.column(@src(), .{});
             defer col.deinit();
-            if (try dvui.gridHeadingSortable(@src(), grid, "Description", &local.sort_dir, .fixed, .{}, .{})) {
+            if (try dvui.gridHeadingSortable(@src(), grid, "Description", &local.sort_dir, local.headerResizeOptions(5), .{}, .{})) {
                 local.sort("Description");
             }
             try local.customDescriptionColumn(@src(), grid, all_cars[0..], .{});
@@ -4261,28 +4272,32 @@ fn gridLayouts() !void {
                 var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
                 defer hbox.deinit();
 
-                if (try dvui.radio(@src(), local.layout == .proportional, "Proportional", .{})) {
-                    local.layout = .proportional;
+                if (try dvui.radio(@src(), local.layout_style == .proportional, "Proportional", .{})) {
+                    local.layout_style = .proportional;
                 }
-                if (try dvui.radio(@src(), local.layout == .equal_spacing, "Equal spacing", .{})) {
-                    local.layout = .equal_spacing;
+                if (try dvui.radio(@src(), local.layout_style == .equal_spacing, "Equal spacing", .{})) {
+                    local.layout_style = .equal_spacing;
                 }
-                if (try dvui.radio(@src(), local.layout == .fixed_width, "Fixed widths", .{})) {
-                    local.layout = .fixed_width;
+                if (try dvui.radio(@src(), local.layout_style == .fixed_width, "Fixed widths", .{})) {
+                    local.layout_style = .fixed_width;
                 }
-                if (try dvui.radio(@src(), local.layout == .fit_window, "Fit window", .{})) {
+                if (try dvui.radio(@src(), local.layout_style == .fit_window, "Fit window", .{})) {
                     local.h_scroll = false;
-                    local.layout = .fit_window;
+                    local.layout_style = .fit_window;
+                }
+                if (try dvui.radio(@src(), local.layout_style == .user_resizable, "Resizable", .{})) {
+                    local.layout_style = .user_resizable;
                 }
             }
             {
                 var hbox = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
                 defer hbox.deinit();
                 if (try dvui.checkbox(@src(), &local.h_scroll, "Horizontal scrolling", .{})) {
-                    if (local.layout == .fit_window) {
-                        local.layout = .proportional;
+                    if (local.layout_style == .fit_window) {
+                        local.layout_style = .proportional;
                     }
                 }
+
                 if (try dvui.button(@src(), "Resize Rows", .{}, .{})) {
                     local.resize_rows = true;
                 }

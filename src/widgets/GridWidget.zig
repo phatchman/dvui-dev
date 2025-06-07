@@ -424,7 +424,7 @@ pub const VirtualScroller = struct {
 
 pub const HeaderResizeWidget = struct {
     pub const InitOptions = struct {
-        // Initial and resulting width (.vertical) or height (.horizontal)
+        // Input and output width (.vertical) or height (.horizontal)
         value: *f32,
         // clicking on these extra pixels before/after (.vertical)
         // or above/below the handle (.horizontal) also count
@@ -439,7 +439,7 @@ pub const HeaderResizeWidget = struct {
     };
 
     const defaults: Options = .{
-        .name = "GrabHandle",
+        .name = "GridHeaderResize",
         .background = true, // TODO: remove this when border and background are no longer coupled
         .color_fill = .{ .name = .border },
         .min_size_content = .{ .w = 1, .h = 1 },
