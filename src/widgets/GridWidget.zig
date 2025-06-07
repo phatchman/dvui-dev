@@ -422,10 +422,13 @@ pub const VirtualScroller = struct {
     }
 };
 
+/// Provides a draggable separator between columns
+/// value must be a pointer into the col_widths slice
+/// passed to the GridWidget init_option.
 pub const HeaderResizeWidget = struct {
     pub const InitOptions = struct {
         // Input and output width (.vertical) or height (.horizontal)
-        value: *f32,
+        size: *f32,
         // clicking on these extra pixels before/after (.vertical)
         // or above/below the handle (.horizontal) also count
         // as clicking on the handle.
@@ -539,22 +542,22 @@ pub const HeaderResizeWidget = struct {
                     if (dvui.dragging(e.evt.mouse.p)) |dps| {
                         switch (self.direction) {
                             .vertical => {
-                                const unclamped_width = self.init_opts.value.* + dps.x / rs.s + self.offset.x;
-                                self.init_opts.value.* = std.math.clamp(
+                                const unclamped_width = self.init_opts.size.* + dps.x / rs.s + self.offset.x;
+                                self.init_opts.size.* = std.math.clamp(
                                     unclamped_width,
                                     self.init_opts.min_size orelse 1,
                                     self.init_opts.max_size orelse dvui.max_float_safe,
                                 );
-                                self.offset.x = unclamped_width - self.init_opts.value.*;
+                                self.offset.x = unclamped_width - self.init_opts.size.*;
                             },
                             .horizontal => {
-                                const unclamped_height = self.init_opts.value.* + dps.y / rs.s + self.offset.y;
-                                self.init_opts.value.* = std.math.clamp(
+                                const unclamped_height = self.init_opts.size.* + dps.y / rs.s + self.offset.y;
+                                self.init_opts.size.* = std.math.clamp(
                                     unclamped_height,
                                     self.init_opts.min_size orelse 1,
                                     self.init_opts.max_size orelse dvui.max_float_safe,
                                 );
-                                self.offset.y = unclamped_height - self.init_opts.value.*;
+                                self.offset.y = unclamped_height - self.init_opts.size.*;
                             },
                         }
                     }

@@ -4132,7 +4132,7 @@ fn gridLayouts() !void {
         fn headerResizeOptions(col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
             if (layout_style != .user_resizable) return .fixed;
             return .{
-                .value = &col_widths[col_num],
+                .size = &col_widths[col_num],
                 .min_size = 100,
                 .max_size = 500,
             };
