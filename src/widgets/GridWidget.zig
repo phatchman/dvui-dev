@@ -46,6 +46,73 @@ pub const ColOptions = struct {
     }
 };
 
+pub const GridOptions = struct {
+    cell_opts: CellOptions,
+    opts: Options,
+
+    pub fn init(cell_opts: CellOptions, opts: Options) GridOptions {
+        return .{
+            .cell_options = cell_opts,
+            .options = opts,
+        };
+    }
+
+    pub fn cellOptions(self: *GridOptions, col: usize, row: usize) CellOptions {
+        _ = row;
+        _ = col;
+        return self.cell_opts;
+    }
+
+    pub fn options(self: *GridOptions, col: usize, row: usize) Options {
+        _ = row;
+        _ = col;
+        return self.opts;
+    }
+
+    pub fn overrideOptions(self: *const GridOptions, opts: Options) GridOptions {
+        return .{
+            .cell_opts = self.cell_opts,
+            .opts = self.opts.override(opts),
+        };
+    }
+};
+
+pub const GridOptionsBanded = struct {
+    alt_cell_opts: CellOptions,
+    cell_opts: CellOptions,
+    opts: Options,
+
+    pub fn init(cell_opts: CellOptions, alt_cell_opts: CellOptions, opts: Options) GridOptionsBanded {
+        return .{
+            .cell_opts = cell_opts,
+            .alt_cell_opts = alt_cell_opts,
+            .opts = opts,
+        };
+    }
+
+    pub fn cellOptions(self: *const GridOptionsBanded, col: usize, row: usize) CellOptions {
+        _ = col;
+        return if (row % 2 == 0)
+            self.cell_opts
+        else
+            self.alt_cell_opts;
+    }
+
+    pub fn options(self: *const GridOptionsBanded, col: usize, row: usize) Options {
+        _ = row;
+        _ = col;
+        return self.opts;
+    }
+
+    pub fn overrideOptions(self: *const GridOptionsBanded, opts: Options) GridOptionsBanded {
+        return .{
+            .cell_opts = self.cell_opts,
+            .alt_cell_opts = self.alt_cell_opts,
+            .opts = self.opts.override(opts),
+        };
+    }
+};
+
 pub const CellOptions = struct {
     height: ?f32 = null,
     margin: ?Rect = null,

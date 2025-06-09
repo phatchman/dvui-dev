@@ -4091,6 +4091,23 @@ fn gridLayouts() !void {
                 return .{};
         }
 
+        const ConditionTextColor = struct {
+            base_opts: *const GridWidget.GridOptionsBanded,
+
+            pub fn init(base_opts: *const GridWidget.GridOptionsBanded) ConditionTextColor {
+                return .{
+                    .base_opts = base_opts,
+                };
+            }
+
+            pub fn cellOptions(self: *const ConditionTextColor, col: usize, row: usize) GridWidget.CellOptions {
+                return self.base_opts.cellOptions(col, row);
+            }
+
+            pub fn options(self: *const ConditionTextColor, col: usize, row: usize) dvui.Options {
+                return self.base_opts.options(col, row).override(conditionTextColor(col, row));
+            }
+        };
         /// Set the text color of the Condition text, based on the condition.
         fn conditionTextColor(_: usize, row_num: usize) Options {
             return .{
@@ -4175,6 +4192,8 @@ fn gridLayouts() !void {
     const all_cars = local.all_cars[0..];
 
     const panel_height = 250;
+    const banded = GridWidget.GridOptionsBanded.init(.{}, .{ .color_fill = .{ .name = .fill_press }, .background = true }, .{});
+    const banded_centered = GridWidget.GridOptionsBanded.init(.{}, .{ .color_fill = .{ .name = .fill_press }, .background = true }, .{ .gravity_x = 0.5, .expand = .horizontal });
     const content_h = dvui.parentGet().data().contentRect().h - panel_height;
     {
         const scroll_opts: ?dvui.ScrollAreaWidget.InitOpts = if (local.h_scroll)
@@ -4227,7 +4246,7 @@ fn gridLayouts() !void {
                     };
                 }
             }
-            _ = try dvui.gridColumnCheckbox(@src(), grid, Car, all_cars[0..], "selected", .{ .callback = local.rowBanding }, .{ .options = .{ .gravity_y = 0.0 } });
+            _ = try dvui.gridColumnCheckbox(@src(), grid, Car, all_cars[0..], "selected", banded.overrideOptions(.{ .gravity_y = 0 }));
         }
         // Make
         {
@@ -4236,7 +4255,7 @@ fn gridLayouts() !void {
             if (try dvui.gridHeadingSortable(@src(), grid, "Make", &local.sort_dir, local.headerResizeOptions(1), .{}, .{})) {
                 local.sort("Make");
             }
-            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "make", "{s}", .{ .callback = local.rowBanding }, .none);
+            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "make", "{s}", banded);
         }
         // Model
         {
@@ -4245,7 +4264,7 @@ fn gridLayouts() !void {
             if (try dvui.gridHeadingSortable(@src(), grid, "Model", &local.sort_dir, local.headerResizeOptions(2), .{}, .{})) {
                 local.sort("Model");
             }
-            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "model", "{s}", .{ .callback = local.rowBanding }, .none);
+            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "model", "{s}", banded);
         }
         // Year
         {
@@ -4254,7 +4273,7 @@ fn gridLayouts() !void {
             if (try dvui.gridHeadingSortable(@src(), grid, "Year", &local.sort_dir, local.headerResizeOptions(3), .{}, .{})) {
                 local.sort("Year");
             }
-            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "year", "{d}", .{ .callback = local.rowBanding }, .none);
+            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "year", "{d}", banded);
         }
         // Condition
         {
@@ -4263,7 +4282,7 @@ fn gridLayouts() !void {
             if (try dvui.gridHeadingSortable(@src(), grid, "Condition", &local.sort_dir, local.headerResizeOptions(4), .{}, .{ .gravity_x = 0.5, .expand = .horizontal })) {
                 local.sort("Condition");
             }
-            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "condition", "{s}", .{ .callback = local.rowBanding }, .{ .callback = local.conditionTextColor });
+            try dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "condition", "{s}", local.ConditionTextColor.init(&banded_centered));
         }
         // Description
         {

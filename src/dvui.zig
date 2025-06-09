@@ -4483,20 +4483,6 @@ pub fn gridHeadingSortable(
     return sort_changed;
 }
 
-pub const CellOptionsOrCallback = union(enum) {
-    options: GridWidget.CellOptions,
-    callback: *const fn (col_num: usize, row_num: usize) GridWidget.CellOptions,
-
-    pub const none: CellOptionsOrCallback = .{ .options = .{} };
-};
-
-pub const OptionsOrCallback = union(enum) {
-    options: Options,
-    callback: *const fn (col_num: usize, row_num: usize) Options,
-
-    pub const none: OptionsOrCallback = .{ .options = .{} };
-};
-
 /// Create a column from a slice
 ///
 /// If data is a slice of struct field_name must be supplied
@@ -4510,8 +4496,7 @@ pub fn gridColumnFromSlice(
     data: []const T,
     comptime field_name: ?[]const u8,
     comptime fmt: []const u8,
-    cell_opts: CellOptionsOrCallback,
-    opts: OptionsOrCallback,
+    opts: anytype,
 ) !void {
     // TODO: Support pointer to direct value.
     comptime var TypeToValidate = T;
@@ -4539,23 +4524,11 @@ pub fn gridColumnFromSlice(
     const label_defaults: Options = .{
         .expand = .horizontal,
     };
-    // If options are supplied create the default options.
-    const row_label_opts: Options = switch (opts) {
-        .options => |o| label_defaults.override(o),
-        .callback => .{},
-    };
-    const row_cell_opts: GridWidget.CellOptions = switch (cell_opts) {
-        .options => |o| o,
-        .callback => .{},
-    };
     for (data, 0..) |item, row_num| {
         var cell = try g.bodyCell(
             src,
             row_num,
-            switch (cell_opts) {
-                .options => row_cell_opts,
-                .callback => |callback| callback(g.col_num, row_num),
-            },
+            opts.cellOptions(g.col_num, row_num),
         );
         defer cell.deinit();
         const cell_value = value: {
@@ -4579,10 +4552,7 @@ pub fn gridColumnFromSlice(
             @src(),
             fmt,
             .{cell_value},
-            switch (opts) {
-                .options => |o| row_label_opts.override(o),
-                .callback => |callback| label_defaults.override(callback(g.col_num, row_num)),
-            },
+            label_defaults.override(opts.options(g.col_num, row_num)),
         );
     }
 }
@@ -4647,8 +4617,7 @@ pub fn gridColumnCheckbox(
     comptime T: type,
     data: []T,
     comptime field_name: ?[]const u8,
-    cell_opts: CellOptionsOrCallback,
-    opts: OptionsOrCallback,
+    opts: anytype,
 ) !bool {
     if (T != bool) {
         if (field_name) |_field_name| {
@@ -4666,20 +4635,13 @@ pub fn gridColumnCheckbox(
         .gravity_y = 0.5,
         .margin = ButtonWidget.defaults.marginGet(),
     };
-    const check_opts = switch (opts) {
-        .options => |o| check_defaults.override(o),
-        .callback => check_defaults,
-    };
 
     var selection_changed = false;
     for (data, 0..) |*item, row_num| {
         var cell = try g.bodyCell(
             src,
             row_num,
-            switch (cell_opts) {
-                .options => |o| o,
-                .callback => |callback| callback(g.col_num, row_num),
-            },
+            opts.cellOptions(g.col_num, row_num),
         );
         defer cell.deinit();
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
@@ -4688,10 +4650,7 @@ pub fn gridColumnCheckbox(
             @src(),
             is_selected,
             null,
-            switch (opts) {
-                .options => check_opts,
-                .callback => |callback| check_defaults.override(callback(g.col_num, row_num)),
-            },
+            check_defaults.override(opts.options(g.col_num, row_num)),
         );
         selection_changed = selection_changed or was_selected != is_selected.*;
     }
