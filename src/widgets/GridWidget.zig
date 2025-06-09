@@ -47,23 +47,26 @@ pub const ColOptions = struct {
 };
 
 pub const GridOptions = struct {
+    pub const CellType = enum { header, body };
     cell_opts: CellOptions,
     opts: Options,
 
     pub fn init(cell_opts: CellOptions, opts: Options) GridOptions {
         return .{
-            .cell_options = cell_opts,
-            .options = opts,
+            .cell_opts = cell_opts,
+            .opts = opts,
         };
     }
 
-    pub fn cellOptions(self: *GridOptions, col: usize, row: usize) CellOptions {
+    pub fn cellOptions(self: *const GridOptions, typ: CellType, col: usize, row: usize) CellOptions {
+        _ = typ;
         _ = row;
         _ = col;
         return self.cell_opts;
     }
 
-    pub fn options(self: *GridOptions, col: usize, row: usize) Options {
+    pub fn options(self: *const GridOptions, typ: CellType, col: usize, row: usize) Options {
+        _ = typ;
         _ = row;
         _ = col;
         return self.opts;
@@ -75,6 +78,8 @@ pub const GridOptions = struct {
             .opts = self.opts.override(opts),
         };
     }
+
+    pub const none: GridOptions = .init(.{}, .{});
 };
 
 pub const GridOptionsBanded = struct {
@@ -90,15 +95,16 @@ pub const GridOptionsBanded = struct {
         };
     }
 
-    pub fn cellOptions(self: *const GridOptionsBanded, col: usize, row: usize) CellOptions {
+    pub fn cellOptions(self: *const GridOptionsBanded, typ: GridOptions.CellType, col: usize, row: usize) CellOptions {
         _ = col;
-        return if (row % 2 == 0)
+        return if (typ == .header or row % 2 == 0)
             self.cell_opts
         else
             self.alt_cell_opts;
     }
 
-    pub fn options(self: *const GridOptionsBanded, col: usize, row: usize) Options {
+    pub fn options(self: *const GridOptionsBanded, typ: GridOptions.CellType, col: usize, row: usize) Options {
+        _ = typ;
         _ = row;
         _ = col;
         return self.opts;
