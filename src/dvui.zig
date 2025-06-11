@@ -4655,6 +4655,15 @@ pub fn gridHeadingCheckbox(
     return clicked;
 }
 
+pub const SelectionInfo = struct {
+    const SelectionMode = enum { single, multiple };
+    mode: SelectionMode = .single,
+    prev_changed: ?usize = null,
+    prev_selected: bool = false,
+    this_changed: ?usize = null,
+    this_selected: bool = false,
+};
+
 /// A checkbox column that allows selection of boolean items.
 ///
 /// Returns true if any selections have changed.
@@ -4667,6 +4676,7 @@ pub fn gridColumnCheckbox(
     data: []T,
     comptime field_name: ?[]const u8,
     cell_style: anytype, // GridWidget.CellStyle
+    selection_info: ?*SelectionInfo,
 ) !bool {
     if (T != bool) {
         if (field_name) |_field_name| {
@@ -4688,6 +4698,8 @@ pub fn gridColumnCheckbox(
     };
 
     var selection_changed = false;
+    // TODO: Can't use an absolute row num for virtual scrolling. Maybe they will need to pass in
+    // the start and end as part of the selection_info?
     for (data, 0..) |*item, row_num| {
         var cell = try g.bodyCell(
             src,
@@ -4697,12 +4709,19 @@ pub fn gridColumnCheckbox(
         defer cell.deinit();
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
         const was_selected = is_selected.*;
-        _ = try dvui.checkbox(
+        if (try dvui.checkbox(
             @src(),
             is_selected,
             null,
             check_defaults.override(opts.options(g.col_num, row_num)),
-        );
+        )) {
+            if (selection_info) |info| {
+                info.prev_selected = info.this_selected;
+                info.prev_changed = info.this_changed;
+                info.this_changed = row_num;
+                info.this_selected = is_selected.*;
+            }
+        }
         selection_changed = selection_changed or was_selected != is_selected.*;
     }
     return selection_changed;

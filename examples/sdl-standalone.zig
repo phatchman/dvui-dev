@@ -97,10 +97,23 @@ pub fn main() !void {
     }
 }
 
+const Data = struct {
+    selected: bool = false,
+    value: usize,
+};
+
+var data = makeData();
+
+fn makeData() [20]Data {
+    var result: [20]Data = undefined;
+    for (1..20) |i| {
+        result[i] = .{ .value = i };
+    }
+    return result;
+}
+
 // both dvui and SDL drawing
 fn gui_frame() !void {
-    const backend = g_backend orelse return;
-
     {
         var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
         defer m.deinit();
@@ -113,124 +126,68 @@ fn gui_frame() !void {
                 m.close();
             }
         }
-
-        if (try dvui.menuItemLabel(@src(), "Edit", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
-            defer fw.deinit();
-            _ = try dvui.menuItemLabel(@src(), "Dummy", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Long", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
-        }
     }
-
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
-    defer scroll.deinit();
-
-    var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
-    const lorem = "This example shows how to use dvui in a normal application.";
-    try tl.addText(lorem, .{});
-    tl.deinit();
-
-    var tl2 = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal });
-    try tl2.addText(
-        \\DVUI
-        \\- paints the entire window
-        \\- can show floating windows and dialogs
-        \\- example menu at the top of the window
-        \\- rest of the window is a scroll area
-    , .{});
-    try tl2.addText("\n\n", .{});
-    try tl2.addText("Framerate is variable and adjusts as needed for input events and animations.", .{});
-    try tl2.addText("\n\n", .{});
-    if (vsync) {
-        try tl2.addText("Framerate is capped by vsync.", .{});
-    } else {
-        try tl2.addText("Framerate is uncapped.", .{});
-    }
-    try tl2.addText("\n\n", .{});
-    try tl2.addText("Cursor is always being set by dvui.", .{});
-    try tl2.addText("\n\n", .{});
-    if (dvui.useFreeType) {
-        try tl2.addText("Fonts are being rendered by FreeType 2.", .{});
-    } else {
-        try tl2.addText("Fonts are being rendered by stb_truetype.", .{});
-    }
-    tl2.deinit();
-
-    const label = if (dvui.Examples.show_demo_window) "Hide Demo Window" else "Show Demo Window";
-    if (try dvui.button(@src(), label, .{}, .{})) {
-        dvui.Examples.show_demo_window = !dvui.Examples.show_demo_window;
-    }
-
-    {
-        var scaler = try dvui.scale(@src(), .{ .scale = &scale_val }, .{ .expand = .horizontal });
-        defer scaler.deinit();
-
-        {
-            var hbox = try dvui.box(@src(), .horizontal, .{});
-            defer hbox.deinit();
-
-            if (try dvui.button(@src(), "Zoom In", .{}, .{})) {
-                scale_val = @round(dvui.themeGet().font_body.size * scale_val + 1.0) / dvui.themeGet().font_body.size;
-            }
-
-            if (try dvui.button(@src(), "Zoom Out", .{}, .{})) {
-                scale_val = @round(dvui.themeGet().font_body.size * scale_val - 1.0) / dvui.themeGet().font_body.size;
-            }
-        }
-
-        try dvui.labelNoFmt(@src(), "Below is drawn directly by the backend, not going through DVUI.", .{ .margin = .{ .x = 4 } });
-
-        var box = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .min_size_content = .{ .h = 40 }, .background = true, .margin = .{ .x = 8, .w = 8 } });
-        defer box.deinit();
-
-        // Here is some arbitrary drawing that doesn't have to go through DVUI.
-        // It can be interleaved with DVUI drawing.
-        // NOTE: This only works in the main window (not floating subwindows
-        // like dialogs).
-
-        // get the screen rectangle for the box
-        const rs = box.data().contentRectScale();
-
-        // rs.r is the pixel rectangle, rs.s is the scale factor (like for
-        // hidpi screens or display scaling)
-        var rect: if (Backend.sdl3) Backend.c.SDL_FRect else Backend.c.SDL_Rect = undefined;
-        if (Backend.sdl3) rect = .{
-            .x = (rs.r.x + 4 * rs.s),
-            .y = (rs.r.y + 4 * rs.s),
-            .w = (20 * rs.s),
-            .h = (20 * rs.s),
-        } else rect = .{
-            .x = @intFromFloat(rs.r.x + 4 * rs.s),
-            .y = @intFromFloat(rs.r.y + 4 * rs.s),
-            .w = @intFromFloat(20 * rs.s),
-            .h = @intFromFloat(20 * rs.s),
+    const local = struct {
+        var selection_info: dvui.SelectionInfo = .{
+            .mode = .multiple,
         };
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 255, 0, 0, 255);
-        _ = Backend.c.SDL_RenderFillRect(backend.renderer, &rect);
+        var shift_held = false;
+    };
 
-        rect.x += if (Backend.sdl3) 24 * rs.s else @intFromFloat(24 * rs.s);
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 0, 255, 0, 255);
-        _ = Backend.c.SDL_RenderFillRect(backend.renderer, &rect);
+    // Mouse selection
+    // 1) Need to know the last selected item
+    // 2) Was it selected or unselected?
+    // 3) Need to know if ctrl/shift is selected. (using the platform-specific translation)
+    // 4) Need to know new_selection
 
-        rect.x += if (Backend.sdl3) 24 * rs.s else @intFromFloat(24 * rs.s);
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 0, 0, 255, 255);
-        _ = Backend.c.SDL_RenderFillRect(backend.renderer, &rect);
+    var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
+    defer grid.deinit();
 
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 255, 0, 255, 255);
-
-        if (Backend.sdl3)
-            _ = Backend.c.SDL_RenderLine(backend.renderer, (rs.r.x + 4 * rs.s), (rs.r.y + 30 * rs.s), (rs.r.x + rs.r.w - 8 * rs.s), (rs.r.y + 30 * rs.s))
-        else
-            _ = Backend.c.SDL_RenderDrawLine(backend.renderer, @intFromFloat(rs.r.x + 4 * rs.s), @intFromFloat(rs.r.y + 30 * rs.s), @intFromFloat(rs.r.x + rs.r.w - 8 * rs.s), @intFromFloat(rs.r.y + 30 * rs.s));
+    local.shift_held = _: {
+        const evts = dvui.events();
+        for (evts) |*e| {
+            if (e.evt == .key and (e.evt.key.code == .left_shift or e.evt.key.code == .right_shift)) {
+                switch (e.evt.key.action) {
+                    .repeat, .down => {
+                        std.debug.print("DOWN!!\n", .{});
+                        break :_ true;
+                    },
+                    .up => {
+                        std.debug.print("UP!!\n", .{});
+                        break :_ false;
+                    },
+                }
+            }
+        }
+        break :_ local.shift_held;
+    };
+    //std.debug.print("shift held = {}\n", .{local.shift_held});
+    var selection_changed = false;
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        var selection: dvui.GridColumnSelectAllState = undefined;
+        _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
+        selection_changed = try dvui.gridColumnCheckbox(@src(), grid, Data, &data, "selected", .{}, &local.selection_info);
     }
-
-    if (try dvui.button(@src(), "Show Dialog From\nOutside Frame", .{}, .{})) {
-        show_dialog_outside_frame = true;
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
+        try dvui.gridColumnFromSlice(@src(), grid, Data, &data, "value", "{d}", .{});
     }
-
-    // look at demo() for examples of dvui widgets, shows in a floating window
-    try dvui.Examples.demo();
+    blk: {
+        if (selection_changed and local.shift_held) {
+            const this_selection = local.selection_info.this_changed orelse break :blk;
+            const prev_selection = local.selection_info.prev_changed orelse break :blk;
+            const first = @min(this_selection, prev_selection);
+            const last = @max(this_selection, prev_selection);
+            for (data[first..last]) |*item| {
+                item.selected = local.selection_info.prev_selected;
+            }
+        }
+    }
+    //std.debug.print("last selection = {}\n", .{local.selection_info});
 }
 
 // Optional: windows os only
