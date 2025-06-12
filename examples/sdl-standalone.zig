@@ -164,9 +164,9 @@ fn gui_frame() !void {
     var selection_changed = false;
     local.selector.processEvents();
     const DataAdapter = dvui.GridWidget.DataAdapter;
-    const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
+    // const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
     // const adapter = DataAdapter.Slice(bool){ .slice = &selections };
-    //const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+    const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
     //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
