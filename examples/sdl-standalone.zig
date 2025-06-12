@@ -148,7 +148,7 @@ fn gui_frame() !void {
     var selection_changed = false;
     //local.selector.processEvents();
     //const adapter = DataAdapterStructSlice(Data, "selected", &data, "{s}");
-    const adapter = DataAdapterSlice(bool){ .dataset = &selections };
+    const adapter = DataAdapterSlice(bool){ .slice = &selections };
     var selector: SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
@@ -162,7 +162,7 @@ fn gui_frame() !void {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-        try dvui.gridColumnFromData(@src(), grid, "{d}", DataAdapterStructSlice(Data, "value"){ .dataset = data }, .{});
+        try dvui.gridColumnFromDataAdapter(@src(), grid, "{d}", DataAdapterStructSlice(Data, "value"){ .slice = data }, .{});
     }
     if (true) {
         selector.performAction(selection_changed, adapter);
@@ -173,23 +173,31 @@ fn gui_frame() !void {
 /// TODO: Need to make this work for virtual scrolling!
 /// Should we make comptime versions of these that don't need self?
 pub fn DataAdapterStructSlice(T: type, field_name: []const u8) type {
+    comptime switch (@typeInfo(T)) {
+        .@"struct" => {
+            if (!@hasField(T, field_name)) {
+                @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
+            }
+        },
+        else => @compileError(@typeName(T) ++ " is not a slice."),
+    };
     return struct {
         const Self = @This();
         pub const data_type = T;
-        dataset: []T,
+        slice: []T,
 
         // These take self so that dataset can change at runtime. But this was originally
         //
         pub fn value(self: Self, row: usize) @FieldType(T, field_name) {
-            return @field(self.dataset[row], field_name);
+            return @field(self.slice[row], field_name);
         }
 
         pub fn valuePtr(self: Self, row: usize) *@FieldType(T, field_name) {
-            return &@field(self.dataset[row], field_name);
+            return &@field(self.slice[row], field_name);
         }
 
         pub fn len(self: Self) usize {
-            return self.dataset.len;
+            return self.slice.len;
         }
     };
 }
@@ -198,18 +206,18 @@ pub fn DataAdapterSlice(T: type) type {
     return struct {
         const Self = @This();
         pub const data_type = T;
-        dataset: []T,
+        slice: []T,
 
         pub fn value(self: Self, row: usize) T {
-            return self.dataset[row];
+            return self.slice[row];
         }
 
         pub fn setValue(self: Self, row: usize, val: T) void {
-            self.dataset[row] = val;
+            self.slice[row] = val;
         }
 
         pub fn len(self: Self) usize {
-            return self.dataset.len;
+            return self.slice.len;
         }
     };
 }
@@ -218,7 +226,7 @@ pub fn DataAdapterBitset(T: type) type {
     return struct {
         const Self = @This();
         pub const data_type = T;
-        bitset: []T,
+        bitset: T,
 
         pub fn value(self: Self, row: usize) T {
             return self.bitset.isSet(row);

@@ -4597,7 +4597,7 @@ pub fn gridColumnFromSlice(
         );
     }
 }
-pub fn gridColumnFromData(
+pub fn gridColumnFromDataAdapter(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
     comptime fmt: []const u8,
