@@ -149,7 +149,10 @@ fn gui_frame() !void {
     }
     const local = struct {
         var selection_info: dvui.SelectionInfo = .{};
-        var selector: MultiSelectMouse = .{ .selection_info = &selection_info };
+        // This selector keeps state. so needs to be static.
+        // TODO: We could think about storing the state between frames, but .. is that worth it?
+        // I think I'd rather thave state visible to the user???
+        var selector: dvui.GridWidget.Actions.MultiSelectMouse = .{ .selection_info = &selection_info };
         var frame_count: usize = 0;
     };
 
@@ -158,14 +161,13 @@ fn gui_frame() !void {
 
     const data = if (local.frame_count != std.math.maxInt(usize)) &data1 else &data2;
     defer local.frame_count += 1;
-    //std.debug.print("shift held = {}\n", .{local.shift_held});
     var selection_changed = false;
     local.selector.processEvents();
     const DataAdapter = dvui.GridWidget.DataAdapter;
     const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
-    //const adapter = DataAdapterSlice(bool){ .slice = &selections };
-    //const adapter = DataAdapterBitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
-    //var selector: SingleSelect = .{ .selection_info = &local.selection_info };
+    // const adapter = DataAdapter.Slice(bool){ .slice = &selections };
+    //const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+    //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
         var col = try grid.column(@src(), .{});
@@ -201,50 +203,10 @@ fn gui_frame() !void {
         );
     }
     if (true) {
-        //selector.performAction(selection_changed, adapter);
+        //single_select.performAction(selection_changed, adapter);
         local.selector.performAction(selection_changed, adapter);
     }
 }
-
-pub const SingleSelect = struct {
-    selection_info: *dvui.SelectionInfo,
-
-    pub fn performAction(self: *SingleSelect, selection_changed: bool, data_adapter: anytype) void {
-        if (selection_changed) {
-            const last_selected = self.selection_info.prev_changed orelse return;
-            data_adapter.setValue(last_selected, false);
-        }
-    }
-};
-
-pub const MultiSelectMouse = struct {
-    selection_info: *dvui.SelectionInfo,
-    shift_held: bool = false,
-
-    pub fn processEvents(self: *MultiSelectMouse) void {
-        const evts = dvui.events();
-        for (evts) |*e| {
-            if (e.evt == .key and (e.evt.key.code == .left_shift or e.evt.key.code == .right_shift)) {
-                switch (e.evt.key.action) {
-                    .repeat, .down => self.shift_held = true,
-                    .up => self.shift_held = false,
-                }
-            }
-        }
-    }
-
-    pub fn performAction(self: *const MultiSelectMouse, selection_changed: bool, data_adapter: anytype) void {
-        if (selection_changed and self.shift_held) {
-            const this_selection = self.selection_info.this_changed orelse return;
-            const prev_selection = self.selection_info.prev_changed orelse return;
-            const first = @min(this_selection, prev_selection);
-            const last = @max(this_selection, prev_selection);
-            for (first..last + 1) |row| {
-                data_adapter.setValue(row, self.selection_info.this_selected);
-            }
-        }
-    }
-};
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {

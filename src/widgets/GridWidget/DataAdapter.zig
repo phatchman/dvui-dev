@@ -45,7 +45,7 @@ pub fn Slice(T: type) type {
     };
 }
 
-pub fn DataAdapterBitset(T: type) type {
+pub fn Bitset(T: type) type {
     return struct {
         const Self = @This();
         bitset: *T,
