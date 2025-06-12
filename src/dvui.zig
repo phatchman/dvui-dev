@@ -4600,6 +4600,7 @@ pub fn gridColumnFromSlice(
 pub fn gridColumnFromData(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
+    comptime fmt: []const u8,
     data_adapter: anytype, // XXX
     cell_style: anytype, // GridWidget.CellStyle
 ) !void {
@@ -4617,7 +4618,7 @@ pub fn gridColumnFromData(
         defer cell.deinit();
         try label(
             @src(),
-            data_adapter.formatStr(),
+            fmt,
             .{data_adapter.value(row_num)},
             label_defaults.override(opts.options(g.col_num, row_num)),
         );
@@ -4760,8 +4761,8 @@ pub fn gridColumnCheckboxData(
     cell_style: anytype, // GridWidget.CellStyle
     selection_info: ?*SelectionInfo,
 ) !bool {
-    if (data_adapter.data_type != bool) {
-        @compileError("Data adapter must return bool");
+    if (@TypeOf(data_adapter).data_type != bool) {
+        @compileError("Data adapter must return type bool");
     }
 
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
@@ -4783,22 +4784,23 @@ pub fn gridColumnCheckboxData(
             opts.cellOptions(g.col_num, row_num),
         );
         defer cell.deinit();
-        const is_selected: *bool = data_adapter.valuePtr(row_num);
-        const was_selected = is_selected.*;
+        var is_selected: bool = data_adapter.value(row_num);
+        const was_selected = is_selected;
         if (try dvui.checkbox(
             @src(),
-            is_selected,
+            &is_selected,
             null,
             check_defaults.override(opts.options(g.col_num, row_num)),
         )) {
+            data_adapter.setValue(row_num, is_selected);
             if (selection_info) |info| {
                 info.prev_selected = info.this_selected;
                 info.prev_changed = info.this_changed;
                 info.this_changed = row_num;
-                info.this_selected = is_selected.*;
+                info.this_selected = is_selected;
             }
         }
-        selection_changed = selection_changed or was_selected != is_selected.*;
+        selection_changed = selection_changed or was_selected != is_selected;
     }
     return selection_changed;
 }
