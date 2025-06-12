@@ -9,6 +9,9 @@ const std = @import("std");
 
 /// This DataAdapter demonstrates the interface.
 /// It is not intended to be used.
+// TODO: This doesn;t yet work for virtual scrolling.
+// The adapaters either needs to take a start / end index or a start_offset or similar
+// as we only want the user to pass the visible part of the dataset to the adapters.
 const DataAdapter = @This();
 pub fn value(self: *DataAdapter, row_num: usize) void {
     _ = self;
@@ -64,8 +67,6 @@ pub fn Bitset(T: type) type {
     };
 }
 
-/// TODO: Need to make this work for virtual scrolling!
-/// Should we make comptime versions of these that don't need self?
 pub fn SliceOfStruct(T: type, field_name: []const u8) type {
     comptime switch (@typeInfo(T)) {
         .@"struct" => {
@@ -96,6 +97,8 @@ pub fn SliceOfStruct(T: type, field_name: []const u8) type {
     };
 }
 
+// TODO: There will end up being be Slice and SliceOfStruct versions of everything...
+// That's probably fine, but would be nice to avoid it.
 pub fn SliceOfStructEnum(T: type, field_name: []const u8) type {
     comptime switch (@typeInfo(T)) {
         .@"struct" => {
@@ -109,9 +112,6 @@ pub fn SliceOfStructEnum(T: type, field_name: []const u8) type {
         const Self = @This();
         slice: []T,
 
-        // These take self so that dataset can change at runtime. But this was originally
-        // done as static functions at comptime. Which would be more efficient.
-        // Consider making comptime versions?
         pub fn value(self: Self, row: usize) []const u8 {
             return @tagName(@field(self.slice[row], field_name));
         }

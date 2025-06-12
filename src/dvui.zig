@@ -4523,7 +4523,7 @@ pub fn gridHeadingSortable(
     return sort_changed;
 }
 
-pub fn gridColumnFromDataAdapter(
+pub fn gridColumn(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
     comptime fmt: []const u8,

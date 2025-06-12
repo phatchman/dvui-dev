@@ -180,7 +180,7 @@ fn gui_frame() !void {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-        try dvui.gridColumnFromDataAdapter(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
+        try dvui.gridColumn(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
         //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
         //tst.setValue(3, 69);
     }
@@ -188,13 +188,13 @@ fn gui_frame() !void {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
-        try dvui.gridColumnFromDataAdapter(@src(), grid, "{}", adapter, .{});
+        try dvui.gridColumn(@src(), grid, "{}", adapter, .{});
     }
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
-        try dvui.gridColumnFromDataAdapter(
+        try dvui.gridColumn(
             @src(),
             grid,
             "{s}",
