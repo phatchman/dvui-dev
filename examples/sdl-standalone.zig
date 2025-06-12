@@ -161,7 +161,8 @@ fn gui_frame() !void {
     //std.debug.print("shift held = {}\n", .{local.shift_held});
     var selection_changed = false;
     local.selector.processEvents();
-    const adapter = DataAdapterStructSlice(Data, "selected"){ .slice = data };
+    const DataAdapter = dvui.GridWidget.DataAdapter;
+    const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
     //const adapter = DataAdapterSlice(bool){ .slice = &selections };
     //const adapter = DataAdapterBitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
     //var selector: SingleSelect = .{ .selection_info = &local.selection_info };
@@ -177,7 +178,7 @@ fn gui_frame() !void {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-        try dvui.gridColumnFromDataAdapter(@src(), grid, "{d}", DataAdapterStructSlice(Data, "value"){ .slice = data }, .{});
+        try dvui.gridColumnFromDataAdapter(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
         //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
         //tst.setValue(3, 69);
     }
@@ -195,7 +196,7 @@ fn gui_frame() !void {
             @src(),
             grid,
             "{s}",
-            DataAdapterStructSliceEnumToString(Data, "parity"){ .slice = data },
+            DataAdapter.SliceOfStructEnum(Data, "parity"){ .slice = data },
             .{},
         );
     }
@@ -203,106 +204,6 @@ fn gui_frame() !void {
         //selector.performAction(selection_changed, adapter);
         local.selector.performAction(selection_changed, adapter);
     }
-}
-
-/// TODO: Need to make this work for virtual scrolling!
-/// Should we make comptime versions of these that don't need self?
-pub fn DataAdapterStructSlice(T: type, field_name: []const u8) type {
-    comptime switch (@typeInfo(T)) {
-        .@"struct" => {
-            if (!@hasField(T, field_name)) {
-                @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
-            }
-        },
-        else => @compileError(@typeName(T) ++ " is not a slice."),
-    };
-    return struct {
-        const Self = @This();
-        slice: []T,
-
-        // These take self so that dataset can change at runtime. But this was originally
-        // done as static functions at comptime. Which would be more efficient.
-        // Consider making comptime versions?
-        pub fn value(self: Self, row: usize) @FieldType(T, field_name) {
-            return @field(self.slice[row], field_name);
-        }
-
-        pub fn setValue(self: Self, row: usize, val: @FieldType(T, field_name)) void {
-            @field(self.slice[row], field_name) = val;
-        }
-
-        pub fn len(self: Self) usize {
-            return self.slice.len;
-        }
-    };
-}
-
-pub fn DataAdapterStructSliceEnumToString(T: type, field_name: []const u8) type {
-    comptime switch (@typeInfo(T)) {
-        .@"struct" => {
-            if (!@hasField(T, field_name)) {
-                @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
-            }
-        },
-        else => @compileError(@typeName(T) ++ " is not a slice."),
-    };
-    return struct {
-        const Self = @This();
-        slice: []T,
-
-        // These take self so that dataset can change at runtime. But this was originally
-        // done as static functions at comptime. Which would be more efficient.
-        // Consider making comptime versions?
-        pub fn value(self: Self, row: usize) []const u8 {
-            return @tagName(@field(self.slice[row], field_name));
-        }
-
-        pub fn setValue(self: Self, row: usize, val: []const u8) void {
-            @field(self.slice[row], field_name) = std.meta.stringToEnum(@TypeOf(self.slice[0]), val);
-        }
-
-        pub fn len(self: Self) usize {
-            return self.slice.len;
-        }
-    };
-}
-
-pub fn DataAdapterSlice(T: type) type {
-    return struct {
-        const Self = @This();
-        slice: []T,
-
-        pub fn value(self: Self, row: usize) T {
-            return self.slice[row];
-        }
-
-        pub fn setValue(self: Self, row: usize, val: T) void {
-            self.slice[row] = val;
-        }
-
-        pub fn len(self: Self) usize {
-            return self.slice.len;
-        }
-    };
-}
-
-pub fn DataAdapterBitset(T: type) type {
-    return struct {
-        const Self = @This();
-        bitset: *T,
-
-        pub fn value(self: Self, row: usize) bool {
-            return self.bitset.isSet(row);
-        }
-
-        pub fn setValue(self: Self, row: usize, val: bool) void {
-            self.bitset.setValue(row, val);
-        }
-
-        pub fn len(self: Self) usize {
-            return self.bitset.capacity();
-        }
-    };
 }
 
 pub const SingleSelect = struct {

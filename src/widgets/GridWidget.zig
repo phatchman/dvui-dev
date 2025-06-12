@@ -17,6 +17,7 @@ const ScrollAreaWidget = dvui.ScrollAreaWidget;
 const ScrollBarWidget = dvui.ScrollBarWidget;
 
 pub const CellStyle = @import("GridWidget/CellStyle.zig");
+pub const DataAdapter = @import("GridWidget/DataAdapter.zig");
 const GridWidget = @This();
 
 pub var defaults: Options = .{
