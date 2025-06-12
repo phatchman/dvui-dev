@@ -115,6 +115,7 @@ fn makeData(num: usize) [num]Data {
 }
 
 var selections: [data2.len]bool = @splat(false);
+var select_bitset: std.StaticBitSet(data2.len) = .initEmpty();
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
@@ -146,10 +147,11 @@ fn gui_frame() !void {
     defer local.frame_count += 1;
     //std.debug.print("shift held = {}\n", .{local.shift_held});
     var selection_changed = false;
-    //local.selector.processEvents();
+    local.selector.processEvents();
     //const adapter = DataAdapterStructSlice(Data, "selected", &data, "{s}");
-    const adapter = DataAdapterSlice(bool){ .slice = &selections };
-    var selector: SingleSelect = .{ .selection_info = &local.selection_info };
+    //const adapter = DataAdapterSlice(bool){ .slice = &selections };
+    const adapter = DataAdapterBitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+    //var selector: SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
         var col = try grid.column(@src(), .{});
@@ -165,8 +167,8 @@ fn gui_frame() !void {
         try dvui.gridColumnFromDataAdapter(@src(), grid, "{d}", DataAdapterStructSlice(Data, "value"){ .slice = data }, .{});
     }
     if (true) {
-        selector.performAction(selection_changed, adapter);
-        // local.selector.performAction(selection_changed, adapter);
+        //    selector.performAction(selection_changed, adapter);
+        local.selector.performAction(selection_changed, adapter);
     }
 }
 
@@ -225,19 +227,19 @@ pub fn DataAdapterSlice(T: type) type {
 pub fn DataAdapterBitset(T: type) type {
     return struct {
         const Self = @This();
-        pub const data_type = T;
-        bitset: T,
+        pub const data_type = bool;
+        bitset: *T,
 
-        pub fn value(self: Self, row: usize) T {
+        pub fn value(self: Self, row: usize) bool {
             return self.bitset.isSet(row);
         }
 
-        pub fn setValue(self: Self, row: usize, val: T) void {
+        pub fn setValue(self: Self, row: usize, val: bool) void {
             self.bitset.setValue(row, val);
         }
 
         pub fn len(self: Self) usize {
-            return self.bitset.capacity;
+            return self.bitset.capacity();
         }
     };
 }
