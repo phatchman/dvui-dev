@@ -4597,6 +4597,32 @@ pub fn gridColumnFromSlice(
         );
     }
 }
+pub fn gridColumnFromData(
+    src: std.builtin.SourceLocation,
+    g: *GridWidget,
+    data_adapter: anytype, // XXX
+    cell_style: anytype, // GridWidget.CellStyle
+) !void {
+    const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
+
+    const label_defaults: Options = .{
+        .expand = .horizontal,
+    };
+    for (0..data_adapter.len()) |row_num| {
+        var cell = try g.bodyCell(
+            src,
+            row_num,
+            opts.cellOptions(g.col_num, row_num),
+        );
+        defer cell.deinit();
+        try label(
+            @src(),
+            data_adapter.formatStr(),
+            .{data_adapter.value(row_num)},
+            label_defaults.override(opts.options(g.col_num, row_num)),
+        );
+    }
+}
 
 pub const GridColumnSelectAllState = enum {
     select_all,
@@ -4708,6 +4734,56 @@ pub fn gridColumnCheckbox(
         );
         defer cell.deinit();
         const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
+        const was_selected = is_selected.*;
+        if (try dvui.checkbox(
+            @src(),
+            is_selected,
+            null,
+            check_defaults.override(opts.options(g.col_num, row_num)),
+        )) {
+            if (selection_info) |info| {
+                info.prev_selected = info.this_selected;
+                info.prev_changed = info.this_changed;
+                info.this_changed = row_num;
+                info.this_selected = is_selected.*;
+            }
+        }
+        selection_changed = selection_changed or was_selected != is_selected.*;
+    }
+    return selection_changed;
+}
+
+pub fn gridColumnCheckboxData(
+    src: std.builtin.SourceLocation,
+    g: *dvui.GridWidget,
+    data_adapter: anytype, // XXX
+    cell_style: anytype, // GridWidget.CellStyle
+    selection_info: ?*SelectionInfo,
+) !bool {
+    if (data_adapter.data_type != bool) {
+        @compileError("Data adapter must return bool");
+    }
+
+    const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
+
+    const check_defaults: Options = .{
+        .gravity_x = 0.5,
+        .gravity_y = 0.5,
+        .margin = ButtonWidget.defaults.marginGet(),
+    };
+
+    var selection_changed = false;
+    // TODO: Can't use an absolute row num for virtual scrolling. Maybe they will need to pass in
+    // the start and end as part of the selection_info?
+    // The data adapters will need to take care of that.
+    for (0..data_adapter.len()) |row_num| {
+        var cell = try g.bodyCell(
+            src,
+            row_num,
+            opts.cellOptions(g.col_num, row_num),
+        );
+        defer cell.deinit();
+        const is_selected: *bool = data_adapter.valuePtr(row_num);
         const was_selected = is_selected.*;
         if (try dvui.checkbox(
             @src(),

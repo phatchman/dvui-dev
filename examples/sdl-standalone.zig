@@ -137,19 +137,14 @@ fn gui_frame() !void {
         var selector: MultiSelectMouse = .{ .selection_info = &selection_info };
     };
 
-    // Mouse selection
-    // 1) Need to know the last selected item
-    // 2) Was it selected or unselected?
-    // 3) Need to know if ctrl/shift is selected. (using the platform-specific translation)
-    // 4) Need to know new_selection
     var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
     defer grid.deinit();
 
     //std.debug.print("shift held = {}\n", .{local.shift_held});
     var selection_changed = false;
     local.selector.processEvents();
-    const adapter = DataAdapterStructSlice(Data, "selected", &data);
-    //const adapter = DataAdapterSlice(bool, &selections);
+    //const adapter = DataAdapterStructSlice(Data, "selected", &data, "{s}");
+    const adapter = DataAdapterSlice(bool, &selections);
     //    var selector: SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
@@ -157,13 +152,13 @@ fn gui_frame() !void {
         defer col.deinit();
         var selection: dvui.GridColumnSelectAllState = undefined;
         _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
-        selection_changed = try dvui.gridColumnCheckbox(@src(), grid, Data, &data, "selected", .{}, &local.selection_info);
+        selection_changed = try dvui.gridColumnCheckboxData(@src(), grid, adapter, .{}, &local.selection_info);
     }
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-        try dvui.gridColumnFromSlice(@src(), grid, Data, &data, "value", "{d}", .{});
+        try dvui.gridColumnFromData(@src(), grid, DataAdapterStructSlice(Data, "value", &data, "{d}"), .{});
     }
     if (true) {
         //    selector.performAction(selection_changed, adapter);
@@ -171,10 +166,11 @@ fn gui_frame() !void {
     }
 }
 
+/// TODO: Need to make this work for virtual scrolling!
 pub fn DataAdapterStructSlice(T: type, field_name: []const u8, dataset: []T) type {
     return struct {
         const Self = @This();
-
+        pub const data_type = T;
         // TODO: These don't need to be member functions??? But I guess it makes a new type for each dataset?
         // whereas if I store the datsaset, it will access via self and create less of them?
         pub fn value(row: usize) @FieldType(T, field_name) {
@@ -184,12 +180,17 @@ pub fn DataAdapterStructSlice(T: type, field_name: []const u8, dataset: []T) typ
         pub fn valuePtr(row: usize) *@FieldType(T, field_name) {
             return &@field(dataset[row], field_name);
         }
+
+        pub fn len() usize {
+            return dataset.len;
+        }
     };
 }
 
 pub fn DataAdapterSlice(T: type, dataset: []T) type {
     return struct {
         const Self = @This();
+        pub const data_type = T;
 
         pub fn value(row: usize) T {
             return dataset[row];
@@ -197,6 +198,10 @@ pub fn DataAdapterSlice(T: type, dataset: []T) type {
 
         pub fn valuePtr(row: usize) *T {
             return &dataset[row];
+        }
+
+        pub fn len() usize {
+            return dataset.len;
         }
     };
 }
