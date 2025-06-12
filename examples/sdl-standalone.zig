@@ -45,6 +45,7 @@ pub fn main() !void {
     });
     g_backend = backend;
     defer backend.deinit();
+    //backend.log_events = true;
 
     _ = Backend.c.SDL_EnableScreenSaver();
 
@@ -97,9 +98,41 @@ pub fn main() !void {
     }
 }
 
+const Data = struct {
+    const Parity = enum { odd, even };
+    selected: bool = false,
+    value: usize,
+    parity: Parity,
+};
+
+var data1 = makeData(20);
+var data2 = makeData(20);
+
+fn makeData(num: usize) [num]Data {
+    var result: [num]Data = undefined;
+    for (0..num) |i| {
+        result[i] = .{ .value = i, .parity = if (i % 2 == 1) .odd else .even };
+    }
+    return result;
+}
+
+var selections: [data2.len]bool = @splat(false);
+var select_bitset: std.StaticBitSet(data2.len) = .initEmpty();
+
 // both dvui and SDL drawing
 fn gui_frame() !void {
-    const backend = g_backend orelse return;
+    const Mine = struct {
+        const Self = @This();
+        slice: []u8,
+        fn value(self: Self, row: usize) u8 {
+            return self.slice[row];
+        }
+    };
+    var slice: [0]u8 = undefined;
+    var thing: Mine = .{ .slice = &slice };
+    if (@TypeOf(thing.value(99)) != u8) {
+        @compileError("Data adapter value() must return bool");
+    }
 
     {
         var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
@@ -113,124 +146,66 @@ fn gui_frame() !void {
                 m.close();
             }
         }
-
-        if (try dvui.menuItemLabel(@src(), "Edit", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
-            defer fw.deinit();
-            _ = try dvui.menuItemLabel(@src(), "Dummy", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Long", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
-        }
     }
+    const local = struct {
+        var selection_info: dvui.SelectionInfo = .{};
+        // This selector keeps state. so needs to be static.
+        // TODO: We could think about storing the state between frames, but .. is that worth it?
+        // I think I'd rather thave state visible to the user???
+        var selector: dvui.GridWidget.Actions.MultiSelectMouse = .{ .selection_info = &selection_info };
+        var frame_count: usize = 0;
+    };
 
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
-    defer scroll.deinit();
+    var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
+    defer grid.deinit();
 
-    var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
-    const lorem = "This example shows how to use dvui in a normal application.";
-    try tl.addText(lorem, .{});
-    tl.deinit();
-
-    var tl2 = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal });
-    try tl2.addText(
-        \\DVUI
-        \\- paints the entire window
-        \\- can show floating windows and dialogs
-        \\- example menu at the top of the window
-        \\- rest of the window is a scroll area
-    , .{});
-    try tl2.addText("\n\n", .{});
-    try tl2.addText("Framerate is variable and adjusts as needed for input events and animations.", .{});
-    try tl2.addText("\n\n", .{});
-    if (vsync) {
-        try tl2.addText("Framerate is capped by vsync.", .{});
-    } else {
-        try tl2.addText("Framerate is uncapped.", .{});
-    }
-    try tl2.addText("\n\n", .{});
-    try tl2.addText("Cursor is always being set by dvui.", .{});
-    try tl2.addText("\n\n", .{});
-    if (dvui.useFreeType) {
-        try tl2.addText("Fonts are being rendered by FreeType 2.", .{});
-    } else {
-        try tl2.addText("Fonts are being rendered by stb_truetype.", .{});
-    }
-    tl2.deinit();
-
-    const label = if (dvui.Examples.show_demo_window) "Hide Demo Window" else "Show Demo Window";
-    if (try dvui.button(@src(), label, .{}, .{})) {
-        dvui.Examples.show_demo_window = !dvui.Examples.show_demo_window;
-    }
+    const data = if (local.frame_count != std.math.maxInt(usize)) &data1 else &data2;
+    defer local.frame_count += 1;
+    var selection_changed = false;
+    local.selector.processEvents();
+    const DataAdapter = dvui.GridWidget.DataAdapter;
+    // const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
+    // const adapter = DataAdapter.Slice(bool){ .slice = &selections };
+    const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+    //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
-        var scaler = try dvui.scale(@src(), .{ .scale = &scale_val }, .{ .expand = .horizontal });
-        defer scaler.deinit();
-
-        {
-            var hbox = try dvui.box(@src(), .horizontal, .{});
-            defer hbox.deinit();
-
-            if (try dvui.button(@src(), "Zoom In", .{}, .{})) {
-                scale_val = @round(dvui.themeGet().font_body.size * scale_val + 1.0) / dvui.themeGet().font_body.size;
-            }
-
-            if (try dvui.button(@src(), "Zoom Out", .{}, .{})) {
-                scale_val = @round(dvui.themeGet().font_body.size * scale_val - 1.0) / dvui.themeGet().font_body.size;
-            }
-        }
-
-        try dvui.labelNoFmt(@src(), "Below is drawn directly by the backend, not going through DVUI.", .{ .margin = .{ .x = 4 } });
-
-        var box = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .min_size_content = .{ .h = 40 }, .background = true, .margin = .{ .x = 8, .w = 8 } });
-        defer box.deinit();
-
-        // Here is some arbitrary drawing that doesn't have to go through DVUI.
-        // It can be interleaved with DVUI drawing.
-        // NOTE: This only works in the main window (not floating subwindows
-        // like dialogs).
-
-        // get the screen rectangle for the box
-        const rs = box.data().contentRectScale();
-
-        // rs.r is the pixel rectangle, rs.s is the scale factor (like for
-        // hidpi screens or display scaling)
-        var rect: if (Backend.sdl3) Backend.c.SDL_FRect else Backend.c.SDL_Rect = undefined;
-        if (Backend.sdl3) rect = .{
-            .x = (rs.r.x + 4 * rs.s),
-            .y = (rs.r.y + 4 * rs.s),
-            .w = (20 * rs.s),
-            .h = (20 * rs.s),
-        } else rect = .{
-            .x = @intFromFloat(rs.r.x + 4 * rs.s),
-            .y = @intFromFloat(rs.r.y + 4 * rs.s),
-            .w = @intFromFloat(20 * rs.s),
-            .h = @intFromFloat(20 * rs.s),
-        };
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 255, 0, 0, 255);
-        _ = Backend.c.SDL_RenderFillRect(backend.renderer, &rect);
-
-        rect.x += if (Backend.sdl3) 24 * rs.s else @intFromFloat(24 * rs.s);
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 0, 255, 0, 255);
-        _ = Backend.c.SDL_RenderFillRect(backend.renderer, &rect);
-
-        rect.x += if (Backend.sdl3) 24 * rs.s else @intFromFloat(24 * rs.s);
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 0, 0, 255, 255);
-        _ = Backend.c.SDL_RenderFillRect(backend.renderer, &rect);
-
-        _ = Backend.c.SDL_SetRenderDrawColor(backend.renderer, 255, 0, 255, 255);
-
-        if (Backend.sdl3)
-            _ = Backend.c.SDL_RenderLine(backend.renderer, (rs.r.x + 4 * rs.s), (rs.r.y + 30 * rs.s), (rs.r.x + rs.r.w - 8 * rs.s), (rs.r.y + 30 * rs.s))
-        else
-            _ = Backend.c.SDL_RenderDrawLine(backend.renderer, @intFromFloat(rs.r.x + 4 * rs.s), @intFromFloat(rs.r.y + 30 * rs.s), @intFromFloat(rs.r.x + rs.r.w - 8 * rs.s), @intFromFloat(rs.r.y + 30 * rs.s));
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        var selection: dvui.GridColumnSelectAllState = undefined;
+        _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
+        selection_changed = try dvui.gridColumnCheckbox(@src(), grid, adapter, .{}, &local.selection_info);
     }
-
-    if (try dvui.button(@src(), "Show Dialog From\nOutside Frame", .{}, .{})) {
-        show_dialog_outside_frame = true;
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
+        try dvui.gridColumn(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
+        //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
+        //tst.setValue(3, 69);
     }
-
-    // look at demo() for examples of dvui widgets, shows in a floating window
-    try dvui.Examples.demo();
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
+        try dvui.gridColumn(@src(), grid, "{}", adapter, .{});
+    }
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
+        try dvui.gridColumn(
+            @src(),
+            grid,
+            "{s}",
+            DataAdapter.SliceOfStructEnum(Data, "parity"){ .slice = data },
+            .{},
+        );
+    }
+    if (true) {
+        //single_select.performAction(selection_changed, adapter);
+        local.selector.performAction(selection_changed, adapter);
+    }
 }
 
 // Optional: windows os only
