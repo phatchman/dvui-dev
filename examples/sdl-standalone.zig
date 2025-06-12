@@ -146,10 +146,10 @@ fn gui_frame() !void {
     defer local.frame_count += 1;
     //std.debug.print("shift held = {}\n", .{local.shift_held});
     var selection_changed = false;
-    local.selector.processEvents();
+    //local.selector.processEvents();
     //const adapter = DataAdapterStructSlice(Data, "selected", &data, "{s}");
     const adapter = DataAdapterSlice(bool){ .dataset = &selections };
-    //    var selector: SingleSelect = .{ .selection_info = &local.selection_info };
+    var selector: SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
         var col = try grid.column(@src(), .{});
@@ -165,8 +165,8 @@ fn gui_frame() !void {
         try dvui.gridColumnFromData(@src(), grid, "{d}", DataAdapterStructSlice(Data, "value"){ .dataset = data }, .{});
     }
     if (true) {
-        //    selector.performAction(selection_changed, adapter);
-        local.selector.performAction(selection_changed, adapter);
+        selector.performAction(selection_changed, adapter);
+        // local.selector.performAction(selection_changed, adapter);
     }
 }
 
@@ -240,8 +240,7 @@ pub const SingleSelect = struct {
     pub fn performAction(self: *SingleSelect, selection_changed: bool, data_adapter: anytype) void {
         if (selection_changed) {
             const last_selected = self.selection_info.prev_changed orelse return;
-            const value = data_adapter.valuePtr(last_selected);
-            value.* = false;
+            data_adapter.setValue(last_selected, false);
         }
     }
 };
