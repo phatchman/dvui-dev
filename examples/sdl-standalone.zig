@@ -99,8 +99,10 @@ pub fn main() !void {
 }
 
 const Data = struct {
+    const Parity = enum { odd, even };
     selected: bool = false,
     value: usize,
+    parity: Parity,
 };
 
 var data1 = makeData(20);
@@ -108,8 +110,8 @@ var data2 = makeData(20);
 
 fn makeData(num: usize) [num]Data {
     var result: [num]Data = undefined;
-    for (1..num) |i| {
-        result[i] = .{ .value = i };
+    for (0..num) |i| {
+        result[i] = .{ .value = i, .parity = if (i % 2 == 1) .odd else .even };
     }
     return result;
 }
@@ -119,6 +121,19 @@ var select_bitset: std.StaticBitSet(data2.len) = .initEmpty();
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
+    const Mine = struct {
+        const Self = @This();
+        slice: []u8,
+        fn value(self: Self, row: usize) u8 {
+            return self.slice[row];
+        }
+    };
+    var slice: [0]u8 = undefined;
+    var thing: Mine = .{ .slice = &slice };
+    if (@TypeOf(thing.value(99)) != u8) {
+        @compileError("Data adapter value() must return bool");
+    }
+
     {
         var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
         defer m.deinit();
@@ -133,9 +148,7 @@ fn gui_frame() !void {
         }
     }
     const local = struct {
-        var selection_info: dvui.SelectionInfo = .{
-            .mode = .multiple,
-        };
+        var selection_info: dvui.SelectionInfo = .{};
         var selector: MultiSelectMouse = .{ .selection_info = &selection_info };
         var frame_count: usize = 0;
     };
@@ -143,14 +156,14 @@ fn gui_frame() !void {
     var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
     defer grid.deinit();
 
-    const data = if (local.frame_count % 2 == 0) &data1 else &data2;
+    const data = if (local.frame_count != std.math.maxInt(usize)) &data1 else &data2;
     defer local.frame_count += 1;
     //std.debug.print("shift held = {}\n", .{local.shift_held});
     var selection_changed = false;
     local.selector.processEvents();
-    //const adapter = DataAdapterStructSlice(Data, "selected", &data, "{s}");
+    const adapter = DataAdapterStructSlice(Data, "selected"){ .slice = data };
     //const adapter = DataAdapterSlice(bool){ .slice = &selections };
-    const adapter = DataAdapterBitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+    //const adapter = DataAdapterBitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
     //var selector: SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
@@ -158,16 +171,36 @@ fn gui_frame() !void {
         defer col.deinit();
         var selection: dvui.GridColumnSelectAllState = undefined;
         _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
-        selection_changed = try dvui.gridColumnCheckboxData(@src(), grid, adapter, .{}, &local.selection_info);
+        selection_changed = try dvui.gridColumnCheckbox(@src(), grid, adapter, .{}, &local.selection_info);
     }
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
         try dvui.gridColumnFromDataAdapter(@src(), grid, "{d}", DataAdapterStructSlice(Data, "value"){ .slice = data }, .{});
+        //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
+        //tst.setValue(3, 69);
+    }
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
+        try dvui.gridColumnFromDataAdapter(@src(), grid, "{}", adapter, .{});
+    }
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
+        try dvui.gridColumnFromDataAdapter(
+            @src(),
+            grid,
+            "{s}",
+            DataAdapterStructSliceEnumToString(Data, "parity"){ .slice = data },
+            .{},
+        );
     }
     if (true) {
-        //    selector.performAction(selection_changed, adapter);
+        //selector.performAction(selection_changed, adapter);
         local.selector.performAction(selection_changed, adapter);
     }
 }
@@ -185,17 +218,47 @@ pub fn DataAdapterStructSlice(T: type, field_name: []const u8) type {
     };
     return struct {
         const Self = @This();
-        pub const data_type = T;
         slice: []T,
 
         // These take self so that dataset can change at runtime. But this was originally
-        //
+        // done as static functions at comptime. Which would be more efficient.
+        // Consider making comptime versions?
         pub fn value(self: Self, row: usize) @FieldType(T, field_name) {
             return @field(self.slice[row], field_name);
         }
 
-        pub fn valuePtr(self: Self, row: usize) *@FieldType(T, field_name) {
-            return &@field(self.slice[row], field_name);
+        pub fn setValue(self: Self, row: usize, val: @FieldType(T, field_name)) void {
+            @field(self.slice[row], field_name) = val;
+        }
+
+        pub fn len(self: Self) usize {
+            return self.slice.len;
+        }
+    };
+}
+
+pub fn DataAdapterStructSliceEnumToString(T: type, field_name: []const u8) type {
+    comptime switch (@typeInfo(T)) {
+        .@"struct" => {
+            if (!@hasField(T, field_name)) {
+                @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
+            }
+        },
+        else => @compileError(@typeName(T) ++ " is not a slice."),
+    };
+    return struct {
+        const Self = @This();
+        slice: []T,
+
+        // These take self so that dataset can change at runtime. But this was originally
+        // done as static functions at comptime. Which would be more efficient.
+        // Consider making comptime versions?
+        pub fn value(self: Self, row: usize) []const u8 {
+            return @tagName(@field(self.slice[row], field_name));
+        }
+
+        pub fn setValue(self: Self, row: usize, val: []const u8) void {
+            @field(self.slice[row], field_name) = std.meta.stringToEnum(@TypeOf(self.slice[0]), val);
         }
 
         pub fn len(self: Self) usize {
@@ -207,7 +270,6 @@ pub fn DataAdapterStructSlice(T: type, field_name: []const u8) type {
 pub fn DataAdapterSlice(T: type) type {
     return struct {
         const Self = @This();
-        pub const data_type = T;
         slice: []T,
 
         pub fn value(self: Self, row: usize) T {
@@ -227,7 +289,6 @@ pub fn DataAdapterSlice(T: type) type {
 pub fn DataAdapterBitset(T: type) type {
     return struct {
         const Self = @This();
-        pub const data_type = bool;
         bitset: *T,
 
         pub fn value(self: Self, row: usize) bool {

@@ -4684,86 +4684,28 @@ pub fn gridHeadingCheckbox(
 }
 
 pub const SelectionInfo = struct {
-    const SelectionMode = enum { single, multiple };
-    mode: SelectionMode = .single,
     prev_changed: ?usize = null,
     prev_selected: bool = false,
     this_changed: ?usize = null,
     this_selected: bool = false,
+
+    pub fn selectionChanged(self: *SelectionInfo, row_num: usize, selected: bool) void {
+        self.prev_selected = self.this_selected;
+        self.prev_changed = self.this_changed;
+        self.this_changed = row_num;
+        self.this_selected = selected;
+    }
 };
 
-/// A checkbox column that allows selection of boolean items.
-///
-/// Returns true if any selections have changed.
-/// If field_name is null, T must be a bool.
-/// Otherwise field_name must refer to a bool field within a struct.
 pub fn gridColumnCheckbox(
-    src: std.builtin.SourceLocation,
-    g: *dvui.GridWidget,
-    comptime T: type,
-    data: []T,
-    comptime field_name: ?[]const u8,
-    cell_style: anytype, // GridWidget.CellStyle
-    selection_info: ?*SelectionInfo,
-) !bool {
-    if (T != bool) {
-        if (field_name) |_field_name| {
-            if (!@hasField(T, _field_name)) {
-                @compileError(std.fmt.comptimePrint("'{s}' doesn't contain a member named {s}.", .{ @typeName(T), _field_name }));
-            } else if (@FieldType(T, _field_name) != bool) {
-                @compileError(std.fmt.comptimePrint("{s}.{s} must be of type bool.", .{ @typeName(T), _field_name }));
-            }
-        } else {
-            @compileError("data must be of type []bool when field_name is null.");
-        }
-    }
-    const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
-
-    const check_defaults: Options = .{
-        .gravity_x = 0.5,
-        .gravity_y = 0.5,
-        .margin = ButtonWidget.defaults.marginGet(),
-    };
-
-    var selection_changed = false;
-    // TODO: Can't use an absolute row num for virtual scrolling. Maybe they will need to pass in
-    // the start and end as part of the selection_info?
-    for (data, 0..) |*item, row_num| {
-        var cell = try g.bodyCell(
-            src,
-            row_num,
-            opts.cellOptions(g.col_num, row_num),
-        );
-        defer cell.deinit();
-        const is_selected: *bool = if (T == bool) item else &@field(item, field_name.?);
-        const was_selected = is_selected.*;
-        if (try dvui.checkbox(
-            @src(),
-            is_selected,
-            null,
-            check_defaults.override(opts.options(g.col_num, row_num)),
-        )) {
-            if (selection_info) |info| {
-                info.prev_selected = info.this_selected;
-                info.prev_changed = info.this_changed;
-                info.this_changed = row_num;
-                info.this_selected = is_selected.*;
-            }
-        }
-        selection_changed = selection_changed or was_selected != is_selected.*;
-    }
-    return selection_changed;
-}
-
-pub fn gridColumnCheckboxData(
     src: std.builtin.SourceLocation,
     g: *dvui.GridWidget,
     data_adapter: anytype, // XXX
     cell_style: anytype, // GridWidget.CellStyle
     selection_info: ?*SelectionInfo,
 ) !bool {
-    if (@TypeOf(data_adapter).data_type != bool) {
-        @compileError("Data adapter must return type bool");
+    if (@TypeOf(data_adapter.value(0)) != bool) {
+        @compileError("Data adapter value() must return bool");
     }
 
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
@@ -4771,13 +4713,14 @@ pub fn gridColumnCheckboxData(
     const check_defaults: Options = .{
         .gravity_x = 0.5,
         .gravity_y = 0.5,
-        .margin = ButtonWidget.defaults.marginGet(),
+        .margin = ButtonWidget.defaults.margin,
     };
 
     var selection_changed = false;
     // TODO: Can't use an absolute row num for virtual scrolling. Maybe they will need to pass in
     // the start and end as part of the selection_info?
     // The data adapters will need to take care of that.
+    // Can also probably simpily the logic below so that selection_changes is only set when the button is clicked?
     for (0..data_adapter.len()) |row_num| {
         var cell = try g.bodyCell(
             src,
@@ -4794,11 +4737,9 @@ pub fn gridColumnCheckboxData(
             check_defaults.override(opts.options(g.col_num, row_num)),
         )) {
             data_adapter.setValue(row_num, is_selected);
+
             if (selection_info) |info| {
-                info.prev_selected = info.this_selected;
-                info.prev_changed = info.this_changed;
-                info.this_changed = row_num;
-                info.this_selected = is_selected;
+                info.selectionChanged(row_num, is_selected);
             }
         }
         selection_changed = selection_changed or was_selected != is_selected;
