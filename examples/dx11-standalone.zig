@@ -2,6 +2,7 @@ const std = @import("std");
 const dvui = @import("dvui");
 const Backend = dvui.backend;
 const win32 = Backend.win32;
+const builtin = @import("builtin");
 
 const window_icon_png = @embedFile("zig-favicon.png");
 
@@ -29,6 +30,11 @@ const window_class = win32.L("DvuiStandaloneWindow");
 /// - render frames only when needed
 pub fn main() !void {
     defer _ = gpa_instance.deinit();
+
+    if (@import("builtin").os.tag == .windows) { // optional
+        // on windows graphical apps have no console, so output goes to nowhere - attach it manually. related: https://github.com/ziglang/zig/issues/4196
+        _ = winapi.AttachConsole(0xFFFFFFFF);
+    }
 
     Backend.RegisterClass(window_class, .{}) catch win32.panicWin32(
         "RegisterClass",
@@ -105,7 +111,20 @@ pub fn main() !void {
         },
     };
 }
+const Data = struct {
+    selected: bool = false,
+    value: usize,
+};
 
+var data = makeData();
+
+fn makeData() [20]Data {
+    var result: [20]Data = undefined;
+    for (1..20) |i| {
+        result[i] = .{ .value = i };
+    }
+    return result;
+}
 fn gui_frame() !void {
     {
         var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
@@ -119,91 +138,75 @@ fn gui_frame() !void {
                 m.close();
             }
         }
+    }
+    const local = struct {
+        var selection_info: dvui.SelectionInfo = .{
+            .mode = .multiple,
+        };
+        var shift_held = false;
+    };
 
-        if (try dvui.menuItemLabel(@src(), "Edit", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
-            defer fw.deinit();
-            _ = try dvui.menuItemLabel(@src(), "Dummy", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Long", .{}, .{ .expand = .horizontal });
-            _ = try dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
+    // Mouse selection
+    // 1) Need to know the last selected item
+    // 2) Was it selected or unselected?
+    // 3) Need to know if ctrl/shift is selected. (using the platform-specific translation)
+    // 4) Need to know new_selection
+
+    var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
+    defer grid.deinit();
+
+    local.shift_held = _: {
+        const evts = dvui.events();
+        for (evts) |*e| {
+            if (e.evt == .key and (e.evt.key.code == .left_shift or e.evt.key.code == .right_shift)) {
+                switch (e.evt.key.action) {
+                    .down => {
+                        std.debug.print("DOWN!!\n", .{});
+                        break :_ true;
+                    },
+                    .up => {
+                        std.debug.print("UP!!\n", .{});
+                        break :_ false;
+                    },
+                    .repeat => {
+                        break :_ local.shift_held;
+                    },
+                }
+            }
+        }
+        break :_ local.shift_held;
+    };
+    //std.debug.print("shift held = {}\n", .{local.shift_held});
+    var selection_changed = false;
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        var selection: dvui.GridColumnSelectAllState = undefined;
+        _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
+        selection_changed = try dvui.gridColumnCheckbox(@src(), grid, Data, &data, "selected", .{}, &local.selection_info);
+    }
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
+        try dvui.gridColumnFromSlice(@src(), grid, Data, &data, "value", "{d}", .{});
+    }
+    if (true) {
+        blk: {
+            if (selection_changed and local.shift_held) {
+                const this_selection = local.selection_info.this_changed orelse break :blk;
+                const prev_selection = local.selection_info.prev_changed orelse break :blk;
+                const first = @min(this_selection, prev_selection);
+                const last = @max(this_selection, prev_selection);
+                for (data[first..last]) |*item| {
+                    item.selected = local.selection_info.prev_selected;
+                }
+            }
         }
     }
-
-    var scroll = try dvui.scrollArea(@src(), .{}, .{ .expand = .both, .color_fill = .fill_window });
-    defer scroll.deinit();
-
-    var tl = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .font_style = .title_4 });
-    const lorem = "This example shows how to use dvui in a normal application.";
-    try tl.addText(lorem, .{});
-    tl.deinit();
-
-    var tl2 = try dvui.textLayout(@src(), .{}, .{ .expand = .horizontal });
-    try tl2.addText(
-        \\DVUI
-        \\- paints the entire window
-        \\- can show floating windows and dialogs
-        \\- example menu at the top of the window
-        \\- rest of the window is a scroll area
-    , .{});
-    try tl2.addText("\n\n", .{});
-    try tl2.addText("Framerate is variable and adjusts as needed for input events and animations.", .{});
-    try tl2.addText("\n\n", .{});
-    if (vsync) {
-        try tl2.addText("Framerate is capped by vsync.", .{});
-    } else {
-        try tl2.addText("Framerate is uncapped.", .{});
-    }
-    try tl2.addText("\n\n", .{});
-    try tl2.addText("Cursor is always being set by dvui.", .{});
-    try tl2.addText("\n\n", .{});
-    if (dvui.useFreeType) {
-        try tl2.addText("Fonts are being rendered by FreeType 2.", .{});
-    } else {
-        try tl2.addText("Fonts are being rendered by stb_truetype.", .{});
-    }
-    tl2.deinit();
-
-    const label = if (dvui.Examples.show_demo_window) "Hide Demo Window" else "Show Demo Window";
-    if (try dvui.button(@src(), label, .{}, .{})) {
-        dvui.Examples.show_demo_window = !dvui.Examples.show_demo_window;
-    }
-
-    {
-        try dvui.labelNoFmt(@src(), "These are drawn directly by the backend, not going through DVUI.", .{ .margin = .{ .x = 4 } });
-
-        var box = try dvui.box(@src(), .horizontal, .{ .expand = .horizontal, .min_size_content = .{ .h = 40 }, .background = true, .margin = .{ .x = 8, .w = 8 } });
-        defer box.deinit();
-
-        // Here is some arbitrary drawing that doesn't have to go through DVUI.
-        // It can be interleaved with DVUI drawing.
-        // NOTE: This only works in the main window (not floating subwindows
-        // like dialogs).
-    }
-
-    if (try dvui.button(@src(), "Show Dialog From\nOutside Frame", .{}, .{})) {
-        show_dialog_outside_frame = true;
-    }
-
-    if (try dvui.button(@src(), "Spawn Another OS window", .{}, .{})) {
-        try extra_windows.ensureUnusedCapacity(gpa, 1);
-        const state = try gpa.create(Backend.WindowState);
-        errdefer gpa.destroy(state);
-        const backend = try Backend.initWindow(state, .{
-            .registered_class = window_class,
-            .dvui_gpa = gpa,
-            .allocator = gpa,
-            .size = .{ .w = 800.0, .h = 600.0 },
-            .min_size = .{ .w = 250.0, .h = 350.0 },
-            .vsync = vsync,
-            .title = "DVUI DX11 Standalone Example",
-            .icon = window_icon_png, // can also call setIconFromFileContent()
-        });
-        extra_windows.appendAssumeCapacity(.{
-            .state = state,
-            .backend = backend,
-        });
-    }
-
-    // look at demo() for examples of dvui widgets, shows in a floating window
-    try dvui.Examples.demo();
+    //std.debug.print("last selection = {}\n", .{local.selection_info});
 }
+
+const winapi = if (builtin.os.tag == .windows) struct {
+    extern "kernel32" fn AttachConsole(dwProcessId: std.os.windows.DWORD) std.os.windows.BOOL;
+} else struct {};

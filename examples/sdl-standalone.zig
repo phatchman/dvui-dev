@@ -45,6 +45,7 @@ pub fn main() !void {
     });
     g_backend = backend;
     defer backend.deinit();
+    //backend.log_events = true;
 
     _ = Backend.c.SDL_EnableScreenSaver();
 
@@ -112,6 +113,8 @@ fn makeData() [20]Data {
     return result;
 }
 
+var selections: [data.len]bool = @splat(false);
+
 // both dvui and SDL drawing
 fn gui_frame() !void {
     {
@@ -131,7 +134,7 @@ fn gui_frame() !void {
         var selection_info: dvui.SelectionInfo = .{
             .mode = .multiple,
         };
-        var shift_held = false;
+        var selector: MultiSelectMouse = .{ .selection_info = &selection_info };
     };
 
     // Mouse selection
@@ -139,30 +142,16 @@ fn gui_frame() !void {
     // 2) Was it selected or unselected?
     // 3) Need to know if ctrl/shift is selected. (using the platform-specific translation)
     // 4) Need to know new_selection
-
     var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
     defer grid.deinit();
 
-    local.shift_held = _: {
-        const evts = dvui.events();
-        for (evts) |*e| {
-            if (e.evt == .key and (e.evt.key.code == .left_shift or e.evt.key.code == .right_shift)) {
-                switch (e.evt.key.action) {
-                    .repeat, .down => {
-                        std.debug.print("DOWN!!\n", .{});
-                        break :_ true;
-                    },
-                    .up => {
-                        std.debug.print("UP!!\n", .{});
-                        break :_ false;
-                    },
-                }
-            }
-        }
-        break :_ local.shift_held;
-    };
     //std.debug.print("shift held = {}\n", .{local.shift_held});
     var selection_changed = false;
+    local.selector.processEvents();
+    const adapter = DataAdapterStructSlice(Data, "selected", &data);
+    //const adapter = DataAdapterSlice(bool, &selections);
+    //    var selector: SingleSelect = .{ .selection_info = &local.selection_info };
+
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
@@ -176,19 +165,82 @@ fn gui_frame() !void {
         try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
         try dvui.gridColumnFromSlice(@src(), grid, Data, &data, "value", "{d}", .{});
     }
-    blk: {
-        if (selection_changed and local.shift_held) {
-            const this_selection = local.selection_info.this_changed orelse break :blk;
-            const prev_selection = local.selection_info.prev_changed orelse break :blk;
-            const first = @min(this_selection, prev_selection);
-            const last = @max(this_selection, prev_selection);
-            for (data[first..last]) |*item| {
-                item.selected = local.selection_info.prev_selected;
+    if (true) {
+        //    selector.performAction(selection_changed, adapter);
+        local.selector.performAction(selection_changed, adapter);
+    }
+}
+
+pub fn DataAdapterStructSlice(T: type, field_name: []const u8, dataset: []T) type {
+    return struct {
+        const Self = @This();
+
+        // TODO: These don't need to be member functions??? But I guess it makes a new type for each dataset?
+        // whereas if I store the datsaset, it will access via self and create less of them?
+        pub fn value(row: usize) @FieldType(T, field_name) {
+            return @field(dataset[row], field_name);
+        }
+
+        pub fn valuePtr(row: usize) *@FieldType(T, field_name) {
+            return &@field(dataset[row], field_name);
+        }
+    };
+}
+
+pub fn DataAdapterSlice(T: type, dataset: []T) type {
+    return struct {
+        const Self = @This();
+
+        pub fn value(row: usize) T {
+            return dataset[row];
+        }
+
+        pub fn valuePtr(row: usize) *T {
+            return &dataset[row];
+        }
+    };
+}
+
+pub const SingleSelect = struct {
+    selection_info: *dvui.SelectionInfo,
+
+    pub fn performAction(self: *SingleSelect, selection_changed: bool, data_adapter: anytype) void {
+        if (selection_changed) {
+            const last_selected = self.selection_info.prev_changed orelse return;
+            const value = data_adapter.valuePtr(last_selected);
+            value.* = false;
+        }
+    }
+};
+
+pub const MultiSelectMouse = struct {
+    selection_info: *dvui.SelectionInfo,
+    shift_held: bool = false,
+
+    pub fn processEvents(self: *MultiSelectMouse) void {
+        const evts = dvui.events();
+        for (evts) |*e| {
+            if (e.evt == .key and (e.evt.key.code == .left_shift or e.evt.key.code == .right_shift)) {
+                switch (e.evt.key.action) {
+                    .repeat, .down => self.shift_held = true,
+                    .up => self.shift_held = false,
+                }
             }
         }
     }
-    //std.debug.print("last selection = {}\n", .{local.selection_info});
-}
+
+    pub fn performAction(self: *const MultiSelectMouse, selection_changed: bool, data_adapter: anytype) void {
+        if (selection_changed and self.shift_held) {
+            const this_selection = self.selection_info.this_changed orelse return;
+            const prev_selection = self.selection_info.prev_changed orelse return;
+            const first = @min(this_selection, prev_selection);
+            const last = @max(this_selection, prev_selection);
+            for (first..last + 1) |row| {
+                data_adapter.valuePtr(row).* = self.selection_info.this_selected;
+            }
+        }
+    }
+};
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {
