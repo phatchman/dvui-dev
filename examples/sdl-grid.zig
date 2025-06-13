@@ -101,6 +101,15 @@ const Data = struct {
 
 var data1 = makeData(20);
 var data2 = makeData(20);
+var data_ptr: [data1.len]*Data = makeDataPtr();
+
+fn makeDataPtr() [data1.len]*Data {
+    var result: [data1.len]*Data = undefined;
+    for (0..data2.len) |i| {
+        result[i] = &data1[i];
+    }
+    return result;
+}
 
 fn makeData(num: usize) [num]Data {
     var result: [num]Data = undefined;
@@ -164,9 +173,9 @@ fn gui_frame() !void {
     local.selector.processEvents();
     const DataAdapter = dvui.GridWidget.DataAdapter;
     const CellStyle = dvui.GridWidget.CellStyle;
-    // const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
-    // const adapter = DataAdapter.Slice(bool){ .slice = &selections };
-    const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+    const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
+    //const adapter = DataAdapter.Slice(bool){ .slice = &selections };
+    //const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
     //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
@@ -193,12 +202,29 @@ fn gui_frame() !void {
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "YN", .fixed, .{});
+        try dvui.gridColumnLabel(
+            @src(),
+            grid,
+            "{s}",
+            DataAdapter.SliceOfStructConvert(
+                Data,
+                "selected",
+                DataAdapter.boolToYN,
+            ){ .slice = data },
+            CellStyle{ .opts = .{ .gravity_x = 0.5 } },
+        );
+    }
+
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
         try dvui.gridColumnLabel(
             @src(),
             grid,
             "{s}",
-            DataAdapter.SliceOfStructEnum(Data, "parity"){ .slice = data },
+            DataAdapter.SliceOfStructConvert(Data, "parity", DataAdapter.enumToString){ .slice = data },
             .{},
         );
     }
@@ -210,7 +236,11 @@ fn gui_frame() !void {
             @src(),
             grid,
             .{},
-            DataAdapter.SliceOfStructEnumLookup(Data, "parity", @TypeOf(icon_map)){ .slice = data, .icon_map = icon_map },
+            DataAdapter.SliceOfStructConvert(
+                Data,
+                "parity",
+                DataAdapter.enumArrayLookup(icon_map),
+            ){ .slice = data },
             CellStyle{ .opts = .{ .gravity_x = 0.5 } },
         );
     }

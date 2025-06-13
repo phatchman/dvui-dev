@@ -5,6 +5,12 @@
 //! - pub fn len() usize
 //!
 
+//
+// Now about setValue. Nothing currently needs it except for
+// the selection actions and we don't really want to promote patterns
+// where dvui widgets are modifying user data.
+//
+
 const std = @import("std");
 
 /// This DataAdapter returns the same void value for all rows and columns
@@ -12,6 +18,11 @@ const std = @import("std");
 // TODO: This doesn't yet work for virtual scrolling.
 // The adapaters either needs to take a start / end index or a start_offset or similar
 // as we only want the user to pass the visible part of the dataset to the adapters.
+// Proposal
+//  - Get rid of all the setValues.
+//  - Introduce writable data adapters for only those things that actually need them.
+// - Issue is that this is at minimum 3 adapters. Bitset, bool and struct of bool, not to mention slice of pointer to struct.
+
 const DataAdapter = @This();
 
 pub fn value(self: *DataAdapter, row_num: usize) void {
@@ -31,12 +42,18 @@ pub fn len(self: *DataAdapter) usize {
 }
 
 pub fn Slice(T: type) type {
+    return SliceConverter(T, nullConverter(T));
+}
+
+pub fn SliceConverter(T: type, converter: anytype) type {
+    const ReturnType = @typeInfo(@TypeOf(converter)).@"fn".return_type.?;
+
     return struct {
         const Self = @This();
         slice: []T,
 
-        pub fn value(self: Self, row: usize) T {
-            return self.slice[row];
+        pub fn value(self: Self, row: usize) ReturnType {
+            return converter(self.slice[row]);
         }
 
         pub fn setValue(self: Self, row: usize, val: T) void {
@@ -49,6 +66,7 @@ pub fn Slice(T: type) type {
     };
 }
 
+// TODO: Bitset Converter?
 pub fn Bitset(T: type) type {
     return struct {
         const Self = @This();
@@ -69,14 +87,20 @@ pub fn Bitset(T: type) type {
 }
 
 pub fn SliceOfStruct(T: type, field_name: []const u8) type {
+    return SliceOfStructConvert(T, field_name, nullConverter(@FieldType(T, field_name)));
+}
+
+pub fn SliceOfStructConvert(T: type, field_name: []const u8, converter: anytype) type {
     comptime switch (@typeInfo(T)) {
         .@"struct" => {
             if (!@hasField(T, field_name)) {
                 @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
             }
         },
-        else => @compileError(@typeName(T) ++ " is not a slice."),
+        else => @compileError(@typeName(T) ++ " is not a struct."),
     };
+    const ReturnType = @typeInfo(@TypeOf(converter)).@"fn".return_type.?;
+
     return struct {
         const Self = @This();
         slice: []T,
@@ -84,8 +108,8 @@ pub fn SliceOfStruct(T: type, field_name: []const u8) type {
         // These take self so that dataset can change at runtime. But this was originally
         // done as static functions at comptime. Which would be more efficient.
         // Consider making comptime versions?
-        pub fn value(self: Self, row: usize) @FieldType(T, field_name) {
-            return @field(self.slice[row], field_name);
+        pub fn value(self: Self, row: usize) ReturnType {
+            return converter(@field(self.slice[row], field_name));
         }
 
         pub fn setValue(self: Self, row: usize, val: @FieldType(T, field_name)) void {
@@ -98,67 +122,27 @@ pub fn SliceOfStruct(T: type, field_name: []const u8) type {
     };
 }
 
-// TODO: There will end up being be Slice and SliceOfStruct versions of everything...
-// That's probably fine, but would be nice to avoid it.
-pub fn SliceOfStructEnum(T: type, field_name: []const u8) type {
-    comptime switch (@typeInfo(T)) {
-        .@"struct" => {
-            if (!@hasField(T, field_name)) {
-                @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
-            }
-        },
-        else => @compileError(@typeName(T) ++ " is not a slice."),
-    };
+pub fn nullConverter(T: type) fn (val: T) T {
     return struct {
-        const Self = @This();
-        slice: []T,
-
-        // Convert enum to string
-        pub fn value(self: Self, row: usize) []const u8 {
-            return @tagName(@field(self.slice[row], field_name));
+        pub fn convert(val: T) T {
+            return val;
         }
-
-        // Convert string to enum.
-        pub fn setValue(self: Self, row: usize, val: []const u8) void {
-            if (std.meta.stringToEnum(@TypeOf(self.slice[0]), val)) |new_val| {
-                @field(self.slice[row], field_name) = new_val;
-            }
-        }
-
-        pub fn len(self: Self) usize {
-            return self.slice.len;
-        }
-    };
+    }.convert;
 }
 
-pub fn SliceOfStructEnumLookup(StructT: type, field_name: []const u8, EnumArrayT: type) type {
-    // TODO: Put this in some common validation functions.
-    comptime switch (@typeInfo(StructT)) {
-        .@"struct" => {
-            if (!@hasField(StructT, field_name)) {
-                @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(StructT), field_name }));
-            }
-        },
-        else => @compileError(@typeName(StructT) ++ " is not a struct."),
-    };
+pub fn enumToString(enum_value: anytype) []const u8 {
+    return @tagName(enum_value);
+}
+
+pub fn boolToYN(val: bool) []const u8 {
+    return if (val) "Y" else "N";
+}
+
+pub fn enumArrayLookup(enum_array: anytype) fn (enum_value: @TypeOf(enum_array).Key) @TypeOf(enum_array).Value {
+    const T = @TypeOf(enum_array);
     return struct {
-        const Self = @This();
-        icon_map: EnumArrayT,
-        slice: []StructT,
-
-        // Convert enum to string
-        pub fn value(self: Self, row: usize) EnumArrayT.Value {
-            const field_value: EnumArrayT.Key = @field(self.slice[row], field_name);
-            return self.icon_map.get(field_value);
+        fn convert(enum_value: T.Key) T.Value {
+            return enum_array.get(enum_value);
         }
-
-        /// HMMM???
-        pub fn setValue(_: Self, _: usize, _: EnumArrayT.Value) void {
-            @compileError("setValue() not supported");
-        }
-
-        pub fn len(self: Self) usize {
-            return self.slice.len;
-        }
-    };
+    }.convert;
 }
