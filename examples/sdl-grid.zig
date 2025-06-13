@@ -170,7 +170,6 @@ fn gui_frame() !void {
     const data = if (local.frame_count != std.math.maxInt(usize)) &data1 else &data2;
     defer local.frame_count += 1;
     var selection_changed = false;
-    local.selector.processEvents();
     const DataAdapter = dvui.GridWidget.DataAdapter;
     const CellStyle = dvui.GridWidget.CellStyle;
     const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
@@ -246,6 +245,7 @@ fn gui_frame() !void {
     }
     if (true) {
         //single_select.performAction(selection_changed, adapter);
+        local.selector.processEvents();
         local.selector.performAction(selection_changed, adapter);
     }
 }

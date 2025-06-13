@@ -46,7 +46,11 @@ pub fn Slice(T: type) type {
 }
 
 pub fn SliceConverter(T: type, converter: anytype) type {
-    const ReturnType = @typeInfo(@TypeOf(converter)).@"fn".return_type.?;
+    const ReturnType =
+        if (@typeInfo(@TypeOf(converter)).@"fn".return_type.?) |return_type|
+            return_type
+        else
+            @compileError("converter function must return a value");
 
     return struct {
         const Self = @This();
