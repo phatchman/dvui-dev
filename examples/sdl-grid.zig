@@ -89,17 +89,11 @@ pub fn main() !void {
         // waitTime and beginWait combine to achieve variable framerates
         const wait_event_micros = win.waitTime(end_micros, null);
         interrupted = try backend.waitEventTimeout(wait_event_micros);
-
-        // Example of how to show a dialog from another thread (outside of win.begin/win.end)
-        if (show_dialog_outside_frame) {
-            show_dialog_outside_frame = false;
-            try dvui.dialog(@src(), .{}, .{ .window = &win, .modal = false, .title = "Dialog from Outside", .message = "This is a non modal dialog that was created outside win.begin()/win.end(), usually from another thread." });
-        }
     }
 }
 
 const Data = struct {
-    const Parity = enum { odd, even };
+    pub const Parity = enum { odd, even };
     selected: bool = false,
     value: usize,
     parity: Parity,
@@ -115,6 +109,11 @@ fn makeData(num: usize) [num]Data {
     }
     return result;
 }
+
+const icon_map: std.EnumArray(Data.Parity, []const u8) = .init(.{
+    .even = dvui.entypo.aircraft_take_off,
+    .odd = dvui.entypo.aircraft_landing,
+});
 
 var selections: [data2.len]bool = @splat(false);
 var select_bitset: std.StaticBitSet(data2.len) = .initEmpty();
@@ -164,6 +163,7 @@ fn gui_frame() !void {
     var selection_changed = false;
     local.selector.processEvents();
     const DataAdapter = dvui.GridWidget.DataAdapter;
+    const CellStyle = dvui.GridWidget.CellStyle;
     // const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
     // const adapter = DataAdapter.Slice(bool){ .slice = &selections };
     const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
@@ -180,7 +180,7 @@ fn gui_frame() !void {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-        try dvui.gridColumn(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
+        try dvui.gridColumnLabel(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
         //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
         //tst.setValue(3, 69);
     }
@@ -188,18 +188,30 @@ fn gui_frame() !void {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
-        try dvui.gridColumn(@src(), grid, "{}", adapter, .{});
+        try dvui.gridColumnLabel(@src(), grid, "{}", adapter, .{});
     }
     {
         var col = try grid.column(@src(), .{});
         defer col.deinit();
         try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
-        try dvui.gridColumn(
+        try dvui.gridColumnLabel(
             @src(),
             grid,
             "{s}",
             DataAdapter.SliceOfStructEnum(Data, "parity"){ .slice = data },
             .{},
+        );
+    }
+    {
+        var col = try grid.column(@src(), .{});
+        defer col.deinit();
+        try dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
+        try dvui.gridColumnIcon(
+            @src(),
+            grid,
+            .{},
+            DataAdapter.SliceOfStructEnumLookup(Data, "parity", @TypeOf(icon_map)){ .slice = data, .icon_map = icon_map },
+            CellStyle{ .opts = .{ .gravity_x = 0.5 } },
         );
     }
     if (true) {

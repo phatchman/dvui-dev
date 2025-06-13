@@ -7,12 +7,13 @@
 
 const std = @import("std");
 
-/// This DataAdapter demonstrates the interface.
-/// It is not intended to be used.
-// TODO: This doesn;t yet work for virtual scrolling.
+/// This DataAdapter returns the same void value for all rows and columns
+/// You almost certainly want to use one of the specialised adapters.
+// TODO: This doesn't yet work for virtual scrolling.
 // The adapaters either needs to take a start / end index or a start_offset or similar
 // as we only want the user to pass the visible part of the dataset to the adapters.
 const DataAdapter = @This();
+
 pub fn value(self: *DataAdapter, row_num: usize) void {
     _ = self;
     _ = row_num;
@@ -112,12 +113,48 @@ pub fn SliceOfStructEnum(T: type, field_name: []const u8) type {
         const Self = @This();
         slice: []T,
 
+        // Convert enum to string
         pub fn value(self: Self, row: usize) []const u8 {
             return @tagName(@field(self.slice[row], field_name));
         }
 
+        // Convert string to enum.
         pub fn setValue(self: Self, row: usize, val: []const u8) void {
-            @field(self.slice[row], field_name) = std.meta.stringToEnum(@TypeOf(self.slice[0]), val);
+            if (std.meta.stringToEnum(@TypeOf(self.slice[0]), val)) |new_val| {
+                @field(self.slice[row], field_name) = new_val;
+            }
+        }
+
+        pub fn len(self: Self) usize {
+            return self.slice.len;
+        }
+    };
+}
+
+pub fn SliceOfStructEnumLookup(StructT: type, field_name: []const u8, EnumArrayT: type) type {
+    // TODO: Put this in some common validation functions.
+    comptime switch (@typeInfo(StructT)) {
+        .@"struct" => {
+            if (!@hasField(StructT, field_name)) {
+                @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(StructT), field_name }));
+            }
+        },
+        else => @compileError(@typeName(StructT) ++ " is not a struct."),
+    };
+    return struct {
+        const Self = @This();
+        icon_map: EnumArrayT,
+        slice: []StructT,
+
+        // Convert enum to string
+        pub fn value(self: Self, row: usize) EnumArrayT.Value {
+            const field_value: EnumArrayT.Key = @field(self.slice[row], field_name);
+            return self.icon_map.get(field_value);
+        }
+
+        /// HMMM???
+        pub fn setValue(_: Self, _: usize, _: EnumArrayT.Value) void {
+            @compileError("setValue() not supported");
         }
 
         pub fn len(self: Self) usize {

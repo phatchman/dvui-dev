@@ -4522,7 +4522,7 @@ pub fn gridHeadingSortable(
     return sort_changed;
 }
 
-pub fn gridColumn(
+pub fn gridColumnLabel(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
     comptime fmt: []const u8,
@@ -4546,6 +4546,35 @@ pub fn gridColumn(
             fmt,
             .{data_adapter.value(row_num)},
             label_defaults.override(opts.options(g.col_num, row_num)),
+        );
+    }
+}
+
+pub fn gridColumnIcon(
+    src: std.builtin.SourceLocation,
+    g: *GridWidget,
+    icon_opts: IconRenderOptions,
+    data_adapter: anytype, // GridWidget.DataAdapter
+    cell_style: anytype, // GridWidget.CellStyle
+) !void {
+    const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
+
+    const icon_defaults: Options = .{
+        //        .expand = .horizontal,
+    };
+    for (0..data_adapter.len()) |row_num| {
+        var cell = try g.bodyCell(
+            src,
+            row_num,
+            opts.cellOptions(g.col_num, row_num),
+        );
+        defer cell.deinit();
+        try icon(
+            @src(),
+            "nothing for now",
+            data_adapter.value(row_num),
+            icon_opts,
+            icon_defaults.override(opts.options(g.col_num, row_num)),
         );
     }
 }
