@@ -4653,12 +4653,15 @@ pub const SelectionInfo = struct {
 pub fn gridColumnCheckbox(
     src: std.builtin.SourceLocation,
     g: *dvui.GridWidget,
-    data_adapter: anytype, // XXX
+    data_adapter: anytype, // GridWidget.DataAdapter.Selection
     cell_style: anytype, // GridWidget.CellStyle
     selection_info: ?*SelectionInfo,
 ) !bool {
     if (@TypeOf(data_adapter.value(0)) != bool) {
         @compileError("Data adapter value() must return bool");
+    }
+    if (!std.meta.hasFn(@TypeOf(data_adapter), "setValue")) {
+        @compileError("Data adapter must supply setValue(bool)");
     }
 
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;

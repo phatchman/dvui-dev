@@ -60,36 +60,11 @@ pub fn SliceConverter(T: type, converter: anytype) type {
             return converter(self.slice[row]);
         }
 
-        pub fn setValue(self: Self, row: usize, val: T) void {
-            self.slice[row] = val;
-        }
-
         pub fn len(self: Self) usize {
             return self.slice.len;
         }
     };
 }
-
-// TODO: Bitset Converter?
-pub fn Bitset(T: type) type {
-    return struct {
-        const Self = @This();
-        bitset: *T,
-
-        pub fn value(self: Self, row: usize) bool {
-            return self.bitset.isSet(row);
-        }
-
-        pub fn setValue(self: Self, row: usize, val: bool) void {
-            self.bitset.setValue(row, val);
-        }
-
-        pub fn len(self: Self) usize {
-            return self.bitset.capacity();
-        }
-    };
-}
-
 pub fn SliceOfStruct(T: type, field_name: []const u8) type {
     return SliceOfStructConvert(T, field_name, nullConverter(@FieldType(T, field_name)));
 }
@@ -116,15 +91,79 @@ pub fn SliceOfStructConvert(T: type, field_name: []const u8, converter: anytype)
             return converter(@field(self.slice[row], field_name));
         }
 
-        pub fn setValue(self: Self, row: usize, val: @FieldType(T, field_name)) void {
-            @field(self.slice[row], field_name) = val;
-        }
-
         pub fn len(self: Self) usize {
             return self.slice.len;
         }
     };
 }
+
+pub const Selection = struct {
+    pub const Slice = struct {
+        slice: []bool,
+
+        pub fn value(self: Selection.Slice, row: usize) bool {
+            return self.slice[row];
+        }
+
+        pub fn setValue(self: Selection.Slice, row: usize, val: bool) void {
+            self.slice[row] = val;
+        }
+
+        pub fn len(self: Selection.Slice) usize {
+            return self.slice.len;
+        }
+    };
+
+    pub fn SliceOfStruct(T: type, comptime field_name: []const u8) type {
+        comptime switch (@typeInfo(T)) {
+            .@"struct" => {
+                if (!@hasField(T, field_name)) {
+                    @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
+                }
+                if (@FieldType(T, field_name) != bool) {
+                    @compileError(std.fmt.comptimePrint("{s}.{s} must be of type bool.", .{ @typeName(T), field_name }));
+                }
+            },
+            else => @compileError(@typeName(T) ++ " is not a struct."),
+        };
+
+        return struct {
+            const Self = @This();
+            slice: []T,
+
+            pub fn value(self: Self, row: usize) bool {
+                return @field(self.slice[row], field_name);
+            }
+
+            pub fn setValue(self: Self, row: usize, val: bool) void {
+                @field(self.slice[row], field_name) = val;
+            }
+
+            pub fn len(self: Self) usize {
+                return self.slice.len;
+            }
+        };
+    }
+
+    pub fn Bitset(T: type) type {
+        return struct {
+            const Self = @This();
+            bitset: *T,
+
+            pub fn value(self: Self, row: usize) bool {
+                return self.bitset.isSet(row);
+            }
+
+            pub fn setValue(self: Self, row: usize, val: bool) void {
+                self.bitset.setValue(row, val);
+            }
+
+            pub fn len(self: Self) usize {
+                return self.bitset.capacity();
+            }
+        };
+    }
+};
 
 pub fn nullConverter(T: type) fn (val: T) T {
     return struct {

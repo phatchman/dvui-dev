@@ -172,9 +172,10 @@ fn gui_frame() !void {
     var selection_changed = false;
     const DataAdapter = dvui.GridWidget.DataAdapter;
     const CellStyle = dvui.GridWidget.CellStyle;
-    const adapter = DataAdapter.SliceOfStruct(Data, "selected"){ .slice = data };
-    //const adapter = DataAdapter.Slice(bool){ .slice = &selections };
-    //const adapter = DataAdapter.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+    const Selection = DataAdapter.Selection;
+    const adapter = Selection.SliceOfStruct(Data, "selected"){ .slice = data };
+    //const adapter = Selection.Slice{ .slice = &selections };
+    //const adapter = Selection.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
     //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
 
     {
