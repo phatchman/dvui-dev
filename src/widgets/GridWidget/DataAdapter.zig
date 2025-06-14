@@ -73,7 +73,6 @@ fn SliceImpl(T: type, writeable: bool, converter: anytype) type {
                 self.slice[row] = val;
             }
         }.setValue else void;
-        //@compileError("setValue not available for read-only adapters");
 
         pub fn len(self: Self) usize {
             return self.slice.len;
