@@ -4550,6 +4550,41 @@ pub fn gridColumnLabel(
     }
 }
 
+/// Create a text entyr that will update the bound field.
+/// No validation is provided.
+pub fn gridColumnTextEntry(
+    src: std.builtin.SourceLocation,
+    g: *GridWidget,
+    init_opts: TextEntryWidget.InitOptions,
+    data_adapter: anytype, // Requires and updateable GridWidget.DataAdapter
+    cell_style: anytype, // GridWidget.CellStyle
+) !void {
+    const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
+
+    const entry_defaults: Options = .{
+        .expand = .horizontal,
+    };
+    for (0..data_adapter.len()) |row_num| {
+        var cell = try g.bodyCell(
+            src,
+            row_num,
+            opts.cellOptions(g.col_num, row_num),
+        );
+        defer cell.deinit();
+        var text = try textEntry(@src(), init_opts, entry_defaults.override(opts.options(g.col_num, row_num)));
+        defer text.deinit();
+        if (dvui.firstFrame(text.data().id)) {
+            text.textSet(data_adapter.value(row_num), false);
+        }
+        if (text.text_changed) {
+            data_adapter.setValue(row_num, text.getText());
+        }
+        if (text.enter_pressed) {
+            dvui.tabIndexNext(null);
+        }
+    }
+}
+
 pub fn gridColumnIcon(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
@@ -4658,12 +4693,10 @@ pub fn gridColumnCheckbox(
     selection_info: ?*SelectionInfo,
 ) !bool {
     if (@TypeOf(data_adapter.value(0)) != bool) {
-        @compileLog(@TypeOf(data_adapter.value(0)));
         @compileError("Data adapter value() must return bool");
     }
-    if (!std.meta.hasFn(@TypeOf(data_adapter), "setValue")) {
-        @compileError("Data adapter must supply setValue(bool)");
-    }
+    if (!std.meta.hasFn(@TypeOf(data_adapter), "setValue"))
+        @compileError("DataAdapter does not implement setValue(bool). An updatable DataAdapter is required.");
 
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
 

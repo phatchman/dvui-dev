@@ -23,7 +23,12 @@ const std = @import("std");
 //  - Introduce writable data adapters for only those things that actually need them.
 // - Issue is that this is at minimum 3 adapters. Bitset, bool and struct of bool, not to mention slice of pointer to struct.
 
+// TODO: Consider adding some itnerface validation helper functions.
+
 const DataAdapter = @This();
+//pub fn validateInterface(T: type, set_required: bool) bool {
+//
+//}
 
 pub fn value(self: *DataAdapter, row_num: usize) void {
     _ = self;
@@ -41,14 +46,29 @@ pub fn len(self: *DataAdapter) usize {
     return 0;
 }
 
+/// Convert a slice of T into a per-row value of T
+/// Provides the following functions:
+/// - value(row_num: usize): T
+/// - len(): usize
 pub fn Slice(T: type) type {
     return SliceImpl(T, false, nullConverter(T));
 }
 
+/// Convert a slice of T into a per-row value of T
+/// Allows updating of data via the adapter.
+/// Provides the following functions:
+/// - value(self: Self, row_num: usize): T
+/// - setValue(self: Self, row_num: usize, val: T) void
+/// - len(self: Self): usize
 pub fn SliceUpdatable(T: type) type {
     return SliceImpl(T, true, nullConverter(T));
 }
 
+/// Converts a slice of T into a per-row value of T
+/// Converts the slice value using the provided converter function.
+/// Provides the following functions:
+/// - value(self: Self, row_num: usize): [converter result type]
+/// - len(self: Self): usize
 pub fn SliceConverter(T: type, converter: anytype) type {
     return SliceImpl(T, false, converter);
 }
@@ -80,18 +100,38 @@ fn SliceImpl(T: type, writeable: bool, converter: anytype) type {
         }
     };
 }
+
+/// Provides a per-row value for a field in a struct.
+/// Provides the following functions:
+/// - value(self: Self, row_num: usize): [type of struct field]
+/// - len(self: Self): usize
 pub fn SliceOfStruct(T: type, field_name: []const u8) type {
     return SliceOfStructImpl(T, field_name, false, nullConverter(@FieldType(T, field_name)));
 }
 
+/// Provides a per-row value for a field in a struct which can be modified
+/// Implements the following functions:
+/// - value(self: Self, row_num: usize) [type of struct field]
+/// - setValue(self: Self, row_num: usize, val: [type of struct field]) void
+/// - len(self: Self): usize
 pub fn SliceOfStructUpdatable(T: type, field_name: []const u8) type {
     return SliceOfStructImpl(T, field_name, true, nullConverter(@FieldType(T, field_name)));
 }
 
+/// Provides a per-row value for a field in a struct which can be
+/// converted via the provided conversion function.
+/// Implements the following functions:
+/// - value(self: Self, row_num: usize) [converter result type]
+/// - len(self: Self): usize
 pub fn SliceOfStructConvert(T: type, field_name: []const u8, converter: anytype) type {
     return SliceOfStructImpl(T, field_name, false, converter);
 }
 
+///Implementation for SliceOfStruct adapters.
+/// T - Type of the struct
+/// field_name - name of the field in the struct
+/// writeable - includes setValue() if true.
+/// converter - any function that takes a value and returns a converted value.
 pub fn SliceOfStructImpl(T: type, field_name: []const u8, writeable: bool, converter: anytype) type {
     comptime switch (@typeInfo(T)) {
         .@"struct" => {
@@ -157,6 +197,8 @@ pub fn BitSetImpl(T: type, writeable: bool) type {
     };
 }
 
+// TODO: What if conversion invloves looking up other rows.
+// You we need an context? (icky) or is that just "out of scope"
 pub fn nullConverter(T: type) fn (val: T) T {
     return struct {
         pub fn convert(val: T) T {

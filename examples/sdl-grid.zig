@@ -96,6 +96,7 @@ const Data = struct {
     pub const Parity = enum { odd, even };
     selected: bool = false,
     value: usize,
+    text: []const u8 = "Nope",
     parity: Parity,
 };
 
@@ -141,6 +142,18 @@ fn gui_frame() !void {
                 m.close();
             }
         }
+    }
+    if (false) {
+        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
+        defer vbox.deinit();
+        var enter_pressed = false;
+        {
+            var text = try dvui.textEntry(@src(), .{}, .{});
+            defer text.deinit();
+            enter_pressed = text.enter_pressed;
+        }
+        try dvui.label(@src(), "Enter pressed = {}", .{enter_pressed}, .{});
+        return;
     }
     if (false) {
         const local = struct {
@@ -221,7 +234,7 @@ fn gui_frame() !void {
             defer col.deinit();
             var selection: dvui.GridColumnSelectAllState = undefined;
             _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
-            selection_changed = try dvui.gridColumnCheckbox(@src(), grid, adapter, .{}, &local.selection_info);
+            selection_changed = try dvui.gridColumnCheckbox(@src(), grid, adapter, CellStyleTabIndex{}, &local.selection_info);
         }
         {
             var col = try grid.column(@src(), .{});
@@ -282,13 +295,43 @@ fn gui_frame() !void {
                 CellStyle{ .opts = .{ .gravity_x = 0.5 } },
             );
         }
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            try dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
+            try dvui.gridColumnTextEntry(
+                @src(),
+                grid,
+                .{},
+                DataAdapter.SliceOfStructUpdatable(
+                    Data,
+                    "text",
+                ){ .slice = data },
+                CellStyleTabIndex{},
+            );
+        }
+
         if (true) {
             //single_select.performAction(selection_changed, adapter);
             local.selector.processEvents();
             local.selector.performAction(selection_changed, adapter);
         }
+        std.debug.print("text = {s}\n", .{data[0].text});
     }
 }
+
+const CellStyleTabIndex = struct {
+    cell_opts: dvui.GridWidget.CellOptions = .{},
+    opts: dvui.Options = .{},
+
+    pub fn cellOptions(self: *const CellStyleTabIndex, _: usize, _: usize) dvui.GridWidget.CellOptions {
+        return self.cell_opts;
+    }
+    // Tab by col within rows. (Works up to 10 cols and 6550 rows)
+    pub fn options(self: *const CellStyleTabIndex, col: usize, row: usize) dvui.Options {
+        return self.opts.override(.{ .tab_index = @intCast(row * 10 + col + 1) });
+    }
+};
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {
