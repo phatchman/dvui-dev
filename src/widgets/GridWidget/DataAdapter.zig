@@ -68,6 +68,7 @@ fn SliceImpl(T: type, writeable: bool, converter: anytype) type {
             return converter(self.slice[row]);
         }
 
+        // Optionally include setValue for writeable adapters.
         pub const setValue = if (writeable) struct {
             pub fn setValue(self: Self, row: usize, val: T) void {
                 self.slice[row] = val;

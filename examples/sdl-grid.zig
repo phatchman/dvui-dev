@@ -129,19 +129,6 @@ var select_bitset: std.StaticBitSet(data2.len) = .initEmpty();
 
 // both dvui and SDL drawing
 fn gui_frame() !void {
-    const Mine = struct {
-        const Self = @This();
-        slice: []u8,
-        fn value(self: Self, row: usize) u8 {
-            return self.slice[row];
-        }
-    };
-    var slice: [0]u8 = undefined;
-    var thing: Mine = .{ .slice = &slice };
-    if (@TypeOf(thing.value(99)) != u8) {
-        @compileError("Data adapter value() must return bool");
-    }
-
     {
         var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
         defer m.deinit();
@@ -217,6 +204,7 @@ fn gui_frame() !void {
         var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
         defer grid.deinit();
 
+        // This is just to make sure nothing regarding data is comptime.
         const data = if (local.frame_count != std.math.maxInt(usize)) &data1 else &data2;
         defer local.frame_count += 1;
         var selection_changed = false;
