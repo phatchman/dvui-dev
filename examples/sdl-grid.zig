@@ -155,99 +155,150 @@ fn gui_frame() !void {
             }
         }
     }
-    const local = struct {
-        var selection_info: dvui.SelectionInfo = .{};
-        // This selector keeps state. so needs to be static.
-        // TODO: We could think about storing the state between frames, but .. is that worth it?
-        // I think I'd rather thave state visible to the user???
-        var selector: dvui.GridWidget.Actions.MultiSelectMouse = .{ .selection_info = &selection_info };
-        var frame_count: usize = 0;
-    };
-
-    var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
-    defer grid.deinit();
-
-    const data = if (local.frame_count != std.math.maxInt(usize)) &data1 else &data2;
-    defer local.frame_count += 1;
-    var selection_changed = false;
-    const DataAdapter = dvui.GridWidget.DataAdapter;
-    const CellStyle = dvui.GridWidget.CellStyle;
-    const Selection = DataAdapter.Selection;
-    const adapter = Selection.SliceOfStruct(Data, "selected"){ .slice = data };
-    //const adapter = Selection.Slice{ .slice = &selections };
-    //const adapter = Selection.Bitset(@TypeOf(select_bitset)){ .bitset = &select_bitset };
-    //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
-
-    {
-        var col = try grid.column(@src(), .{});
-        defer col.deinit();
-        var selection: dvui.GridColumnSelectAllState = undefined;
-        _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
-        selection_changed = try dvui.gridColumnCheckbox(@src(), grid, adapter, .{}, &local.selection_info);
-    }
-    {
-        var col = try grid.column(@src(), .{});
-        defer col.deinit();
-        try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-        try dvui.gridColumnLabel(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
-        //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
-        //tst.setValue(3, 69);
-    }
-    {
-        var col = try grid.column(@src(), .{});
-        defer col.deinit();
-        try dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
-        try dvui.gridColumnLabel(@src(), grid, "{}", adapter, .{});
-    }
-    {
-        var col = try grid.column(@src(), .{});
-        defer col.deinit();
-        try dvui.gridHeading(@src(), grid, "YN", .fixed, .{});
-        try dvui.gridColumnLabel(
+    if (false) {
+        const local = struct {
+            const num_rows = 500;
+            var scroll_info: dvui.ScrollInfo = .{};
+            var selections: std.StaticBitSet(num_rows) = .initEmpty();
+            var select_info: dvui.SelectionInfo = .{};
+        };
+        var grid = try dvui.grid(
             @src(),
-            grid,
-            "{s}",
-            DataAdapter.SliceOfStructConvert(
-                Data,
-                "selected",
-                DataAdapter.boolToYN,
-            ){ .slice = data },
-            CellStyle{ .opts = .{ .gravity_x = 0.5 } },
+            .{
+                .scroll_opts = .{ .scroll_info = &local.scroll_info },
+            },
+            .{ .expand = .both },
         );
-    }
+        defer grid.deinit();
+        const Selection = dvui.GridWidget.DataAdapter.Selection;
+        var selector: dvui.GridWidget.Actions.MultiSelectMouse = .{ .selection_info = &local.select_info };
+        var selection_changed: bool = false;
+        var scroller = dvui.GridWidget.VirtualScroller.init(
+            grid,
+            .{ .scroll_info = &local.scroll_info, .total_rows = local.num_rows },
+        );
+        const first = scroller.startRow();
+        const last = scroller.endRow();
+        const adapter = Selection.Bitset(@TypeOf(local.selections)){ .bitset = &local.selections, .start = first, .end = last };
+        //const adapter = DataAdpater.SliceUpdatable()
 
-    {
-        var col = try grid.column(@src(), .{});
-        defer col.deinit();
-        try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
-        try dvui.gridColumnLabel(
-            @src(),
-            grid,
-            "{s}",
-            DataAdapter.SliceOfStructConvert(Data, "parity", DataAdapter.enumToString){ .slice = data },
-            .{},
-        );
-    }
-    {
-        var col = try grid.column(@src(), .{});
-        defer col.deinit();
-        try dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
-        try dvui.gridColumnIcon(
-            @src(),
-            grid,
-            .{},
-            DataAdapter.SliceOfStructConvert(
-                Data,
-                "parity",
-                DataAdapter.enumArrayLookup(icon_map),
-            ){ .slice = data },
-            CellStyle{ .opts = .{ .gravity_x = 0.5 } },
-        );
-    }
-    if (true) {
-        //single_select.performAction(selection_changed, adapter);
-        local.selector.processEvents();
-        local.selector.performAction(selection_changed, adapter);
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            selection_changed = try dvui.gridColumnCheckbox(
+                @src(),
+                grid,
+                adapter,
+                .{},
+                &local.select_info,
+            );
+        }
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            for (first..last) |row| {
+                var cell = try grid.bodyCell(@src(), row, .{});
+                defer cell.deinit();
+                try dvui.label(@src(), "{d}", .{row}, .{});
+            }
+        }
+        selector.processEvents();
+        selector.performAction(selection_changed, adapter);
+    } else {
+        const local = struct {
+            var selection_info: dvui.SelectionInfo = .{};
+            // This selector keeps state. so needs to be static.
+            // TODO: We could think about storing the state between frames, but .. is that worth it?
+            // I think I'd rather thave state visible to the user???
+            var selector: dvui.GridWidget.Actions.MultiSelectMouse = .{ .selection_info = &selection_info };
+            var frame_count: usize = 0;
+        };
+
+        var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
+        defer grid.deinit();
+
+        const data = if (local.frame_count != std.math.maxInt(usize)) &data1 else &data2;
+        defer local.frame_count += 1;
+        var selection_changed = false;
+        const DataAdapter = dvui.GridWidget.DataAdapter;
+        const CellStyle = dvui.GridWidget.CellStyle;
+        //const Selection = DataAdapter.Selection;
+        const adapter = DataAdapter.SliceOfStructUpdatable(Data, "selected"){ .slice = data };
+        //const adapter = DataAdapter.SliceUpdatable(bool){ .slice = &selections };
+        //const adapter = DataAdapter.BitSetUpdateable(@TypeOf(select_bitset)){ .bitset = &select_bitset };
+        //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
+
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            var selection: dvui.GridColumnSelectAllState = undefined;
+            _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
+            selection_changed = try dvui.gridColumnCheckbox(@src(), grid, adapter, .{}, &local.selection_info);
+        }
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
+            try dvui.gridColumnLabel(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
+            //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
+            //tst.setValue(3, 69);
+        }
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            try dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
+            try dvui.gridColumnLabel(@src(), grid, "{}", adapter, .{});
+        }
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            try dvui.gridHeading(@src(), grid, "YN", .fixed, .{});
+            try dvui.gridColumnLabel(
+                @src(),
+                grid,
+                "{s}",
+                DataAdapter.SliceOfStructConvert(
+                    Data,
+                    "selected",
+                    DataAdapter.boolToYN,
+                ){ .slice = data },
+                CellStyle{ .opts = .{ .gravity_x = 0.5 } },
+            );
+        }
+
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
+            try dvui.gridColumnLabel(
+                @src(),
+                grid,
+                "{s}",
+                DataAdapter.SliceOfStructConvert(Data, "parity", DataAdapter.enumToString){ .slice = data },
+                .{},
+            );
+        }
+        {
+            var col = try grid.column(@src(), .{});
+            defer col.deinit();
+            try dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
+            try dvui.gridColumnIcon(
+                @src(),
+                grid,
+                .{},
+                DataAdapter.SliceOfStructConvert(
+                    Data,
+                    "parity",
+                    DataAdapter.enumArrayLookup(icon_map),
+                ){ .slice = data },
+                CellStyle{ .opts = .{ .gravity_x = 0.5 } },
+            );
+        }
+        if (true) {
+            //single_select.performAction(selection_changed, adapter);
+            local.selector.processEvents();
+            local.selector.performAction(selection_changed, adapter);
+        }
     }
 }
 

@@ -42,12 +42,20 @@ pub fn len(self: *DataAdapter) usize {
 }
 
 pub fn Slice(T: type) type {
-    return SliceConverter(T, nullConverter(T));
+    return SliceImpl(T, false, nullConverter(T));
+}
+
+pub fn SliceUpdatable(T: type) type {
+    return SliceImpl(T, true, nullConverter(T));
 }
 
 pub fn SliceConverter(T: type, converter: anytype) type {
+    return SliceImpl(T, false, converter);
+}
+
+fn SliceImpl(T: type, writeable: bool, converter: anytype) type {
     const ReturnType =
-        if (@typeInfo(@TypeOf(converter)).@"fn".return_type.?) |return_type|
+        if (@typeInfo(@TypeOf(converter)).@"fn".return_type) |return_type|
             return_type
         else
             @compileError("converter function must return a value");
@@ -60,16 +68,31 @@ pub fn SliceConverter(T: type, converter: anytype) type {
             return converter(self.slice[row]);
         }
 
+        pub const setValue = if (writeable) struct {
+            pub fn setValue(self: Self, row: usize, val: T) void {
+                self.slice[row] = val;
+            }
+        }.setValue else void;
+        //@compileError("setValue not available for read-only adapters");
+
         pub fn len(self: Self) usize {
             return self.slice.len;
         }
     };
 }
 pub fn SliceOfStruct(T: type, field_name: []const u8) type {
-    return SliceOfStructConvert(T, field_name, nullConverter(@FieldType(T, field_name)));
+    return SliceOfStructImpl(T, field_name, false, nullConverter(@FieldType(T, field_name)));
+}
+
+pub fn SliceOfStructUpdatable(T: type, field_name: []const u8) type {
+    return SliceOfStructImpl(T, field_name, true, nullConverter(@FieldType(T, field_name)));
 }
 
 pub fn SliceOfStructConvert(T: type, field_name: []const u8, converter: anytype) type {
+    return SliceOfStructImpl(T, field_name, false, converter);
+}
+
+pub fn SliceOfStructImpl(T: type, field_name: []const u8, writeable: bool, converter: anytype) type {
     comptime switch (@typeInfo(T)) {
         .@"struct" => {
             if (!@hasField(T, field_name)) {
@@ -84,12 +107,15 @@ pub fn SliceOfStructConvert(T: type, field_name: []const u8, converter: anytype)
         const Self = @This();
         slice: []T,
 
-        // These take self so that dataset can change at runtime. But this was originally
-        // done as static functions at comptime. Which would be more efficient.
-        // Consider making comptime versions?
         pub fn value(self: Self, row: usize) ReturnType {
             return converter(@field(self.slice[row], field_name));
         }
+
+        pub const setValue = if (writeable) struct {
+            pub fn setValue(self: Self, row: usize, val: @FieldType(T, field_name)) void {
+                @field(self.slice[row], field_name) = val;
+            }
+        }.setValue else void;
 
         pub fn len(self: Self) usize {
             return self.slice.len;
@@ -97,73 +123,39 @@ pub fn SliceOfStructConvert(T: type, field_name: []const u8, converter: anytype)
     };
 }
 
-pub const Selection = struct {
-    pub const Slice = struct {
-        slice: []bool,
+pub fn BitSet(T: type) type {
+    return BitSetImpl(T, false);
+}
 
-        pub fn value(self: Selection.Slice, row: usize) bool {
-            return self.slice[row];
+pub fn BitSetUpdateable(T: type) type {
+    return BitSetImpl(T, true);
+}
+
+pub fn BitSetImpl(T: type, writeable: bool) type {
+    return struct {
+        const Self = @This();
+        bitset: *T,
+        //        start: usize = 0,
+        //        end: usize = 0,
+
+        pub fn value(self: Self, row: usize) bool {
+            //            return self.bitset.isSet(self.start + row);
+            return self.bitset.isSet(row);
         }
 
-        pub fn setValue(self: Selection.Slice, row: usize, val: bool) void {
-            self.slice[row] = val;
-        }
-
-        pub fn len(self: Selection.Slice) usize {
-            return self.slice.len;
-        }
-    };
-
-    pub fn SliceOfStruct(T: type, comptime field_name: []const u8) type {
-        comptime switch (@typeInfo(T)) {
-            .@"struct" => {
-                if (!@hasField(T, field_name)) {
-                    @compileError(std.fmt.comptimePrint("{s} does not contain field {s}.", .{ @typeName(T), field_name }));
-                }
-                if (@FieldType(T, field_name) != bool) {
-                    @compileError(std.fmt.comptimePrint("{s}.{s} must be of type bool.", .{ @typeName(T), field_name }));
-                }
-            },
-            else => @compileError(@typeName(T) ++ " is not a struct."),
-        };
-
-        return struct {
-            const Self = @This();
-            slice: []T,
-
-            pub fn value(self: Self, row: usize) bool {
-                return @field(self.slice[row], field_name);
-            }
-
-            pub fn setValue(self: Self, row: usize, val: bool) void {
-                @field(self.slice[row], field_name) = val;
-            }
-
-            pub fn len(self: Self) usize {
-                return self.slice.len;
-            }
-        };
-    }
-
-    pub fn Bitset(T: type) type {
-        return struct {
-            const Self = @This();
-            bitset: *T,
-
-            pub fn value(self: Self, row: usize) bool {
-                return self.bitset.isSet(row);
-            }
-
+        pub const setValue = if (writeable) struct {
             pub fn setValue(self: Self, row: usize, val: bool) void {
                 self.bitset.setValue(row, val);
+                //                self.bitset.setValue(self.start + row, val);
             }
+        }.setValue else void;
 
-            pub fn len(self: Self) usize {
-                return self.bitset.capacity();
-            }
-        };
-    }
-};
+        pub fn len(self: Self) usize {
+            return self.bitset.capacity();
+            //          return self.end - self.start;
+        }
+    };
+}
 
 pub fn nullConverter(T: type) fn (val: T) T {
     return struct {

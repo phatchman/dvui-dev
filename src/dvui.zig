@@ -4658,6 +4658,7 @@ pub fn gridColumnCheckbox(
     selection_info: ?*SelectionInfo,
 ) !bool {
     if (@TypeOf(data_adapter.value(0)) != bool) {
+        @compileLog(@TypeOf(data_adapter.value(0)));
         @compileError("Data adapter value() must return bool");
     }
     if (!std.meta.hasFn(@TypeOf(data_adapter), "setValue")) {
