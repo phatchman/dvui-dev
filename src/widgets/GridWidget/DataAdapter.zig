@@ -19,41 +19,33 @@ const std = @import("std");
 // The adapaters either needs to take a start / end index or a start_offset or similar
 // as we only want the user to pass the visible part of the dataset to the adapters.
 // Proposal
-//  - Get rid of all the setValues.
-//  - Introduce writable data adapters for only those things that actually need them.
-// - Issue is that this is at minimum 3 adapters. Bitset, bool and struct of bool, not to mention slice of pointer to struct.
-
-// TODO: Consider adding some itnerface validation helper functions.
 
 const DataAdapter = @This();
 
 // TODO: Clean up the logic here.
 pub fn hasMethod(T: type, comptime method_name: []const u8, params: anytype) bool {
-    return blk: {
-        switch (@typeInfo(T)) {
-            .@"struct", .@"union", .@"enum", .@"opaque" => {},
-            else => break :blk false,
-        }
-        if (!@hasDecl(T, method_name))
-            break :blk false;
+    switch (@typeInfo(T)) {
+        .@"struct", .@"union", .@"enum", .@"opaque" => {},
+        else => return false,
+    }
+    if (!@hasDecl(T, method_name))
+        return false;
 
-        switch (@typeInfo(@TypeOf(@field(T, method_name)))) {
-            .@"fn" => |func| {
-                if (func.params.len == params.len + 1 and func.params[0].type == T) {
-                    for (func.params[1..], params) |method_param, param_type| {
-                        if (method_param.type.? != param_type) {
-                            break :blk false;
-                        }
+    switch (@typeInfo(@TypeOf(@field(T, method_name)))) {
+        .@"fn" => |func| {
+            if (func.params.len == params.len + 1 and func.params[0].type == T) {
+                for (func.params[1..], params) |method_param, param_type| {
+                    if (method_param.type.? != param_type) {
+                        return false;
                     }
-
-                    break :blk true;
-                } else {
-                    break :blk false;
                 }
-            },
-            else => break :blk false,
-        }
-    };
+            } else {
+                return false;
+            }
+        },
+        else => return false,
+    }
+    return true;
 }
 
 pub fn requiresReadable(data_adapter: anytype) void {
