@@ -5889,6 +5889,7 @@ pub var checkbox_defaults: Options = .{
     .name = "Checkbox",
     .corner_radius = dvui.Rect.all(2),
     .padding = Rect.all(6),
+    .margin = Rect.all(4),
 };
 
 pub fn checkbox(src: std.builtin.SourceLocation, target: *bool, label_str: ?[]const u8, opts: Options) !bool {
@@ -5976,6 +5977,7 @@ pub var radio_defaults: Options = .{
     .name = "Radio",
     .corner_radius = dvui.Rect.all(2),
     .padding = Rect.all(6),
+    .margin = Rect.all(4),
 };
 
 pub fn radio(src: std.builtin.SourceLocation, active: bool, label_str: ?[]const u8, opts: Options) !bool {

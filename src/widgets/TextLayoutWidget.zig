@@ -25,7 +25,7 @@ const TextLayoutWidget = @This();
 pub var defaults: Options = .{
     .name = "TextLayout",
     .margin = Rect.all(4),
-    .padding = Rect.all(4),
+    .padding = Rect.all(6),
     .background = true,
 };
 

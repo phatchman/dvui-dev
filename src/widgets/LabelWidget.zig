@@ -12,6 +12,7 @@ const LabelWidget = @This();
 pub var defaults: Options = .{
     .name = "Label",
     .padding = Rect.all(6),
+    .margin = Rect.all(4),
 };
 
 pub const InitOptions = struct {
