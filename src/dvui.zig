@@ -4564,7 +4564,7 @@ pub fn gridColumnTextEntry(
     GridWidget.DataAdapter.requiresReadable(data_adapter);
     GridWidget.DataAdapter.requiresWriteable(data_adapter);
     if (@TypeOf(data_adapter.value(0)) != []const u8)
-        @compileError("data_adapter value() must return a []const u8.");
+        @compileError("data_adapter.value() must return []const u8.");
 
     const entry_defaults: Options = .{
         .expand = .horizontal,
