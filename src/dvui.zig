@@ -4531,8 +4531,6 @@ pub fn gridColumnLabel(
 ) !void {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
     GridWidget.DataAdapter.requiresReadable(data_adapter);
-    //@compileLog(comptime GridWidget.DataAdapter.hasMethod(@TypeOf(data_adapter), "value", .{usize}));
-    //@compileLog(comptime GridWidget.DataAdapter.hasMethod(@TypeOf(data_adapter), "len", .{}));
 
     const label_defaults: Options = .{
         .expand = .horizontal,

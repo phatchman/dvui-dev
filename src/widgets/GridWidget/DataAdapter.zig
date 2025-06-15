@@ -22,8 +22,11 @@ const std = @import("std");
 
 const DataAdapter = @This();
 
-// TODO: Clean up the logic here.
+/// Check if a container has a method named 'method_name'
+/// params is a tuple of parameter types, excluding the first 'self' parameter.
+/// self is currently enforced to have type T, *T or *const T.
 pub fn hasMethod(T: type, comptime method_name: []const u8, params: anytype) bool {
+    // Is T a container?
     switch (@typeInfo(T)) {
         .@"struct", .@"union", .@"enum", .@"opaque" => {},
         else => return false,
@@ -33,14 +36,16 @@ pub fn hasMethod(T: type, comptime method_name: []const u8, params: anytype) boo
 
     switch (@typeInfo(@TypeOf(@field(T, method_name)))) {
         .@"fn" => |func| {
-            if (func.params.len == params.len + 1 and func.params[0].type == T) {
-                for (func.params[1..], params) |method_param, param_type| {
-                    if (method_param.type.? != param_type) {
-                        return false;
-                    }
+            // Does the type of the first parameter equal Self?
+            if (func.params.len < 1 or func.params.len != params.len + 1) return false;
+            if ((func.params[0].type != T) and
+                (func.params[0].type != *T) and
+                (func.params[0].type != *const T)) return false;
+            // Check other parameter types vs 'params'
+            for (func.params[1..], params) |method_param, param_type| {
+                if (method_param.type.? != param_type) {
+                    return false;
                 }
-            } else {
-                return false;
             }
         },
         else => return false,
@@ -52,7 +57,7 @@ pub fn requiresReadable(data_adapter: anytype) void {
     comptime {
         const T = @TypeOf(data_adapter);
         if (!hasMethod(T, "value", .{usize}))
-            @compileError("data_adapter must implement: fn value(self: Self, row_nr: usize) T");
+            @compileError("data_adapter must implement: fn value(self: Self, row_nr: usize) anytype");
         if (!hasMethod(T, "len", .{}))
             @compileError("data_adapter must implement: fn len(self: Self) usize");
     }
@@ -62,7 +67,7 @@ pub fn requiresWriteable(data_adapter: anytype) void {
     comptime {
         const T = @TypeOf(data_adapter);
         if (!hasMethod(T, "setValue", .{ usize, @TypeOf(data_adapter.value(0)) }))
-            @compileError("An updatable DataAdapter is required. data_adapter must implement: fn setValue(self: Self, row_nr: usize) T.");
+            @compileError("An updatable DataAdapter is required. data_adapter must implement: fn setValue(self: Self, row_nr: usize, val: anytype) void.");
     }
 }
 
