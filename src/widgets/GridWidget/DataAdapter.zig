@@ -51,7 +51,7 @@ pub fn len(self: *DataAdapter) usize {
 /// - value(row_num: usize): T
 /// - len(): usize
 pub fn Slice(T: type) type {
-    return SliceImpl(T, false, nullConverter(T));
+    return SliceImpl(T, false, noConversion(T));
 }
 
 /// Convert a slice of T into a per-row value of T
@@ -61,7 +61,7 @@ pub fn Slice(T: type) type {
 /// - setValue(self: Self, row_num: usize, val: T) void
 /// - len(self: Self): usize
 pub fn SliceUpdatable(T: type) type {
-    return SliceImpl(T, true, nullConverter(T));
+    return SliceImpl(T, true, noConversion(T));
 }
 
 /// Converts a slice of T into a per-row value of T
@@ -106,7 +106,7 @@ fn SliceImpl(T: type, writeable: bool, converter: anytype) type {
 /// - value(self: Self, row_num: usize): [type of struct field]
 /// - len(self: Self): usize
 pub fn SliceOfStruct(T: type, field_name: []const u8) type {
-    return SliceOfStructImpl(T, field_name, false, nullConverter(@FieldType(T, field_name)));
+    return SliceOfStructImpl(T, field_name, false, noConversion(@FieldType(T, field_name)));
 }
 
 /// Provides a per-row value for a field in a struct which can be modified
@@ -115,7 +115,7 @@ pub fn SliceOfStruct(T: type, field_name: []const u8) type {
 /// - setValue(self: Self, row_num: usize, val: [type of struct field]) void
 /// - len(self: Self): usize
 pub fn SliceOfStructUpdatable(T: type, field_name: []const u8) type {
-    return SliceOfStructImpl(T, field_name, true, nullConverter(@FieldType(T, field_name)));
+    return SliceOfStructImpl(T, field_name, true, noConversion(@FieldType(T, field_name)));
 }
 
 /// Provides a per-row value for a field in a struct which can be
@@ -167,7 +167,7 @@ pub fn BitSet(T: type) type {
     return BitSetImpl(T, false);
 }
 
-pub fn BitSetUpdateable(T: type) type {
+pub fn BitSetUpdatable(T: type) type {
     return BitSetImpl(T, true);
 }
 
@@ -199,7 +199,9 @@ pub fn BitSetImpl(T: type, writeable: bool) type {
 
 // TODO: What if conversion invloves looking up other rows.
 // You we need an context? (icky) or is that just "out of scope"
-pub fn nullConverter(T: type) fn (val: T) T {
+
+// Note: This can't use anytype because it can't be resolved at comptime.
+pub fn noConversion(T: type) fn (val: T) T {
     return struct {
         pub fn convert(val: T) T {
             return val;
