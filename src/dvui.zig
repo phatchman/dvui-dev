@@ -4526,10 +4526,13 @@ pub fn gridColumnLabel(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
     comptime fmt: []const u8,
-    data_adapter: anytype, // XXX
+    data_adapter: anytype, // GridWidget.DataAdpater
     cell_style: anytype, // GridWidget.CellStyle
 ) !void {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
+    GridWidget.DataAdapter.requiresReadable(data_adapter);
+    //@compileLog(comptime GridWidget.DataAdapter.hasMethod(@TypeOf(data_adapter), "value", .{usize}));
+    //@compileLog(comptime GridWidget.DataAdapter.hasMethod(@TypeOf(data_adapter), "len", .{}));
 
     const label_defaults: Options = .{
         .expand = .horizontal,
@@ -4560,6 +4563,10 @@ pub fn gridColumnTextEntry(
     cell_style: anytype, // GridWidget.CellStyle
 ) !void {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
+    GridWidget.DataAdapter.requiresReadable(data_adapter);
+    GridWidget.DataAdapter.requiresWriteable(data_adapter);
+    if (@TypeOf(data_adapter.value(0)) != []const u8)
+        @compileError("data_adapter value() must return a []const u8.");
 
     const entry_defaults: Options = .{
         .expand = .horizontal,
@@ -4593,6 +4600,7 @@ pub fn gridColumnIcon(
     cell_style: anytype, // GridWidget.CellStyle
 ) !void {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
+    GridWidget.DataAdapter.requiresReadable(data_adapter);
 
     const icon_defaults: Options = .{
         //        .expand = .horizontal,
@@ -4606,7 +4614,7 @@ pub fn gridColumnIcon(
         defer cell.deinit();
         try icon(
             @src(),
-            "nothing for now",
+            "gridColumnIcon_" ++ @typeName(@TypeOf(data_adapter.value(row_num))),
             data_adapter.value(row_num),
             icon_opts,
             icon_defaults.override(opts.options(g.col_num, row_num)),
@@ -4633,7 +4641,7 @@ pub fn gridHeadingCheckbox(
     const header_defaults: Options = .{
         .background = true,
         .expand = .both,
-        .margin = ButtonWidget.defaults.marginGet(),
+        .margin = ButtonWidget.defaults.margin,
         .color_fill = .fill_control,
         .gravity_x = 0.5,
         .gravity_y = 0.5,
@@ -4692,12 +4700,11 @@ pub fn gridColumnCheckbox(
     cell_style: anytype, // GridWidget.CellStyle
     selection_info: ?*SelectionInfo,
 ) !bool {
+    GridWidget.DataAdapter.requiresReadable(data_adapter);
+    GridWidget.DataAdapter.requiresWriteable(data_adapter);
     if (@TypeOf(data_adapter.value(0)) != bool) {
-        @compileError("Data adapter value() must return bool");
+        @compileError("data_adapter.value() must return bool");
     }
-    if (!std.meta.hasFn(@TypeOf(data_adapter), "setValue"))
-        @compileError("DataAdapter does not implement setValue(bool). An updatable DataAdapter is required.");
-
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
 
     const check_defaults: Options = .{
