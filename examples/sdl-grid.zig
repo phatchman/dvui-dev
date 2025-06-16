@@ -299,7 +299,7 @@ fn gui_frame() !void {
             var col = grid.column(@src(), .{});
             defer col.deinit();
             dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
-            dvui.gridColumnTextEntry(
+            if (dvui.gridColumnTextEntry(
                 @src(),
                 grid,
                 .{},
@@ -308,7 +308,9 @@ fn gui_frame() !void {
                     "text",
                 ){ .slice = data },
                 CellStyleTabIndex{},
-            );
+            )) |row_num| {
+                std.debug.print("text changed: {}:{s}\n", .{ row_num, data[row_num].text });
+            }
         }
 
         if (true) {
@@ -316,7 +318,6 @@ fn gui_frame() !void {
             local.selector.processEvents();
             local.selector.performAction(selection_changed, adapter);
         }
-        std.debug.print("text = {s}\n", .{data[0].text});
     }
 }
 

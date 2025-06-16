@@ -4624,7 +4624,9 @@ pub fn gridColumnLabel(
     }
 }
 
-/// Create a text entyr that will update the bound field.
+// TODO: Think about how selection is just a different type of "modification". Just like
+// We might want ot know which text area widgets were modified during a frame.
+/// Create a text entry that will update the bound field.
 /// No validation is provided.
 pub fn gridColumnTextEntry(
     src: std.builtin.SourceLocation,
@@ -4632,7 +4634,7 @@ pub fn gridColumnTextEntry(
     init_opts: TextEntryWidget.InitOptions,
     data_adapter: anytype, // Requires and updateable GridWidget.DataAdapter
     cell_style: anytype, // GridWidget.CellStyle
-) void {
+) ?usize {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
     GridWidget.DataAdapter.requiresReadable(data_adapter);
     GridWidget.DataAdapter.requiresWriteable(data_adapter);
@@ -4642,6 +4644,7 @@ pub fn gridColumnTextEntry(
     const entry_defaults: Options = .{
         .expand = .horizontal,
     };
+    var changed: ?usize = null;
     for (0..data_adapter.len()) |row_num| {
         var cell = g.bodyCell(
             src,
@@ -4653,14 +4656,16 @@ pub fn gridColumnTextEntry(
         defer text.deinit();
         if (dvui.firstFrame(text.data().id)) {
             text.textSet(data_adapter.value(row_num), false);
-        }
-        if (text.text_changed) {
+        } else if (text.text_changed) {
+            std.debug.assert(changed == null);
+            changed = row_num;
             data_adapter.setValue(row_num, text.getText());
         }
         if (text.enter_pressed) {
             dvui.tabIndexNext(null);
         }
     }
+    return changed;
 }
 
 pub fn gridColumnIcon(
@@ -4797,7 +4802,6 @@ pub fn gridColumnCheckbox(
         );
         defer cell.deinit();
         var is_selected: bool = data_adapter.value(row_num);
-        const was_selected = is_selected;
         if (dvui.checkbox(
             @src(),
             &is_selected,
@@ -4805,12 +4809,11 @@ pub fn gridColumnCheckbox(
             check_defaults.override(opts.options(g.col_num, row_num)),
         )) {
             data_adapter.setValue(row_num, is_selected);
-
+            selection_changed = true;
             if (selection_info) |info| {
                 info.selectionChanged(row_num, is_selected);
             }
         }
-        selection_changed = selection_changed or was_selected != is_selected;
     }
     return selection_changed;
 }
