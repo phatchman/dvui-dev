@@ -188,9 +188,9 @@ fn gui_frame() !void {
             selection_changed = dvui.gridColumnCheckbox(
                 @src(),
                 grid,
+                .{ .selection_info = &local.select_info },
                 adapter,
                 .{},
-                &local.select_info,
             );
         }
         {
@@ -234,7 +234,7 @@ fn gui_frame() !void {
             defer col.deinit();
             var selection: dvui.GridColumnSelectAllState = undefined;
             _ = dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
-            selection_changed = dvui.gridColumnCheckbox(@src(), grid, adapter, CellStyleTabIndex{}, &local.selection_info);
+            selection_changed = dvui.gridColumnCheckbox(@src(), grid, .{ .selection_info = &local.selection_info }, adapter, CellStyleTabIndex{});
         }
         {
             var col = grid.column(@src(), .{});
@@ -314,6 +314,9 @@ fn gui_frame() !void {
         }
 
         if (true) {
+            if (selection_changed) {
+                std.debug.print("user clicked on checkbox #: {?}\n", .{local.selection_info.this_changed});
+            }
             //single_select.performAction(selection_changed, adapter);
             local.selector.processEvents();
             local.selector.performAction(selection_changed, adapter);

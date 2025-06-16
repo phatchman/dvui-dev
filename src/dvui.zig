@@ -4769,12 +4769,16 @@ pub const SelectionInfo = struct {
     }
 };
 
+pub const ColumnCheckboxInitOpts = struct {
+    selection_info: ?*SelectionInfo = null,
+};
+
 pub fn gridColumnCheckbox(
     src: std.builtin.SourceLocation,
     g: *dvui.GridWidget,
+    init_opts: ColumnCheckboxInitOpts,
     data_adapter: anytype, // GridWidget.DataAdapter.Selection
     cell_style: anytype, // GridWidget.CellStyle
-    selection_info: ?*SelectionInfo,
 ) bool {
     GridWidget.DataAdapter.requiresReadable(data_adapter);
     GridWidget.DataAdapter.requiresWriteable(data_adapter);
@@ -4810,7 +4814,7 @@ pub fn gridColumnCheckbox(
         )) {
             data_adapter.setValue(row_num, is_selected);
             selection_changed = true;
-            if (selection_info) |info| {
+            if (init_opts.selection_info) |info| {
                 info.selectionChanged(row_num, is_selected);
             }
         }
