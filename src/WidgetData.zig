@@ -74,6 +74,7 @@ pub fn register(self: *WidgetData) void {
     const name: []const u8 = self.options.name orelse "???";
 
     if (self.options.tag) |t| {
+        //std.debug.print("\n\nSetting tag: {s}\n\n", .{t});
         dvui.tag(t, .{ .id = self.id, .rect = self.rectScale().r, .visible = self.visible() });
     }
 

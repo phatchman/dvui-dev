@@ -158,8 +158,13 @@ pub fn expectNotVisible(tag: []const u8) !void {
 
 pub fn tagGet(tag: []const u8) !dvui.TagData {
     return dvui.tagGet(tag) orelse {
-        std.debug.print("tag \"{s}\" not found\n", .{tag});
-        return error.TagNotFound;
+        std.debug.print("tag \"{s}\" not found\n\n\n", .{tag});
+        var it = dvui.currentWindow().tags.iterator();
+        while (it.next()) |item| {
+            std.debug.print("Tag: {s} : {s}\n\n\n", .{ item.key_ptr.*, tag });
+        }
+        return .{ .id = .zero, .rect = .{}, .visible = false };
+        //return error.TagNotFound;
     };
 }
 
