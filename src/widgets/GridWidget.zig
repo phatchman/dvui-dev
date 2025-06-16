@@ -120,6 +120,7 @@ pub const default_col_width: f32 = 100;
 
 vbox: BoxWidget = undefined,
 scroll: ScrollAreaWidget = undefined,
+si: ScrollInfo = undefined,
 hbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 current_col: ?*BoxWidget = null,
@@ -171,19 +172,21 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     return self;
 }
 
-pub fn install(self: *GridWidget) !void {
-    try self.vbox.install();
-    try self.vbox.drawBackground();
+pub fn install(self: *GridWidget) void {
+    self.vbox.install();
+    self.vbox.drawBackground();
 
     self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
-    try self.scroll.install();
+    self.scroll.install();
+    // Keep a copy of the scroll_info in case the viewport changes between column layouts.
+    self.si = self.scroll.si.*;
 
     // Lay out columns horizontally.
     self.hbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
         .expand = .both,
     });
-    try self.hbox.install();
-    try self.hbox.drawBackground();
+    self.hbox.install();
+    self.hbox.drawBackground();
 }
 
 pub fn deinit(self: *GridWidget) void {
@@ -221,7 +224,7 @@ pub fn data(self: *GridWidget) *WidgetData {
 /// 2) opts.width if supplied
 /// 3) Otherewise column will expand to the available space.
 /// It is recommended that widths are provided for all columns.
-pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) !*BoxWidget {
+pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) *BoxWidget {
     self.clipReset();
     self.current_col = null;
 
@@ -260,8 +263,8 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
 
     var col = dvui.widgetAlloc(BoxWidget);
     col.* = BoxWidget.init(src, .{ .dir = .vertical }, col_opts);
-    try col.install();
-    try col.drawBackground();
+    col.install();
+    col.drawBackground();
     self.current_col = col;
     return col;
 }
@@ -278,8 +281,8 @@ fn clipReset(self: *GridWidget) void {
 /// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
 /// Only one header cell is allowed per column.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
-pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) !*BoxWidget {
-    const y: f32 = self.scroll.si.viewport.y;
+pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) *BoxWidget {
+    const y: f32 = self.si.viewport.y;
     const parent_rect = self.current_col.?.data().contentRect();
 
     const header_height: f32 = height: {
@@ -295,8 +298,8 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
     // Create the cell and install as parent.
     var cell = dvui.widgetAlloc(BoxWidget);
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
-    try cell.install();
-    try cell.drawBackground();
+    cell.install();
+    cell.drawBackground();
 
     // Determine heights for next frame.
     if (cell.data().contentRect().h > 0) {
@@ -310,7 +313,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
 /// Create a new body cell within a column
 /// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
-pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) !*BoxWidget {
+pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) *BoxWidget {
     const parent_rect = self.current_col.?.data().contentRect();
 
     const cell_height: f32 = height: {
@@ -328,7 +331,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
 
         var clip_rect = rect_scale.r;
         clip_rect.y += header_height_scaled;
-        clip_rect.h = self.scroll.si.viewport.h * rect_scale.s - header_height_scaled;
+        clip_rect.h = self.si.viewport.h * rect_scale.s - header_height_scaled;
 
         self.saved_clip_rect = dvui.clip(clip_rect);
     }
@@ -339,8 +342,8 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
 
     var cell = dvui.widgetAlloc(BoxWidget);
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
-    try cell.install();
-    try cell.drawBackground();
+    cell.install();
+    cell.drawBackground();
 
     if (cell.data().contentRect().h > 0) {
         const measured_cell_height = cell.data().rect.h;
@@ -513,9 +516,9 @@ pub const HeaderResizeWidget = struct {
         return self;
     }
 
-    pub fn install(self: *HeaderResizeWidget) !void {
+    pub fn install(self: *HeaderResizeWidget) void {
         self.wd.register();
-        try self.wd.borderAndBackground(.{});
+        self.wd.borderAndBackground(.{});
     }
 
     pub fn matchEvent(self: *HeaderResizeWidget, e: *Event) bool {
