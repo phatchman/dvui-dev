@@ -131,28 +131,28 @@ var select_bitset: std.StaticBitSet(data2.len) = .initEmpty();
 // both dvui and SDL drawing
 fn gui_frame() !void {
     {
-        var m = try dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
+        var m = dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
         defer m.deinit();
 
-        if (try dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{ .expand = .none })) |r| {
-            var fw = try dvui.floatingMenu(@src(), .{ .from = r }, .{});
+        if (dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{ .expand = .none })) |r| {
+            var fw = dvui.floatingMenu(@src(), .{ .from = r }, .{});
             defer fw.deinit();
 
-            if (try dvui.menuItemLabel(@src(), "Close Menu", .{}, .{}) != null) {
+            if (dvui.menuItemLabel(@src(), "Close Menu", .{}, .{}) != null) {
                 m.close();
             }
         }
     }
     if (false) {
-        var vbox = try dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
+        var vbox = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true });
         defer vbox.deinit();
         var enter_pressed = false;
         {
-            var text = try dvui.textEntry(@src(), .{}, .{});
+            var text = dvui.textEntry(@src(), .{}, .{});
             defer text.deinit();
             enter_pressed = text.enter_pressed;
         }
-        try dvui.label(@src(), "Enter pressed = {}", .{enter_pressed}, .{});
+        dvui.label(@src(), "Enter pressed = {}", .{enter_pressed}, .{});
         return;
     }
     if (false) {
@@ -162,7 +162,7 @@ fn gui_frame() !void {
             var selections: std.StaticBitSet(num_rows) = .initEmpty();
             var select_info: dvui.SelectionInfo = .{};
         };
-        var grid = try dvui.grid(
+        var grid = dvui.grid(
             @src(),
             .{
                 .scroll_opts = .{ .scroll_info = &local.scroll_info },
@@ -183,9 +183,9 @@ fn gui_frame() !void {
         //const adapter = DataAdpater.SliceUpdatable()
 
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
-            selection_changed = try dvui.gridColumnCheckbox(
+            selection_changed = dvui.gridColumnCheckbox(
                 @src(),
                 grid,
                 adapter,
@@ -194,12 +194,12 @@ fn gui_frame() !void {
             );
         }
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
             for (first..last) |row| {
-                var cell = try grid.bodyCell(@src(), row, .{});
+                var cell = grid.bodyCell(@src(), row, .{});
                 defer cell.deinit();
-                try dvui.label(@src(), "{d}", .{row}, .{});
+                dvui.label(@src(), "{d}", .{row}, .{});
             }
         }
         selector.processEvents();
@@ -214,7 +214,7 @@ fn gui_frame() !void {
             var frame_count: usize = 0;
         };
 
-        var grid = try dvui.grid(@src(), .{}, .{ .expand = .both });
+        var grid = dvui.grid(@src(), .{}, .{ .expand = .both });
         defer grid.deinit();
 
         // This is just to make sure nothing regarding data is comptime.
@@ -230,31 +230,31 @@ fn gui_frame() !void {
         //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
 
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
             var selection: dvui.GridColumnSelectAllState = undefined;
-            _ = try dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
-            selection_changed = try dvui.gridColumnCheckbox(@src(), grid, adapter, CellStyleTabIndex{}, &local.selection_info);
+            _ = dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
+            selection_changed = dvui.gridColumnCheckbox(@src(), grid, adapter, CellStyleTabIndex{}, &local.selection_info);
         }
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
-            try dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-            try dvui.gridColumnLabel(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
+            dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
+            dvui.gridColumnLabel(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
             //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
             //tst.setValue(3, 69);
         }
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
-            try dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
-            try dvui.gridColumnLabel(@src(), grid, "{}", adapter, .{});
+            dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
+            dvui.gridColumnLabel(@src(), grid, "{}", adapter, .{});
         }
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
-            try dvui.gridHeading(@src(), grid, "YN", .fixed, .{});
-            try dvui.gridColumnLabel(
+            dvui.gridHeading(@src(), grid, "YN", .fixed, .{});
+            dvui.gridColumnLabel(
                 @src(),
                 grid,
                 "{s}",
@@ -268,10 +268,10 @@ fn gui_frame() !void {
         }
 
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
-            try dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
-            try dvui.gridColumnLabel(
+            dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
+            dvui.gridColumnLabel(
                 @src(),
                 grid,
                 "{s}",
@@ -280,10 +280,10 @@ fn gui_frame() !void {
             );
         }
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
-            try dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
-            try dvui.gridColumnIcon(
+            dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
+            dvui.gridColumnIcon(
                 @src(),
                 grid,
                 .{},
@@ -296,10 +296,10 @@ fn gui_frame() !void {
             );
         }
         {
-            var col = try grid.column(@src(), .{});
+            var col = grid.column(@src(), .{});
             defer col.deinit();
-            try dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
-            try dvui.gridColumnTextEntry(
+            dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
+            dvui.gridColumnTextEntry(
                 @src(),
                 grid,
                 .{},

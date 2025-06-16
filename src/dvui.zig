@@ -4600,7 +4600,7 @@ pub fn gridColumnLabel(
     comptime fmt: []const u8,
     data_adapter: anytype, // GridWidget.DataAdpater
     cell_style: anytype, // GridWidget.CellStyle
-) !void {
+) void {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
     GridWidget.DataAdapter.requiresReadable(data_adapter);
 
@@ -4615,7 +4615,7 @@ pub fn gridColumnLabel(
         );
         defer cell.deinit();
 
-        try label(
+        label(
             @src(),
             fmt,
             .{data_adapter.value(row_num)},
@@ -4632,7 +4632,7 @@ pub fn gridColumnTextEntry(
     init_opts: TextEntryWidget.InitOptions,
     data_adapter: anytype, // Requires and updateable GridWidget.DataAdapter
     cell_style: anytype, // GridWidget.CellStyle
-) !void {
+) void {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
     GridWidget.DataAdapter.requiresReadable(data_adapter);
     GridWidget.DataAdapter.requiresWriteable(data_adapter);
@@ -4643,13 +4643,13 @@ pub fn gridColumnTextEntry(
         .expand = .horizontal,
     };
     for (0..data_adapter.len()) |row_num| {
-        var cell = try g.bodyCell(
+        var cell = g.bodyCell(
             src,
             row_num,
             opts.cellOptions(g.col_num, row_num),
         );
         defer cell.deinit();
-        var text = try textEntry(@src(), init_opts, entry_defaults.override(opts.options(g.col_num, row_num)));
+        var text = textEntry(@src(), init_opts, entry_defaults.override(opts.options(g.col_num, row_num)));
         defer text.deinit();
         if (dvui.firstFrame(text.data().id)) {
             text.textSet(data_adapter.value(row_num), false);
@@ -4669,7 +4669,7 @@ pub fn gridColumnIcon(
     icon_opts: IconRenderOptions,
     data_adapter: anytype, // GridWidget.DataAdapter
     cell_style: anytype, // GridWidget.CellStyle
-) !void {
+) void {
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
     GridWidget.DataAdapter.requiresReadable(data_adapter);
 
@@ -4677,13 +4677,13 @@ pub fn gridColumnIcon(
         //        .expand = .horizontal,
     };
     for (0..data_adapter.len()) |row_num| {
-        var cell = try g.bodyCell(
+        var cell = g.bodyCell(
             src,
             row_num,
             opts.cellOptions(g.col_num, row_num),
         );
         defer cell.deinit();
-        try icon(
+        icon(
             @src(),
             "gridColumnIcon_" ++ @typeName(@TypeOf(data_adapter.value(row_num))),
             data_adapter.value(row_num),
@@ -4770,7 +4770,7 @@ pub fn gridColumnCheckbox(
     data_adapter: anytype, // GridWidget.DataAdapter.Selection
     cell_style: anytype, // GridWidget.CellStyle
     selection_info: ?*SelectionInfo,
-) !bool {
+) bool {
     GridWidget.DataAdapter.requiresReadable(data_adapter);
     GridWidget.DataAdapter.requiresWriteable(data_adapter);
     if (@TypeOf(data_adapter.value(0)) != bool) {
@@ -4790,7 +4790,7 @@ pub fn gridColumnCheckbox(
     // The data adapters will need to take care of that.
     // Can also probably simpily the logic below so that selection_changes is only set when the button is clicked?
     for (0..data_adapter.len()) |row_num| {
-        var cell = try g.bodyCell(
+        var cell = g.bodyCell(
             src,
             row_num,
             opts.cellOptions(g.col_num, row_num),
@@ -4798,7 +4798,7 @@ pub fn gridColumnCheckbox(
         defer cell.deinit();
         var is_selected: bool = data_adapter.value(row_num);
         const was_selected = is_selected;
-        if (try dvui.checkbox(
+        if (dvui.checkbox(
             @src(),
             &is_selected,
             null,
