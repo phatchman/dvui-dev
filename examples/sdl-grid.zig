@@ -89,6 +89,7 @@ pub fn main() !void {
         // waitTime and beginWait combine to achieve variable framerates
         const wait_event_micros = win.waitTime(end_micros, null);
         interrupted = try backend.waitEventTimeout(wait_event_micros);
+        std.debug.print("{s}, {s}, {s}\n", .{ data1[0].text, data1[1].text, data1[2].text });
     }
 }
 
@@ -298,7 +299,7 @@ fn gui_frame() !void {
         {
             var col = grid.column(@src(), .{});
             defer col.deinit();
-            dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
+            dvui.gridHeading(@src(), grid, "Entry", .fixed, .{});
             if (dvui.gridColumnTextEntry(
                 @src(),
                 grid,
@@ -310,6 +311,22 @@ fn gui_frame() !void {
                 CellStyleTabIndex{},
             )) |row_num| {
                 std.debug.print("text changed: {}:{s}\n", .{ row_num, data[row_num].text });
+            }
+        }
+        {
+            var col = grid.column(@src(), .{});
+            defer col.deinit();
+            dvui.gridHeading(@src(), grid, "Entry2", .fixed, .{});
+            for (data[0..], 0..) |*d, row_num| {
+                var cell = grid.bodyCell(@src(), row_num, .{});
+                defer cell.deinit();
+                var text = dvui.textEntry(@src(), .{}, .{ .expand = .horizontal });
+                defer text.deinit();
+                if (dvui.firstFrame(text.data().id)) {
+                    text.textSet(d.text, false);
+                } else if (text.text_changed) {
+                    d.text = text.getText();
+                }
             }
         }
 

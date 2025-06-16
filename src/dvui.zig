@@ -4644,7 +4644,13 @@ pub fn gridColumnTextEntry(
     const entry_defaults: Options = .{
         .expand = .horizontal,
     };
+
     var changed: ?usize = null;
+    const parent_id = dvui.parentGet().data().id;
+    var current_focus_row: ?usize = null;
+    const current_focus_id = dvui.focusedWidgetId();
+    var new_focus_row: ?usize = dvui.dataGet(null, parent_id, "focus_row", ?usize) orelse null;
+
     for (0..data_adapter.len()) |row_num| {
         var cell = g.bodyCell(
             src,
@@ -4654,6 +4660,9 @@ pub fn gridColumnTextEntry(
         defer cell.deinit();
         var text = textEntry(@src(), init_opts, entry_defaults.override(opts.options(g.col_num, row_num)));
         defer text.deinit();
+        if (text.data().id == current_focus_id) {
+            current_focus_row = row_num;
+        }
         if (dvui.firstFrame(text.data().id)) {
             text.textSet(data_adapter.value(row_num), false);
         } else if (text.text_changed) {
@@ -4662,9 +4671,43 @@ pub fn gridColumnTextEntry(
             data_adapter.setValue(row_num, text.getText());
         }
         if (text.enter_pressed) {
-            dvui.tabIndexNext(null);
+            new_focus_row = if (row_num < data_adapter.len() - 1) row_num + 1 else 0;
+            std.debug.print("fr = {?}\n", .{new_focus_row});
+        } else if (new_focus_row == row_num) {
+            dvui.focusWidget(text.data().id, null, null);
+            var scrollto = Event{ .evt = .{ .scroll_to = .{
+                .screen_rect = text.data().rectScale().r,
+                .over_scroll = true,
+            } } };
+            // TODO: Must be a better way to bubble the events?
+            // Downside of hiding rows behind headers is that it will scroll to the row behind the header.
+            g.scroll.scroll.processEvent(&scrollto, true);
+            new_focus_row = null;
         }
     }
+    if (current_focus_row) |current_focus| {
+        const evts = dvui.events();
+        for (evts) |*e| {
+            if (e.evt == .key) {
+                const ke = e.evt.key;
+                if (ke.code == .up and ke.action == .down or ke.action == .repeat) {
+                    if (current_focus == 0) {
+                        new_focus_row = data_adapter.len() - 1;
+                    } else {
+                        new_focus_row = current_focus - 1;
+                    }
+                } else if (ke.code == .down and ke.action == .down or ke.action == .repeat) {
+                    if (current_focus < data_adapter.len() - 1) {
+                        new_focus_row = current_focus + 1;
+                    } else {
+                        new_focus_row = 0;
+                    }
+                }
+            }
+        }
+    }
+
+    dvui.dataSet(null, parent_id, "focus_row", new_focus_row);
     return changed;
 }
 
