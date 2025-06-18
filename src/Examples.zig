@@ -3698,7 +3698,6 @@ pub fn debuggingErrors() void {
                 tl2.addText("No keybind overlaps found.", .{});
             }
         }
-
     }
 
     if (dvui.expander(@src(), "Show Font Atlases", .{}, .{ .expand = .horizontal })) {
