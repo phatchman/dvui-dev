@@ -1,3 +1,11 @@
+// TODO: ISSUES to overcome
+// 1) We need to store the body scroll info so it can be shared with the header scroll area, as teh header is created first, but the body drives the scrolling
+// 2) Need to know when to install the body scroll area, which won't be valid until the header scroll area is deinitted (unles we can next them?)
+// 2.5) So that means we prob need to create a scroll info in the grid if the user doesn't already have one.
+// 3) The column() function breaks because headers are no longer in the column :(
+// 4) Need to always use a col_info or similar to store the col widths so that the header widths and body widths can be kept in sync. But *only* the body can set widths in that case?
+// 5) Probably just need to get rid of the vboxes altogether.. maybe that is the first step?
+
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
@@ -214,6 +222,11 @@ pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
 }
 
+pub const GridColumn = struct {
+    //
+    pub fn deinit(_: GridColumn) void {}
+};
+
 /// Start a new grid column.
 /// Returns a vbox.
 /// Ensure deinit() is called on the returned vbox before creating a new column.
@@ -222,7 +235,8 @@ pub fn data(self: *GridWidget) *WidgetData {
 /// 2) opts.width if supplied
 /// 3) Otherewise column will expand to the available space.
 /// It is recommended that widths are provided for all columns.
-pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) *BoxWidget {
+pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
+    _ = src;
     self.clipReset();
     self.current_col = null;
 
@@ -259,12 +273,8 @@ pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptio
     col_opts.max_size_content = if (w > 0) .width(w) else null;
     col_opts.id_extra = self.col_num;
 
-    var col = dvui.widgetAlloc(BoxWidget);
-    col.* = BoxWidget.init(src, .{ .dir = .vertical }, col_opts);
-    col.install();
-    col.drawBackground();
-    self.current_col = col;
-    return col;
+    self.current_col = null;
+    return .{};
 }
 
 /// Restore saved clip region.
@@ -281,7 +291,7 @@ fn clipReset(self: *GridWidget) void {
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) *BoxWidget {
     const y: f32 = self.si.viewport.y;
-    const parent_rect = self.current_col.?.data().contentRect();
+    const parent_rect = self.scroll.data().contentRect();
 
     const header_height: f32 = height: {
         if (opts.height) |height| {
@@ -312,7 +322,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
 /// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) *BoxWidget {
-    const parent_rect = self.current_col.?.data().contentRect();
+    const parent_rect = self.scroll.data().contentRect();
 
     const cell_height: f32 = height: {
         if (opts.height) |height| {
