@@ -94,6 +94,7 @@ pub const InitOptions = struct {
 /// creates a window using raylib
 pub fn createWindow(options: InitOptions) void {
     c.SetConfigFlags(c.FLAG_WINDOW_RESIZABLE);
+    c.SetConfigFlags(c.FLAG_WINDOW_HIGHDPI);
     if (options.vsync) {
         c.SetConfigFlags(c.FLAG_VSYNC_HINT);
     }
@@ -200,7 +201,7 @@ pub fn drawClippedTriangles(self: *RaylibBackend, texture: ?dvui.Texture, vtx: [
 
     if (clipr_in) |clip_rect| {
         if (self.fb_width == null) {
-            // clipr is in pixels, but raylib multiplies by GetWindowScaleDPI(), so we
+            // clip_rect is in pixels, but raylib multiplies by GetWindowScaleDPI(), so we
             // have to divide by that here
             const clipr = dvuiRectToRaylib(clip_rect);
 
@@ -488,7 +489,7 @@ pub fn addAllEvents(self: *RaylibBackend, win: *dvui.Window) !bool {
                 std.debug.print("raylib event key up: {}\n", .{raylibKeyToDvui(@intCast(keycode))});
             }
         } else if (c.IsKeyPressedRepeat(@intCast(keycode))) {
-            if (try win.addEventKey(.{ .code = raylibKeyToDvui(@intCast(keycode)), .mod = .none, .action = .repeat })) disable_raylib_input = true;
+            if (try win.addEventKey(.{ .code = raylibKeyToDvui(@intCast(keycode)), .mod = self.pressed_modifier, .action = .repeat })) disable_raylib_input = true;
             if (self.log_events) {
                 std.debug.print("raylib event key repeat: {}\n", .{raylibKeyToDvui(@intCast(keycode))});
             }
@@ -529,11 +530,11 @@ pub fn addAllEvents(self: *RaylibBackend, win: *dvui.Window) !bool {
             }
         } else {
             //add eventKey
-            if (try win.addEventKey(.{ .code = code, .mod = self.pressed_modifier, .action = .down })) disable_raylib_input = true;
             if (self.log_events) {
                 std.debug.print("raylib event key down: {}\n", .{code});
             }
         }
+        if (try win.addEventKey(.{ .code = code, .mod = self.pressed_modifier, .action = .down })) disable_raylib_input = true;
     }
 
     //account for key repeat
@@ -558,7 +559,12 @@ pub fn addAllEvents(self: *RaylibBackend, win: *dvui.Window) !bool {
     const mouse_move = c.GetMouseDelta();
     if (mouse_move.x != 0 or mouse_move.y != 0) {
         const mouse_pos = c.GetMousePosition();
-        if (try win.addEventMouseMotion(.{ .x = mouse_pos.x, .y = mouse_pos.y })) disable_raylib_input = true;
+
+        // raylib gives us mouse coords in "window coords" which is kind of
+        // like natural coords but ignores content scaling
+        const scale = self.pixelSize().w / self.windowSize().w;
+
+        if (try win.addEventMouseMotion(.{ .x = mouse_pos.x * scale, .y = mouse_pos.y * scale })) disable_raylib_input = true;
         if (self.log_events) {
             //std.debug.print("raylib event Mouse Moved\n", .{});
         }
@@ -815,11 +821,19 @@ pub fn dvuiColorToRaylib(color: dvui.Color) c.Color {
     return c.Color{ .r = @intCast(color.r), .b = @intCast(color.b), .g = @intCast(color.g), .a = @intCast(color.a) };
 }
 
+/// Divides my the scaling of the monitor, only needed when rendering to
+/// the main render target. No conversion is needed when rendering to
+/// textures.
 pub fn dvuiRectToRaylib(rect: dvui.Rect.Physical) c.Rectangle {
     // raylib multiplies everything internally by the monitor scale, so we
     // have to divide by that
-    const r = rect.toNatural();
-    return c.Rectangle{ .x = r.x, .y = r.y, .width = r.w, .height = r.h };
+    const s = c.GetWindowScaleDPI();
+    return c.Rectangle{
+        .x = rect.x / s.x,
+        .y = rect.y / s.y,
+        .width = rect.w / s.x,
+        .height = rect.h / s.y,
+    };
 }
 
 pub fn EndDrawingWaitEventTimeout(_: *RaylibBackend, timeout_micros: u32) void {
@@ -849,8 +863,18 @@ pub fn EndDrawingWaitEventTimeout(_: *RaylibBackend, timeout_micros: u32) void {
     return;
 }
 
+// Optional: windows os only
+const winapi = if (builtin.os.tag == .windows) struct {
+    extern "kernel32" fn AttachConsole(dwProcessId: std.os.windows.DWORD) std.os.windows.BOOL;
+} else struct {};
+
 pub fn main() !void {
     const app = dvui.App.get() orelse return error.DvuiAppNotDefined;
+
+    if (builtin.os.tag == .windows) { // optional
+        // on windows graphical apps have no console, so output goes to nowhere - attach it manually. related: https://github.com/ziglang/zig/issues/4196
+        _ = winapi.AttachConsole(0xFFFFFFFF);
+    }
 
     var gpa_instance = std.heap.GeneralPurposeAllocator(.{}){};
     const gpa = gpa_instance.allocator();

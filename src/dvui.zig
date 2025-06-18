@@ -225,17 +225,34 @@ pub fn widgetFree(ptr: anytype) void {
 }
 
 pub fn logError(src: std.builtin.SourceLocation, err: anyerror, comptime fmt: []const u8, args: anytype) void {
+    const stack_trace_frame_count = @import("build_options").log_stack_trace orelse if (builtin.mode == .Debug) 12 else 0;
+    const stack_trace_enabled = stack_trace_frame_count > 0;
+    const err_trace_enabled = if (@import("build_options").log_error_trace) |enabled| enabled else stack_trace_enabled;
+
+    var addresses: [stack_trace_frame_count]usize = @splat(0);
+    var stack_trace = std.builtin.StackTrace{ .instruction_addresses = &addresses, .index = 0 };
+    if (!builtin.strip_debug_info) std.debug.captureStackTrace(@returnAddress(), &stack_trace);
+
+    const error_trace_fmt, const err_trace_arg = if (err_trace_enabled)
+        .{ "\nError trace: {?}", @errorReturnTrace() }
+    else
+        .{ "{s}", "" }; // Needed to keep the arg count the same
+    const stack_trace_fmt, const trace_arg = if (stack_trace_enabled)
+        .{ "\nStack trace: {}", stack_trace }
+    else
+        .{ "{s}", "" }; // Needed to keep the arg count the sames
+
     // There is no nice way to combine a comptime tuple and a runtime tuple
     const combined_args = switch (std.meta.fields(@TypeOf(args)).len) {
-        0 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err) },
-        1 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0] },
-        2 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1] },
-        3 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1], args[2] },
-        4 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1], args[2], args[3] },
-        5 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1], args[2], args[3], args[4] },
+        0 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), err_trace_arg, trace_arg },
+        1 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], err_trace_arg, trace_arg },
+        2 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1], err_trace_arg, trace_arg },
+        3 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1], args[2], err_trace_arg, trace_arg },
+        4 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1], args[2], args[3], err_trace_arg, trace_arg },
+        5 => .{ src.file, src.line, src.column, src.fn_name, @errorName(err), args[0], args[1], args[2], args[3], args[4], err_trace_arg, trace_arg },
         else => @compileError("Too many arguments"),
     };
-    log.err("{s}:{d}:{d}: {s} got {s}: " ++ fmt, combined_args);
+    log.err("{s}:{d}:{d}: {s} got {s}: " ++ fmt ++ error_trace_fmt ++ stack_trace_fmt, combined_args);
 }
 
 /// Get a pointer to the active theme.
@@ -318,7 +335,7 @@ pub const Alignment = struct {
     /// Add spacer with margin.x so they all end at the same edge.
     pub fn spacer(self: *Alignment, src: std.builtin.SourceLocation, id_extra: usize) void {
         const uniqueId = dvui.parentGet().extendId(src, id_extra);
-        var wd = dvui.spacer(src, .{}, .{ .margin = self.margin(uniqueId), .id_extra = id_extra });
+        var wd = dvui.spacer(src, .{ .margin = self.margin(uniqueId), .id_extra = id_extra });
         self.record(uniqueId, &wd);
     }
 
@@ -1085,20 +1102,145 @@ pub const TextureTarget = struct {
 pub const TextureCacheEntry = struct {
     texture: Texture,
 
-    pub fn hash(bytes: []const u8, height: u32) u64 {
+    fn hashImageBytes(bytes: []const u8) u64 {
         var h = fnv.init();
         h.update(std.mem.asBytes(&bytes.ptr));
-        h.update(std.mem.asBytes(&height));
         return h.final();
     }
-    pub fn hash_icon(bytes: []const u8, height: u32, opt: IconRenderOptions) u64 {
+    fn hashIcon(bytes: []const u8, height: u32, opt: IconRenderOptions) u64 {
         var h = fnv.init();
         h.update(std.mem.asBytes(&bytes.ptr));
         h.update(std.mem.asBytes(&height));
         h.update(std.mem.asBytes(&opt));
         return h.final();
     }
+    /// only valid between window.begin and window.end
+    pub fn invalidateCachedImage(image_bytes: ImageInitOptions.ImageBytes) void {
+        var cw = dvui.currentWindow();
+        switch (image_bytes) {
+            .imageFile => |b| {
+                const h = dvui.TextureCacheEntry.hashImageBytes(b);
+                _ = cw.texture_cache.remove(h);
+            },
+            .pixels => |p| {
+                const h = dvui.TextureCacheEntry.hashImageBytes(p.bytes.pma);
+                _ = cw.texture_cache.remove(h);
+            },
+        }
+    }
+
+    pub fn fromImageFile(name: []const u8, image_bytes: []const u8) (Backend.TextureError || StbImageError)!TextureCacheEntry {
+        var cw = currentWindow();
+        const tex_hash = TextureCacheEntry.hashImageBytes(image_bytes);
+        if (cw.texture_cache.get(tex_hash)) |tce| return tce;
+        var w: c_int = undefined;
+        var h: c_int = undefined;
+        var channels_in_file: c_int = undefined;
+        const data = c.stbi_load_from_memory(image_bytes.ptr, @as(c_int, @intCast(image_bytes.len)), &w, &h, &channels_in_file, 4);
+        if (data == null) {
+            log.warn("imageTexture stbi_load error on image \"{s}\": {s}\n", .{ name, c.stbi_failure_reason() });
+            return StbImageError.stbImageError;
+        }
+        defer c.stbi_image_free(data);
+        var pixels: []u8 = undefined;
+        pixels.ptr = data;
+        pixels.len = @intCast(w * h * 4);
+
+        const texture = try textureCreate(.fromRGBA(pixels), @intCast(w), @intCast(h), .linear);
+
+        const entry = TextureCacheEntry{ .texture = texture };
+        try cw.texture_cache.put(cw.gpa, tex_hash, entry);
+        return entry;
+    }
+
+    pub fn fromPixels(pma: dvui.RGBAPixelsPMA, width: u32, height: u32) Backend.TextureError!dvui.TextureCacheEntry {
+        var cw = dvui.currentWindow();
+        const tex_hash = dvui.TextureCacheEntry.hashImageBytes(pma.pma);
+        if (cw.texture_cache.getPtr(tex_hash)) |tce| return tce.*;
+        const texture = try dvui.textureCreate(pma, width, height, .linear);
+        const entry = dvui.TextureCacheEntry{ .texture = texture };
+        try cw.texture_cache.put(cw.gpa, tex_hash, entry);
+        return entry;
+    }
+    /// Render `tvg_bytes` at `height` into a `Texture`.  Name is for debugging.
+    ///
+    /// Only valid between `Window.begin`and `Window.end`.
+    pub fn fromTvgFile(name: []const u8, tvg_bytes: []const u8, height: u32, icon_opts: IconRenderOptions) (Backend.TextureError || TvgError)!TextureCacheEntry {
+        var cw = currentWindow();
+        const icon_hash = TextureCacheEntry.hashIcon(tvg_bytes, height, icon_opts);
+        if (cw.texture_cache.get(icon_hash)) |tce| return tce;
+
+        const ImageAdapter = struct {
+            pixels: []u8,
+            width: u32,
+            height: u32,
+            pub fn setPixel(self: *@This(), x: usize, y: usize, col: [4]u8) void {
+                const idx = (y * self.height + x) * 4;
+                for (0..4) |i| {
+                    self.pixels[idx + i] = col[i];
+                }
+            }
+            pub fn getPixel(self: *@This(), x: usize, y: usize) [4]u8 {
+                const idx = y * self.height + x;
+                const slice = self.pixels[idx * 4 .. (idx + 1) * 4];
+                var col: [4]u8 = undefined;
+                for (&col, slice) |*a, s| a.* = s;
+            }
+            fn conv(dcol: dvui.Color) tvg.Color {
+                return tvg.Color{
+                    .r = @as(f32, @floatFromInt(dcol.r)) / 255.0,
+                    .g = @as(f32, @floatFromInt(dcol.g)) / 255.0,
+                    .b = @as(f32, @floatFromInt(dcol.b)) / 255.0,
+                    .a = @as(f32, @floatFromInt(dcol.a)) / 255.0,
+                };
+            }
+        };
+        const img_raw_data = try cw.lifo().alloc(u8, height * height * 4);
+        defer cw.lifo().free(img_raw_data);
+        @memset(img_raw_data, 0);
+        var img = ImageAdapter{
+            .pixels = img_raw_data,
+            .width = height,
+            .height = height,
+        };
+        var fb = std.io.fixedBufferStream(tvg_bytes);
+
+        var ow_stroke: ?tvg.Color = null;
+        if (icon_opts.stroke_color) |cx| ow_stroke = ImageAdapter.conv(cx);
+        var ow_fill: ?tvg.Color = null;
+        var disable_fill = false;
+        if (ow_fill != null and ow_fill.?.a == 0.0) {
+            disable_fill = true;
+        }
+        if (icon_opts.fill_color) |cx| ow_fill = ImageAdapter.conv(cx);
+        tvg.renderStream(cw.arena(), &img, fb.reader(), .{
+            .overwrite_stroke_width = icon_opts.stroke_width,
+            .overwrite_stroke = ow_stroke,
+            .overwrite_fill = ow_fill,
+            .disable_fill = disable_fill,
+        }) catch |err| {
+            log.warn("iconTexture Tinyvg error {!} rendering icon {s} at height {d}\n", .{ err, name, height });
+            return TvgError.tvgError;
+        };
+        const pixels = dvui.RGBAPixelsPMA.cast(img.pixels);
+        const texture = try textureCreate(pixels, @intCast(img.width), @intCast(img.height), .linear);
+        const entry = TextureCacheEntry{ .texture = texture };
+        try cw.texture_cache.put(cw.gpa, icon_hash, entry);
+        return entry;
+    }
 };
+
+/// Takes in svg bytes and returns a tvg bytes that can be used
+/// with `icon` or `iconTexture`
+pub fn svgToTvg(allocator: std.mem.Allocator, svg_bytes: []const u8) (std.mem.Allocator.Error || TvgError)![]const u8 {
+    return tvg.tvg_from_svg(allocator, svg_bytes, .{}) catch |err| switch (err) {
+        error.OutOfMemory => |e| return e,
+        else => {
+            log.debug("svgToTvg returned {!}", .{err});
+            return TvgError.tvgError;
+        },
+    };
+}
 
 /// Get the width of an icon at a specified height.
 ///
@@ -1122,80 +1264,6 @@ pub const IconRenderOptions = struct {
     /// if null uses original stroke colors
     stroke_color: ?Color = .white,
 };
-
-/// Render `tvg_bytes` at `height` into a `Texture`.  Name is for debugging.
-///
-/// Only valid between `Window.begin`and `Window.end`.
-pub fn iconTexture(name: []const u8, tvg_bytes: []const u8, height: u32, icon_opts: IconRenderOptions) (Backend.TextureError || TvgError)!TextureCacheEntry {
-    var cw = currentWindow();
-    const icon_hash = TextureCacheEntry.hash_icon(tvg_bytes, height, icon_opts);
-
-    if (cw.texture_cache.get(icon_hash)) |tce| return tce;
-
-    const ImageAdapter = struct {
-        pixels: []u8,
-        width: u32,
-        height: u32,
-        pub fn setPixel(self: *@This(), x: usize, y: usize, col: [4]u8) void {
-            const idx = (y * self.height + x) * 4;
-            for (0..4) |i| {
-                self.pixels[idx + i] = col[i];
-            }
-        }
-        pub fn getPixel(self: *@This(), x: usize, y: usize) [4]u8 {
-            const idx = y * self.height + x;
-            const slice = self.pixels[idx * 4 .. (idx + 1) * 4];
-            var col: [4]u8 = undefined;
-            for (&col, slice) |*a, s| a.* = s;
-        }
-        fn conv(dcol: dvui.Color) tvg.Color {
-            return tvg.Color{
-                .r = @as(f32, @floatFromInt(dcol.r)) / 255.0,
-                .g = @as(f32, @floatFromInt(dcol.g)) / 255.0,
-                .b = @as(f32, @floatFromInt(dcol.b)) / 255.0,
-                .a = @as(f32, @floatFromInt(dcol.a)) / 255.0,
-            };
-        }
-    };
-    const img_raw_data = try cw.lifo().alloc(u8, height * height * 4);
-    defer cw.lifo().free(img_raw_data);
-    @memset(img_raw_data, 0);
-    var img = ImageAdapter{
-        .pixels = img_raw_data,
-        .width = height,
-        .height = height,
-    };
-    var fb = std.io.fixedBufferStream(tvg_bytes);
-
-    var ow_stroke: ?tvg.Color = null;
-    if (icon_opts.stroke_color) |cx| ow_stroke = ImageAdapter.conv(cx);
-    var ow_fill: ?tvg.Color = null;
-    var disable_fill = false;
-    if (ow_fill != null and ow_fill.?.a == 0.0) {
-        disable_fill = true;
-    }
-    if (icon_opts.fill_color) |cx| ow_fill = ImageAdapter.conv(cx);
-    tvg.renderStream(cw.arena(), &img, fb.reader(), .{
-        .overwrite_stroke_width = icon_opts.stroke_width,
-        .overwrite_stroke = ow_stroke,
-        .overwrite_fill = ow_fill,
-        .disable_fill = disable_fill,
-    }) catch |err| {
-        log.warn("iconTexture Tinyvg error {!} rendering icon {s} at height {d}\n", .{ err, name, height });
-        return TvgError.tvgError;
-    };
-
-    const pixels = dvui.RGBAPixelsPMA.cast(img.pixels);
-
-    const texture = try textureCreate(pixels, @intCast(img.width), @intCast(img.height), .linear);
-
-    //std.debug.print("created icon texture \"{s}\" ask height {d} size {d}x{d}\n", .{ name, height, render.width, render.height });
-
-    const entry = TextureCacheEntry{ .texture = texture };
-    try cw.texture_cache.put(cw.gpa, icon_hash, entry);
-
-    return entry;
-}
 
 /// Represents a deferred call to one of the render functions.  This is how
 /// dvui defers rendering of floating windows so they render on top of widgets
@@ -1404,6 +1472,7 @@ pub const Path = struct {
     /// of the memory
     pub const Builder = struct {
         points: std.ArrayList(Point.Physical),
+        oom_error_occurred: bool = false,
 
         pub fn init(allocator: std.mem.Allocator) Builder {
             return .{ .points = .init(allocator) };
@@ -1415,13 +1484,18 @@ pub const Path = struct {
 
         /// Returns a non-owned `Path`. Calling `deinit` on the `Builder` is still required to free memory
         pub fn build(path: *Builder) Path {
+            if (path.oom_error_occurred) {
+                // This does not allow for error return traces, but
+                // reduces spam caused by logs on every call to `addPoint`
+                logError(@src(), std.mem.Allocator.Error.OutOfMemory, "Path encountered error and is likely incomplete", .{});
+            }
             return .{ .points = path.points.items };
         }
 
         /// Add a point to the path
         pub fn addPoint(path: *Builder, p: Point.Physical) void {
-            path.points.append(p) catch |err| {
-                logError(@src(), err, "Failed to add {} to path", .{p});
+            path.points.append(p) catch {
+                path.oom_error_occurred = true;
             };
         }
 
@@ -3395,7 +3469,7 @@ pub fn tabIndexPrev(event_num: ?u16) void {
     focusWidget(newId, null, event_num);
 }
 
-/// Wigets that accept text input should call this on frames they have focus.
+/// Widgets that accept text input should call this on frames they have focus.
 ///
 /// It communicates:
 /// * text input should happen (maybe shows an on screen keyboard)
@@ -3407,6 +3481,13 @@ pub fn wantTextInput(r: Rect.Natural) void {
     cw.text_input_rect = r;
 }
 
+/// Temporary menu that floats above current layer.  Usually contains multiple
+/// `menuItemLabel`, `menuItemIcon`, or `menuItem`, but can contain any
+/// widgets.
+///
+/// Clicking outside of the menu or any child menus closes it.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn floatingMenu(src: std.builtin.SourceLocation, init_opts: FloatingMenuWidget.InitOptions, opts: Options) *FloatingMenuWidget {
     var ret = widgetAlloc(FloatingMenuWidget);
     ret.* = FloatingMenuWidget.init(src, init_opts, opts);
@@ -3414,6 +3495,11 @@ pub fn floatingMenu(src: std.builtin.SourceLocation, init_opts: FloatingMenuWidg
     return ret;
 }
 
+/// Subwindow that the user can generally resize and move around.
+///
+/// Usually you want to add `windowHeader` as the first child.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn floatingWindow(src: std.builtin.SourceLocation, floating_opts: FloatingWindowWidget.InitOptions, opts: Options) *FloatingWindowWidget {
     var ret = widgetAlloc(FloatingWindowWidget);
     ret.* = FloatingWindowWidget.init(src, floating_opts, opts);
@@ -3423,6 +3509,15 @@ pub fn floatingWindow(src: std.builtin.SourceLocation, floating_opts: FloatingWi
     return ret;
 }
 
+/// Normal widgets seen at the top of `floatingWindow`.  Includes a close
+/// button, centered title str, and right_str on the right.
+///
+/// Handles raising and focusing the subwindow on click.  To make
+/// `floatingWindow` only move on a click-drag in the header, use:
+///
+/// floating_win.dragAreaSet(dvui.windowHeader("Title", "", show_flag));
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn windowHeader(str: []const u8, right_str: []const u8, openflag: ?*bool) Rect.Physical {
     var over = dvui.overlay(@src(), .{ .expand = .horizontal, .name = "WindowHeader" });
 
@@ -3962,8 +4057,10 @@ pub const Toast = struct {
     display: DialogDisplayFn,
 };
 
-/// Add a toast.  If subwindow_id is null, the toast will be shown during
-/// `Window.end`.  If subwindow_id is not null, separate code must call
+/// Add a toast.  Use `toast` for a simple message.
+///
+/// If subwindow_id is null, the toast will be shown during `Window.end`.  If
+/// subwindow_id is not null, separate code must call `toastsShow` or
 /// `toastsFor` with that subwindow_id to retrieve this toast and display it.
 ///
 /// Returns an id and locked mutex that must be unlocked by the caller. Caller
@@ -3994,13 +4091,18 @@ pub fn toastAdd(win: ?*Window, src: std.builtin.SourceLocation, id_extra: usize,
     }
 }
 
-/// Only called from gui thread.
+/// Remove a previously added toast.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn toastRemove(id: WidgetId) void {
     const cw = currentWindow();
     cw.toastRemove(id);
     refresh(null, @src(), id);
 }
 
+/// Returns toasts that were previously added with non-null subwindow_id.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn toastsFor(subwindow_id: ?WidgetId) ?ToastIterator {
     const cw = dvui.currentWindow();
     cw.dialog_mutex.lock();
@@ -4061,9 +4163,12 @@ pub const ToastOptions = struct {
     displayFn: DialogDisplayFn = toastDisplay,
 };
 
-/// Add a toast.  If `opts.subwindow_id` is null, the toast will be shown during
+/// Add a simple toast.  Use `toastAdd` for more complex toasts.
+///
+/// If `opts.subwindow_id` is null, the toast will be shown during
 /// `Window.end`.  If `opts.subwindow_id` is not null, separate code must call
-/// `toastsFor` with that subwindow_id to retrieve this toast and display it.
+/// `toastsShow` or `toastsFor` with that subwindow_id to retrieve this toast
+/// and display it.
 ///
 /// Can be called from any thread, but if called from a non-GUI thread or
 /// outside `Window.begin`/`Window.end`, you must set `opts.window`.
@@ -4093,7 +4198,14 @@ pub fn toastDisplay(id: WidgetId) !void {
     }
 }
 
-/// Standard way of showing toasts.
+/// Standard way of showing toasts.  For the main window, this is called with
+/// null in Window.end().
+///
+/// For floating windows, pass non-null floating_window_data. Then it shows
+/// toasts that were previously added with non-null subwindow_id, and they are
+/// shown on top of that subwindow.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn toastsShow(floating_window_data: ?*WidgetData) void {
     const id: ?WidgetId, const rect: Rect = blk: {
         if (floating_window_data) |fwd| {
@@ -4123,6 +4235,11 @@ pub fn toastsShow(floating_window_data: ?*WidgetData) void {
     }
 }
 
+/// Wrapper widget that takes a single child and animates it.
+///
+/// `AnimateWidget.start` is called for you on the first frame.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn animate(src: std.builtin.SourceLocation, init_opts: AnimateWidget.InitOptions, opts: Options) *AnimateWidget {
     var ret = widgetAlloc(AnimateWidget);
     ret.* = AnimateWidget.init(src, init_opts, opts);
@@ -4130,6 +4247,11 @@ pub fn animate(src: std.builtin.SourceLocation, init_opts: AnimateWidget.InitOpt
     return ret;
 }
 
+/// Show chosen entry, and click to display all entries in a floating menu.
+///
+/// See `DropdownWidget` for more advanced usage.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn dropdown(src: std.builtin.SourceLocation, entries: []const []const u8, choice: *usize, opts: Options) bool {
     var dd = dvui.DropdownWidget.init(src, .{ .selected_index = choice.*, .label = entries[choice.*] }, opts);
     dd.install();
@@ -4155,6 +4277,12 @@ pub const SuggestionInitOptions = struct {
     open_on_focus: bool = true,
 };
 
+/// Wraps a textEntry to provide an attached menu (dropdown) of choices.
+///
+/// Use after TextEntryWidget.install(), and handles events, so don't call
+/// TextEntryWidget.processEvents().
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn suggestion(te: *TextEntryWidget, init_opts: SuggestionInitOptions) *SuggestionWidget {
     var open_sug = init_opts.opened;
 
@@ -4278,6 +4406,11 @@ pub const ComboBox = struct {
     }
 };
 
+/// Text entry widget with dropdown choices.
+///
+/// Call `ComboBox.entries` after this with the choices.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn comboBox(src: std.builtin.SourceLocation, init_opts: TextEntryWidget.InitOptions, opts: Options) *ComboBox {
     var combo = widgetAlloc(ComboBox);
     combo.te = widgetAlloc(TextEntryWidget);
@@ -4300,6 +4433,11 @@ pub const ExpanderOptions = struct {
     default_expanded: bool = false,
 };
 
+/// Arrow icon and label that remembers if it has been clicked (expanded).
+///
+/// Use to divide lots of content into expandable sections.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn expander(src: std.builtin.SourceLocation, label_str: []const u8, init_opts: ExpanderOptions, opts: Options) bool {
     const options = expander_defaults.override(opts);
 
@@ -4358,6 +4496,12 @@ pub fn paned(src: std.builtin.SourceLocation, init_opts: PanedWidget.InitOptions
     return ret;
 }
 
+/// Show text with wrapping (optional).  Supports mouse and touch selection.
+///
+/// Text is added incrementally with `TextLayoutWidget.addText` or
+/// `TextLayoutWidget.format`.  Each call can have different styling.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn textLayout(src: std.builtin.SourceLocation, init_opts: TextLayoutWidget.InitOptions, opts: Options) *TextLayoutWidget {
     var ret = widgetAlloc(TextLayoutWidget);
     ret.* = TextLayoutWidget.init(src, init_opts, opts);
@@ -4394,6 +4538,12 @@ pub fn context(src: std.builtin.SourceLocation, init_opts: ContextWidget.InitOpt
     return ret;
 }
 
+/// Show a floating text tooltip as long as the mouse is inside init_opts.active_rect.
+///
+/// Use init_opts.interactive = true to allow mouse interaction with the
+/// tooltip contents.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn tooltip(src: std.builtin.SourceLocation, init_opts: FloatingTooltipWidget.InitOptions, comptime fmt: []const u8, fmt_args: anytype, opts: Options) void {
     var tt: dvui.FloatingTooltipWidget = .init(src, init_opts, opts);
     if (tt.shown()) {
@@ -4925,6 +5075,10 @@ pub fn columnLayoutProportional(ratio_widths: []const f32, col_widths: []f32, co
     }
 }
 
+/// Widget for making thin lines to visually separate other widgets.  Use
+/// .min_size_content to control size.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn separator(src: std.builtin.SourceLocation, opts: Options) WidgetData {
     const defaults: Options = .{
         .name = "Separator",
@@ -4941,12 +5095,12 @@ pub fn separator(src: std.builtin.SourceLocation, opts: Options) WidgetData {
     return wd;
 }
 
-pub fn spacer(src: std.builtin.SourceLocation, size: Size, opts: Options) WidgetData {
-    if (opts.min_size_content != null) {
-        log.debug("spacer options had min_size but is being overwritten\n", .{});
-    }
+/// Empty widget used to take up space with .min_size_content.
+///
+/// Only valid between `Window.begin`and `Window.end`.
+pub fn spacer(src: std.builtin.SourceLocation, opts: Options) WidgetData {
     const defaults: Options = .{ .name = "Spacer" };
-    var wd = WidgetData.init(src, .{}, defaults.override(opts).override(.{ .min_size_content = size }));
+    var wd = WidgetData.init(src, .{}, defaults.override(opts));
     wd.register();
     wd.borderAndBackground(.{});
     wd.minSizeSetAndRefresh();
@@ -5222,25 +5376,44 @@ pub fn icon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: []cons
     iw.deinit();
 }
 
-pub fn imageSize(name: []const u8, image_bytes: []const u8) StbImageError!Size {
-    var w: c_int = undefined;
-    var h: c_int = undefined;
-    var n: c_int = undefined;
-    const ok = c.stbi_info_from_memory(image_bytes.ptr, @as(c_int, @intCast(image_bytes.len)), &w, &h, &n);
-    if (ok == 1) {
-        return .{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
-    } else {
-        log.warn("imageSize stbi_info error on image \"{s}\": {s}\n", .{ name, c.stbi_failure_reason() });
-        return StbImageError.stbImageError;
+pub fn imageSize(name: []const u8, bytes: ImageInitOptions.ImageBytes) !Size {
+    switch (bytes) {
+        .imageFile => |b| {
+            var w: c_int = undefined;
+            var h: c_int = undefined;
+            var n: c_int = undefined;
+            const ok = c.stbi_info_from_memory(b.ptr, @as(c_int, @intCast(b.len)), &w, &h, &n);
+            if (ok == 1) {
+                return .{ .w = @floatFromInt(w), .h = @floatFromInt(h) };
+            } else {
+                log.warn("imageSize stbi_info error on image \"{s}\": {s}\n", .{ name, c.stbi_failure_reason() });
+                return StbImageError.stbImageError;
+            }
+        },
+        .pixels => |a| return .{ .w = @floatFromInt(a.width), .h = @floatFromInt(a.height) },
     }
 }
 
 pub const ImageInitOptions = struct {
+    pub const ImageType = enum {
+        /// bytes of an supported image file (i.e. png, jpeg, gif, ...)
+        imageFile,
+        /// bytes of an premultiplied rgba u8 array in row major order
+        pixels,
+    };
+    pub const ImageBytes = union(ImageType) {
+        imageFile: []const u8,
+        pixels: struct {
+            bytes: RGBAPixelsPMA,
+            width: u32,
+            height: u32,
+        },
+    };
     /// Used for debugging output.
     name: []const u8 = "image",
 
-    /// Bytes of the image file (like png), decoded lazily and cached.
-    bytes: []const u8,
+    /// Bytes of the image file.
+    bytes: ImageBytes,
 
     /// If min size is larger than the rect we got, how to shrink it:
     /// - null => use expand setting
@@ -5312,17 +5485,14 @@ pub fn image(src: std.builtin.SourceLocation, init_opts: ImageInitOptions, opts:
             dvui.log.debug("image {x} can't render border while rotated\n", .{wd.id});
         }
     }
-
-    const content_rs = wd.contentRectScale();
-    dvui.renderImage(init_opts.name, init_opts.bytes, wd.contentRectScale(), .{
+    const render_tex_opts = RenderTextureOptions{
         .rotation = wd.options.rotationGet(),
         .corner_radius = wd.options.corner_radiusGet(),
         .uv = init_opts.uv,
         .background_color = renderBackground,
-    }) catch |err| {
-        logError(@src(), err, "Could not render image {s} at {}", .{ init_opts.name, content_rs });
     };
-
+    const content_rs = wd.contentRectScale();
+    renderImage(init_opts.name, init_opts.bytes, content_rs, render_tex_opts) catch |err| logError(@src(), err, "Could not render image {s} at {}", .{ init_opts.name, content_rs });
     wd.minSizeSetAndRefresh();
     wd.minSizeReportToParent();
 
@@ -5682,7 +5852,6 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
     const rs = b.data().contentRectScale();
 
     var text_mode = dataGet(null, b.data().id, "_text_mode", bool) orelse false;
-    var ctrl_down = dataGet(null, b.data().id, "_ctrl", bool) orelse false;
 
     // must call dataGet/dataSet on these every frame to prevent them from
     // getting purged
@@ -5712,10 +5881,6 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
 
         const evts = events();
         for (evts) |*e| {
-            if (e.evt == .key and e.evt.key.matchBind("ctrl/cmd")) {
-                ctrl_down = (e.evt.key.action == .down or e.evt.key.action == .repeat);
-            }
-
             if (!text_mode) {
                 // if we are switching out of text mode, skip processing any
                 // remaining events
@@ -5784,10 +5949,6 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
 
         const evts = events();
         for (evts) |*e| {
-            if (e.evt == .key and e.evt.key.matchBind("ctrl/cmd")) {
-                ctrl_down = (e.evt.key.action == .down or e.evt.key.action == .repeat);
-            }
-
             if (!eventMatch(e, .{ .id = b.data().id, .r = rs.r }))
                 continue;
 
@@ -5799,7 +5960,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
                         focusWidget(b.data().id, null, e.num);
                     } else if (me.action == .press and me.button.pointer()) {
                         e.handle(@src(), b.data());
-                        if (ctrl_down) {
+                        if (me.mod.matchBind("ctrl/cmd")) {
                             text_mode = true;
                             refresh(null, @src(), b.data().id);
                         } else {
@@ -5952,7 +6113,6 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
     }
 
     dataSet(null, b.data().id, "_text_mode", text_mode);
-    dataSet(null, b.data().id, "_ctrl", ctrl_down);
 
     if (ret) {
         refresh(null, @src(), b.data().id);
@@ -6099,7 +6259,7 @@ pub fn checkbox(src: std.builtin.SourceLocation, target: *bool, label_str: ?[]co
     defer b.deinit();
 
     const check_size = options.fontGet().textHeight();
-    const s = spacer(@src(), Size.all(check_size), .{ .gravity_y = 0.5 });
+    const s = spacer(@src(), .{ .min_size_content = Size.all(check_size), .gravity_y = 0.5 });
 
     const rs = s.borderRectScale();
 
@@ -6108,7 +6268,7 @@ pub fn checkbox(src: std.builtin.SourceLocation, target: *bool, label_str: ?[]co
     }
 
     if (label_str) |str| {
-        _ = spacer(@src(), .{ .w = checkbox_defaults.paddingGet().w }, .{});
+        _ = spacer(@src(), .{ .min_size_content = .width(checkbox_defaults.paddingGet().w) });
         labelNoFmt(@src(), str, .{}, options.strip().override(.{ .gravity_y = 0.5 }));
     }
 
@@ -6185,7 +6345,7 @@ pub fn radio(src: std.builtin.SourceLocation, active: bool, label_str: ?[]const 
     defer b.deinit();
 
     const radio_size = options.fontGet().textHeight();
-    const s = spacer(@src(), Size.all(radio_size), .{ .gravity_y = 0.5 });
+    const s = spacer(@src(), .{ .min_size_content = Size.all(radio_size), .gravity_y = 0.5 });
 
     const rs = s.borderRectScale();
 
@@ -6194,7 +6354,7 @@ pub fn radio(src: std.builtin.SourceLocation, active: bool, label_str: ?[]const 
     }
 
     if (label_str) |str| {
-        _ = spacer(@src(), .{ .w = radio_defaults.paddingGet().w }, .{});
+        _ = spacer(@src(), .{ .min_size_content = .width(radio_defaults.paddingGet().w) });
         labelNoFmt(@src(), str, .{}, options.strip().override(.{ .gravity_y = 0.5 }));
     }
 
@@ -6968,60 +7128,19 @@ pub fn renderIcon(name: []const u8, tvg_bytes: []const u8, rs: RectScale, opts: 
     const target_size = rs.r.h;
     const ask_height = @ceil(target_size);
 
-    const tce = iconTexture(name, tvg_bytes, @as(u32, @intFromFloat(ask_height)), icon_opts) catch return;
+    const tce = dvui.TextureCacheEntry.fromTvgFile(name, tvg_bytes, @as(u32, @intFromFloat(ask_height)), icon_opts) catch return;
 
     try renderTexture(tce.texture, rs, opts);
 }
 
-pub fn imageTexture(name: []const u8, image_bytes: []const u8) (Backend.TextureError || StbImageError)!TextureCacheEntry {
-    var cw = currentWindow();
-    const hash = TextureCacheEntry.hash(image_bytes, 0);
-
-    if (cw.texture_cache.get(hash)) |tce| return tce;
-
-    var w: c_int = undefined;
-    var h: c_int = undefined;
-    var channels_in_file: c_int = undefined;
-    const data = c.stbi_load_from_memory(image_bytes.ptr, @as(c_int, @intCast(image_bytes.len)), &w, &h, &channels_in_file, 4);
-    if (data == null) {
-        log.warn("imageTexture stbi_load error on image \"{s}\": {s}\n", .{ name, c.stbi_failure_reason() });
-        return StbImageError.stbImageError;
-    }
-
-    defer c.stbi_image_free(data);
-
-    var pixels: []u8 = undefined;
-    pixels.ptr = data;
-    pixels.len = @intCast(w * h * 4);
-
-    const texture = try textureCreate(.fromRGBA(pixels), @intCast(w), @intCast(h), .linear);
-
-    //std.debug.print("created image texture \"{s}\" size {d}x{d}\n", .{ name, w, h });
-    //const usizeh: usize = @intCast(h);
-    //for (0..@intCast(h)) |hi| {
-    //    for (0..@intCast(w)) |wi| {
-    //        std.debug.print("pixel {d} {d} {d}.{d}.{d}.{d}\n", .{
-    //            hi,
-    //            wi,
-    //            data[hi * usizeh * 4 + wi * 4],
-    //            data[hi * usizeh * 4 + wi * 4 + 1],
-    //            data[hi * usizeh * 4 + wi * 4 + 2],
-    //            data[hi * usizeh * 4 + wi * 4 + 3],
-    //        });
-    //    }
-    //}
-
-    const entry = TextureCacheEntry{ .texture = texture };
-    try cw.texture_cache.put(cw.gpa, hash, entry);
-
-    return entry;
-}
-
-pub fn renderImage(name: []const u8, image_bytes: []const u8, rs: RectScale, opts: RenderTextureOptions) Backend.GenericError!void {
+pub fn renderImage(name: []const u8, bytes: ImageInitOptions.ImageBytes, rs: RectScale, opts: RenderTextureOptions) Backend.GenericError!void {
     if (rs.s == 0) return;
     if (clipGet().intersect(rs.r).empty()) return;
-
-    const tce = imageTexture(name, image_bytes) catch return;
+    const cached_tex = switch (bytes) {
+        .imageFile => |b| dvui.TextureCacheEntry.fromImageFile(name, b),
+        .pixels => |p| dvui.TextureCacheEntry.fromPixels(p.bytes, p.width, p.height),
+    };
+    const tce = cached_tex catch return;
     try renderTexture(tce.texture, rs, opts);
 }
 

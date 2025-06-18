@@ -20,6 +20,7 @@ const GridWidget = dvui.GridWidget;
 const enums = dvui.enums;
 
 const zig_favicon = @embedFile("zig-favicon.png");
+const zig_svg = @embedFile("zig-mark.svg");
 
 pub var show_demo_window: bool = false;
 var frame_counter: u64 = 0;
@@ -309,14 +310,13 @@ pub const demoKind = enum {
     plots,
     reorderable,
     menus,
-    focus,
     scrolling,
     scroll_canvas,
     dialogs,
     animations,
+    grid,
     struct_ui,
     debugging,
-    grid,
 
     pub fn name(self: demoKind) []const u8 {
         return switch (self) {
@@ -328,8 +328,7 @@ pub const demoKind = enum {
             .text_layout => "Text Layout",
             .plots => "Plots",
             .reorderable => "Reorderable",
-            .menus => "Menus / Tabs",
-            .focus => "Focus",
+            .menus => "Menus / Focus",
             .scrolling => "Scrolling",
             .scroll_canvas => "Scroll Canvas",
             .dialogs => "Dialogs / Toasts",
@@ -351,7 +350,6 @@ pub const demoKind = enum {
             .plots => .{ .scale = 0.45, .offset = .{} },
             .reorderable => .{ .scale = 0.45, .offset = .{ .y = -200 } },
             .menus => .{ .scale = 0.45, .offset = .{} },
-            .focus => .{ .scale = 0.45, .offset = .{} },
             .scrolling => .{ .scale = 0.45, .offset = .{ .x = -150, .y = 0 } },
             .scroll_canvas => .{ .scale = 0.35, .offset = .{ .y = -120 } },
             .dialogs => .{ .scale = 0.45, .offset = .{} },
@@ -464,9 +462,8 @@ pub fn demo() void {
                     .plots => plots(),
                     .reorderable => reorderLists(),
                     .menus => menus(),
-                    .focus => focus(),
                     .scrolling => scrolling(1),
-                    .scroll_canvas => scrollCanvas(1),
+                    .scroll_canvas => scrollCanvas(),
                     .dialogs => dialogs(float.data().id),
                     .animations => animations(),
                     .struct_ui => structUI(),
@@ -518,9 +515,8 @@ pub fn demo() void {
             .plots => plots(),
             .reorderable => reorderLists(),
             .menus => menus(),
-            .focus => focus(),
             .scrolling => scrolling(2),
-            .scroll_canvas => scrollCanvas(2),
+            .scroll_canvas => scrollCanvas(),
             .dialogs => dialogs(float.data().id),
             .animations => animations(),
             .struct_ui => structUI(),
@@ -674,7 +670,7 @@ pub fn basicWidgets() void {
                     .{},
                     opts,
                 );
-                _ = dvui.spacer(@src(), .{ .w = 4 }, .{});
+                _ = dvui.spacer(@src(), .{ .min_size_content = .width(4) });
                 dvui.labelNoFmt(@src(), "Icon+Gray", .{}, opts);
 
                 if (bw.clicked()) {
@@ -762,7 +758,7 @@ pub fn basicWidgets() void {
         _ = dvui.checkbox(@src(), &slider_entry_vector, "Vector", .{});
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 4 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(4) });
 
     {
         var hbox = dvui.box(@src(), .horizontal, .{});
@@ -770,12 +766,30 @@ pub fn basicWidgets() void {
 
         dvui.label(@src(), "Raster Images", .{}, .{ .gravity_y = 0.5 });
 
-        const imgsize = dvui.imageSize("zig favicon", zig_favicon) catch dvui.Size.all(50);
-        _ = dvui.image(@src(), .{ .name = "zig favicon", .bytes = zig_favicon }, .{
+        const imgsize = dvui.imageSize("zig favicon", .{ .imageFile = zig_favicon }) catch dvui.Size.all(50);
+        _ = dvui.image(@src(), .{ .name = "zig favicon", .bytes = .{ .imageFile = zig_favicon } }, .{
             .gravity_y = 0.5,
             .min_size_content = .{ .w = imgsize.w + icon_image_size_extra, .h = imgsize.h + icon_image_size_extra },
             .rotation = icon_image_rotation,
         });
+    }
+
+    {
+        var hbox = dvui.box(@src(), .horizontal, .{});
+        defer hbox.deinit();
+
+        dvui.label(@src(), "Svg Images", .{}, .{ .gravity_y = 0.5 });
+
+        const zig_tvg_bytes = if (dvui.dataGetSlice(null, hbox.data().id, "_zig_tvg", []u8)) |tvg| tvg else blk: {
+            // Could fail on OutOfMemory, but then the dataGetSlice would also panic
+            const zig_tvg_bytes = dvui.svgToTvg(dvui.currentWindow().arena(), zig_svg) catch unreachable;
+            defer dvui.currentWindow().arena().free(zig_tvg_bytes);
+            dvui.dataSetSlice(null, hbox.data().id, "_zig_tvg", zig_tvg_bytes);
+            break :blk dvui.dataGetSlice(null, hbox.data().id, "_zig_tvg", []u8).?;
+        };
+
+        const icon_opts = dvui.Options{ .gravity_y = 0.5, .min_size_content = .{ .h = 16 + icon_image_size_extra }, .rotation = icon_image_rotation };
+        dvui.icon(@src(), "zig favicon", zig_tvg_bytes, .{}, icon_opts);
     }
 
     {
@@ -921,7 +935,7 @@ pub fn dropdownAdvanced() void {
 
             var opts: Options = if (mi.show_active) dvui.themeGet().style_accent else .{};
 
-            _ = dvui.image(@src(), .{ .name = "zig favicon", .bytes = zig_favicon }, opts.override(.{ .gravity_x = 0.5 }));
+            _ = dvui.image(@src(), .{ .name = "zig favicon", .bytes = .{ .imageFile = zig_favicon } }, opts.override(.{ .gravity_x = 0.5 }));
             dvui.labelNoFmt(@src(), "image above text", .{}, opts.override(.{ .gravity_x = 0.5, .padding = .{} }));
 
             if (mi.activeRect()) |_| {
@@ -1203,7 +1217,7 @@ pub fn textEntryWidgets(demo_win_id: dvui.WidgetId) void {
         }
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 10 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(10) });
 
     // Combobox
     {
@@ -1299,7 +1313,7 @@ pub fn textEntryWidgets(demo_win_id: dvui.WidgetId) void {
         te.deinit();
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 10 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(10) });
 
     const parse_types = [_]type{ u8, i8, u16, i16, u32, i32, f32, f64 };
     const parse_typenames: [parse_types.len][]const u8 = blk: {
@@ -1370,7 +1384,7 @@ pub fn textEntryWidgets(demo_win_id: dvui.WidgetId) void {
         _ = dvui.label(@src(), "Stored {d}", .{S.value}, .{});
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 20 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(20) });
 
     dvui.label(@src(), "The text entries in this section are left-aligned", .{}, .{});
 }
@@ -1651,7 +1665,7 @@ pub fn layout() void {
 
             const options: Options = .{ .gravity_x = layout_gravity_x, .gravity_y = layout_gravity_y, .expand = layout_expand, .rotation = layout_rotation, .corner_radius = layout_corner_radius };
             if (Static.img) {
-                _ = dvui.image(@src(), .{ .name = "zig favicon", .bytes = zig_favicon, .shrink = if (Static.shrink) Static.shrinkE else null, .uv = Static.uv }, options.override(.{
+                _ = dvui.image(@src(), .{ .name = "zig favicon", .bytes = .{ .imageFile = zig_favicon }, .shrink = if (Static.shrink) Static.shrinkE else null, .uv = Static.uv }, options.override(.{
                     .min_size_content = Static.size,
                     .background = Static.background,
                     .color_fill = .{ .color = dvui.themeGet().color_text },
@@ -2335,8 +2349,10 @@ pub fn menus() void {
     }
 
     {
+        var hbox = dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+        defer hbox.deinit();
+
         var m = dvui.menu(@src(), .horizontal, .{});
-        defer m.deinit();
 
         if (dvui.menuItemLabel(@src(), "File", .{ .submenu = true }, .{ .expand = .horizontal })) |r| {
             var fw = dvui.floatingMenu(@src(), .{ .from = r }, .{});
@@ -2363,11 +2379,13 @@ pub fn menus() void {
             _ = dvui.menuItemLabel(@src(), "Dummy Long", .{}, .{ .expand = .horizontal });
             _ = dvui.menuItemLabel(@src(), "Dummy Super Long", .{}, .{ .expand = .horizontal });
         }
+
+        m.deinit();
+
+        dvui.labelNoFmt(@src(), "Right click for a context menu", .{}, .{ .gravity_x = 1.0 });
     }
 
-    dvui.labelNoFmt(@src(), "Right click for a context menu", .{}, .{});
-
-    _ = dvui.spacer(@src(), .{ .h = 20 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(12) });
 
     {
         var hbox = dvui.box(@src(), .horizontal, .{ .border = dvui.Rect.all(1), .min_size_content = .{ .h = 50 }, .max_size_content = .width(300) });
@@ -2380,7 +2398,7 @@ pub fn menus() void {
         dvui.tooltip(@src(), .{ .active_rect = hbox.data().borderRectScale().r }, "{s}", .{"Simple Tooltip"}, .{});
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 10 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(4) });
 
     {
         var hbox = dvui.box(@src(), .horizontal, .{ .border = dvui.Rect.all(1), .min_size_content = .{ .h = 50 }, .max_size_content = .width(300) });
@@ -2420,32 +2438,27 @@ pub fn menus() void {
         tt.deinit();
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 20 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(12) });
 
     {
-        const Data = struct {
-            var tab: usize = 0;
-            var layout: dvui.enums.Direction = .vertical;
-        };
+        var hbox = dvui.box(@src(), .horizontal, .{});
+        const layout_dir = dvui.dataGetPtrDefault(null, hbox.data().id, "layout_dir", dvui.enums.Direction, .horizontal);
+        const active_tab = dvui.dataGetPtrDefault(null, hbox.data().id, "active_tab", usize, 0);
 
-        {
-            var hbox = dvui.box(@src(), .horizontal, .{});
-            defer hbox.deinit();
-
-            const entries = [_][]const u8{ "Horizontal", "Vertical" };
-            for (0..2) |i| {
-                if (dvui.radio(@src(), @intFromEnum(Data.layout) == i, entries[i], .{ .id_extra = i })) {
-                    Data.layout = @enumFromInt(i);
-                }
+        const entries = [_][]const u8{ "Horizontal", "Vertical" };
+        for (0..2) |i| {
+            if (dvui.radio(@src(), @intFromEnum(layout_dir.*) == i, entries[i], .{ .id_extra = i })) {
+                layout_dir.* = @enumFromInt(i);
             }
         }
+        hbox.deinit();
 
         // reverse orientation because horizontal tabs go above content
-        var tbox = dvui.box(@src(), if (Data.layout == .vertical) .horizontal else .vertical, .{ .max_size_content = .{ .w = 400, .h = 200 } });
+        var tbox = dvui.box(@src(), if (layout_dir.* == .vertical) .horizontal else .vertical, .{ .max_size_content = .{ .w = 400, .h = 200 } });
         defer tbox.deinit();
 
         {
-            var tabs = dvui.TabsWidget.init(@src(), .{ .dir = Data.layout }, .{ .expand = if (Data.layout == .horizontal) .horizontal else .vertical });
+            var tabs = dvui.TabsWidget.init(@src(), .{ .dir = layout_dir.* }, .{ .expand = if (layout_dir.* == .horizontal) .horizontal else .vertical });
             tabs.install();
             defer tabs.deinit();
 
@@ -2453,12 +2466,12 @@ pub fn menus() void {
                 const tabname = std.fmt.comptimePrint("Tab {d}", .{i});
                 if (i != 3) {
                     // easy label only
-                    if (tabs.addTabLabel(Data.tab == i, tabname)) {
-                        Data.tab = i;
+                    if (tabs.addTabLabel(active_tab.* == i, tabname)) {
+                        active_tab.* = i;
                     }
                 } else {
                     // directly put whatever in the tab
-                    var tab = tabs.addTab(Data.tab == i, .{});
+                    var tab = tabs.addTab(active_tab.* == i, .{});
                     defer tab.deinit();
 
                     var tab_box = dvui.box(@src(), .horizontal, .{});
@@ -2466,7 +2479,7 @@ pub fn menus() void {
 
                     dvui.icon(@src(), "cycle", entypo.cycle, .{}, .{});
 
-                    _ = dvui.spacer(@src(), .{ .w = 4 }, .{});
+                    _ = dvui.spacer(@src(), .{ .min_size_content = .width(4) });
 
                     var label_opts = tab.data().options.strip();
                     if (dvui.captured(tab.data().id)) {
@@ -2476,7 +2489,7 @@ pub fn menus() void {
                     dvui.labelNoFmt(@src(), tabname, .{}, label_opts);
 
                     if (tab.clicked()) {
-                        Data.tab = i;
+                        active_tab.* = i;
                     }
                 }
             }
@@ -2484,16 +2497,20 @@ pub fn menus() void {
 
         {
             var border = dvui.Rect.all(1);
-            switch (Data.layout) {
+            switch (layout_dir.*) {
                 .horizontal => border.y = 0,
                 .vertical => border.x = 0,
             }
             var vbox3 = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window, .border = border });
             defer vbox3.deinit();
 
-            dvui.label(@src(), "This is tab {d}", .{Data.tab}, .{ .expand = .both, .gravity_x = 0.5, .gravity_y = 0.5 });
+            dvui.label(@src(), "This is tab {d}", .{active_tab.*}, .{ .expand = .both, .gravity_x = 0.5, .gravity_y = 0.5 });
         }
     }
+
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(12) });
+
+    focus();
 }
 
 pub fn submenus() void {
@@ -2514,7 +2531,6 @@ pub fn submenus() void {
     }
 }
 
-/// ![image](Examples-focus.png)
 pub fn focus() void {
     if (dvui.expander(@src(), "Changing Focus", .{}, .{ .expand = .horizontal })) {
         var b = dvui.box(@src(), .vertical, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
@@ -2561,7 +2577,7 @@ pub fn focus() void {
         te2.deinit();
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 10 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(10) });
 
     {
         var b = dvui.box(@src(), .vertical, .{ .margin = .{ .x = 10, .y = 2 }, .border = dvui.Rect.all(1) });
@@ -2595,7 +2611,7 @@ pub fn focus() void {
         dvui.label(@src(), "Anything here with focus: {s}", .{if (have_focus) "Yes" else "No"}, .{});
     }
 
-    _ = dvui.spacer(@src(), .{ .h = 10 }, .{});
+    _ = dvui.spacer(@src(), .{ .min_size_content = .height(10) });
 
     {
         var b = dvui.box(@src(), .vertical, .{ .expand = .horizontal });
@@ -2682,7 +2698,7 @@ pub fn scrolling(comptime data: u8) void {
             scroll_lock_visible = true;
         }
 
-        _ = dvui.spacer(@src(), .{}, .{ .expand = .vertical });
+        _ = dvui.spacer(@src(), .{ .expand = .vertical });
 
         dvui.label(@src(), "Scroll to msg:", .{}, .{});
         const result = dvui.textEntryNumber(@src(), usize, .{ .min = Data.msg_start, .max = Data.msg_end }, .{ .min_size_content = dvui.Options.sizeM(8, 1) });
@@ -2697,7 +2713,7 @@ pub fn scrolling(comptime data: u8) void {
             scroll_to_msg = result.value.Valid;
         }
 
-        _ = dvui.spacer(@src(), .{}, .{ .expand = .vertical });
+        _ = dvui.spacer(@src(), .{ .expand = .vertical });
 
         {
             var h2 = dvui.box(@src(), .horizontal, .{});
@@ -2757,50 +2773,35 @@ pub fn scrolling(comptime data: u8) void {
 }
 
 /// ![image](Examples-scroll_canvas.png)
-pub fn scrollCanvas(comptime data: u8) void {
-    const Data1 = struct {
-        var scroll_info: ScrollInfo = .{ .vertical = .given, .horizontal = .given };
-        var origin: Point = .{};
-        var scale: f32 = 1.0;
-        var boxes: [2]Point = .{ .{ .x = 50, .y = 10 }, .{ .x = 80, .y = 150 } };
-        var box_contents: [2]u8 = .{ 1, 3 };
-
-        var drag_box_window: usize = 0;
-        var drag_box_content: usize = 0;
-    };
-
-    const Data2 = struct {
-        var scroll_info: ScrollInfo = .{ .vertical = .given, .horizontal = .given };
-        var origin: Point = .{};
-        var scale: f32 = 1.0;
-        var boxes: [2]Point = .{ .{ .x = 50, .y = 10 }, .{ .x = 80, .y = 150 } };
-        var box_contents: [2]u8 = .{ 1, 3 };
-
-        var drag_box_window: usize = 0;
-        var drag_box_content: usize = 0;
-    };
-
-    const Data = if (data == 1) Data1 else Data2;
-
+pub fn scrollCanvas() void {
     var vbox = dvui.box(@src(), .vertical, .{});
     defer vbox.deinit();
+
+    const scroll_info = dvui.dataGetPtrDefault(null, vbox.data().id, "scroll_info", ScrollInfo, .{ .vertical = .given, .horizontal = .given });
+    const origin = dvui.dataGetPtrDefault(null, vbox.data().id, "origin", Point, .{});
+    const scale = dvui.dataGetPtrDefault(null, vbox.data().id, "scale", f32, 1.0);
+    const boxes = dvui.dataGetSliceDefault(null, vbox.data().id, "boxes", []Point, &.{ .{ .x = 50, .y = 10 }, .{ .x = 80, .y = 150 } });
+    const box_contents = dvui.dataGetSliceDefault(null, vbox.data().id, "box_contents", []u8, &.{ 1, 3 });
+
+    const drag_box_window = dvui.dataGetPtrDefault(null, vbox.data().id, "drag_box_window", usize, 0);
+    const drag_box_content = dvui.dataGetPtrDefault(null, vbox.data().id, "drag_box_content", usize, 0);
 
     var tl = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .color_fill = .fill_window });
     tl.addText("Click-drag to pan\n", .{});
     tl.addText("Ctrl-wheel to zoom\n", .{});
     tl.addText("Drag blue cubes from box to box\n\n", .{});
-    tl.format("Virtual size {d}x{d}\n", .{ Data.scroll_info.virtual_size.w, Data.scroll_info.virtual_size.h }, .{});
-    tl.format("Scroll Offset {d}x{d}\n", .{ Data.scroll_info.viewport.x, Data.scroll_info.viewport.y }, .{});
-    tl.format("Origin {d}x{d}\n", .{ Data.origin.x, Data.origin.y }, .{});
-    tl.format("Scale {d}", .{Data.scale}, .{});
+    tl.format("Virtual size {d}x{d}\n", .{ scroll_info.virtual_size.w, scroll_info.virtual_size.h }, .{});
+    tl.format("Scroll Offset {d}x{d}\n", .{ scroll_info.viewport.x, scroll_info.viewport.y }, .{});
+    tl.format("Origin {d}x{d}\n", .{ origin.x, origin.y }, .{});
+    tl.format("Scale {d}", .{scale}, .{});
     tl.deinit();
 
-    var scroll = dvui.scrollArea(@src(), .{ .scroll_info = &Data.scroll_info }, .{ .expand = .both, .min_size_content = .{ .w = 300, .h = 300 } });
+    var scroll = dvui.scrollArea(@src(), .{ .scroll_info = scroll_info }, .{ .expand = .both, .min_size_content = .{ .w = 300, .h = 300 } });
 
     // can use this to convert between viewport/virtual_size and screen coords
     const scrollRectScale = scroll.scroll.screenRectScale(.{});
 
-    var scaler = dvui.scale(@src(), .{ .scale = &Data.scale }, .{ .rect = .{ .x = -Data.origin.x, .y = -Data.origin.y } });
+    var scaler = dvui.scale(@src(), .{ .scale = scale }, .{ .rect = .{ .x = -origin.x, .y = -origin.y } });
 
     // can use this to convert between data and screen coords
     const dataRectScale = scaler.screenRectScale(.{});
@@ -2821,7 +2822,7 @@ pub fn scrollCanvas(comptime data: u8) void {
     const dragging_box = dvui.draggingName("box_transfer");
     const evts = dvui.events();
 
-    for (&Data.boxes, 0..) |*b, i| {
+    for (boxes, 0..) |*b, i| {
         var dragBox = dvui.box(@src(), .vertical, .{
             .id_extra = i,
             .rect = dvui.Rect{ .x = b.x, .y = b.y },
@@ -2830,8 +2831,8 @@ pub fn scrollCanvas(comptime data: u8) void {
             .color_fill = .fill_window,
             .border = .{ .h = 1, .w = 1, .x = 1, .y = 1 },
             .corner_radius = .{ .h = 5, .w = 5, .x = 5, .y = 5 },
-            .color_border = if (dragging_box and i != Data.drag_box_window) dvui.Options.ColorOrName.fromColor(.lime) else null,
-            .box_shadow = .{},
+            .color_border = if (dragging_box and i != drag_box_window.*) .lime else null,
+            .box_shadow = .{ .color = if (dragging_box and i != drag_box_window.*) .lime else .black },
         });
 
         const boxRect = dragBox.data().rectScale().r;
@@ -2855,10 +2856,10 @@ pub fn scrollCanvas(comptime data: u8) void {
                             dvui.dragEnd();
                             dvui.refresh(null, @src(), dragBox.data().id);
 
-                            if (Data.drag_box_window != i) {
+                            if (drag_box_window.* != i) {
                                 // move box to new home
-                                Data.box_contents[Data.drag_box_window] -= 1;
-                                Data.box_contents[1 - Data.drag_box_window] += 1;
+                                box_contents[drag_box_window.*] -= 1;
+                                box_contents[1 - drag_box_window.*] += 1;
                             }
                         } else if (me.action == .position) {
                             dvui.cursorSet(.crosshair);
@@ -2907,11 +2908,13 @@ pub fn scrollCanvas(comptime data: u8) void {
                 }
             }
 
-            for (0..Data.box_contents[i]) |k| {
+            for (0..box_contents[i]) |k| {
+                const dragging_this = dragging_box and i == drag_box_window.* and k == drag_box_content.*;
+
                 if (k > 0) {
-                    _ = dvui.spacer(@src(), .{ .w = 5 }, .{ .id_extra = k });
+                    _ = dvui.spacer(@src(), .{ .min_size_content = .width(5), .id_extra = k });
                 }
-                const col = if (dragging_box and i == Data.drag_box_window and k == Data.drag_box_content) dvui.Color.lime else dvui.Color.blue;
+                const col = if (dragging_this) dvui.Color.lime.opacity(0.5) else dvui.Color.blue;
                 var dbox = dvui.box(@src(), .vertical, .{ .id_extra = k, .min_size_content = .{ .w = 20, .h = 20 }, .background = true, .color_fill = .{ .color = col } });
                 defer dbox.deinit();
 
@@ -2931,8 +2934,8 @@ pub fn scrollCanvas(comptime data: u8) void {
                                     e.handle(@src(), dragBox.data());
                                     if (dvui.dragging(me.p)) |_| {
                                         // started the drag
-                                        Data.drag_box_window = i;
-                                        Data.drag_box_content = k;
+                                        drag_box_window.* = i;
+                                        drag_box_content.* = k;
                                         // give up capture so target can get mouse events, but don't end drag
                                         dvui.captureMouse(null);
                                     }
@@ -2991,17 +2994,12 @@ pub fn scrollCanvas(comptime data: u8) void {
         dragBox.deinit();
     }
 
-    var ctrl_down = dvui.dataGet(null, vbox.data().id, "_ctrl", bool) orelse false;
     var zoom: f32 = 1;
     var zoomP: Point.Physical = .{};
 
     // process scroll area events after boxes so the boxes get first pick (so
     // the button works)
     for (evts) |*e| {
-        if (e.evt == .key and e.evt.key.matchBind("ctrl/cmd")) {
-            ctrl_down = (e.evt.key.action == .down or e.evt.key.action == .repeat);
-        }
-
         if (!scroll.scroll.matchEvent(e))
             continue;
 
@@ -3026,12 +3024,12 @@ pub fn scrollCanvas(comptime data: u8) void {
                         if (dvui.dragging(me.p)) |dps| {
                             e.handle(@src(), scroll.scroll.data());
                             const rs = scrollRectScale;
-                            Data.scroll_info.viewport.x -= dps.x / rs.s;
-                            Data.scroll_info.viewport.y -= dps.y / rs.s;
+                            scroll_info.viewport.x -= dps.x / rs.s;
+                            scroll_info.viewport.y -= dps.y / rs.s;
                             dvui.refresh(null, @src(), scroll.scroll.data().id);
                         }
                     }
-                } else if (me.action == .wheel_y and ctrl_down) {
+                } else if (me.action == .wheel_y and me.mod.matchBind("ctrl/cmd")) {
                     e.handle(@src(), scroll.scroll.data());
                     const base: f32 = 1.01;
                     const zs = @exp(@log(base) * me.action.wheel_y);
@@ -3051,22 +3049,20 @@ pub fn scrollCanvas(comptime data: u8) void {
         const prevP = dataRectScale.pointFromPhysical(zoomP);
 
         // scale
-        var pp = prevP.scale(1 / Data.scale, Point);
-        Data.scale *= zoom;
-        pp = pp.scale(Data.scale, Point);
+        var pp = prevP.scale(1 / scale.*, Point);
+        scale.* *= zoom;
+        pp = pp.scale(scale.*, Point);
 
         // get where the mouse would be now
         const newP = dataRectScale.pointToPhysical(pp);
 
         // convert both to viewport
         const diff = scrollRectScale.pointFromPhysical(newP).diff(scrollRectScale.pointFromPhysical(zoomP));
-        Data.scroll_info.viewport.x += diff.x;
-        Data.scroll_info.viewport.y += diff.y;
+        scroll_info.viewport.x += diff.x;
+        scroll_info.viewport.y += diff.y;
 
         dvui.refresh(null, @src(), scroll.scroll.data().id);
     }
-
-    dvui.dataSet(null, vbox.data().id, "_ctrl", ctrl_down);
 
     scaler.deinit();
 
@@ -3075,10 +3071,10 @@ pub fn scrollCanvas(comptime data: u8) void {
 
     // don't mess with scrolling if we aren't being shown (prevents weirdness
     // when starting out)
-    if (!Data.scroll_info.viewport.empty()) {
+    if (!scroll_info.viewport.empty()) {
         // add current viewport plus padding
         const pad = 10;
-        var bbox = Data.scroll_info.viewport.outsetAll(pad);
+        var bbox = scroll_info.viewport.outsetAll(pad);
         if (mbbox) |bb| {
             // convert bb from screen space to viewport space
             const scrollbbox = scrollRectScale.rectFromPhysical(bb);
@@ -3088,30 +3084,30 @@ pub fn scrollCanvas(comptime data: u8) void {
         // adjust top if needed
         if (bbox.y != 0) {
             const adj = -bbox.y;
-            Data.scroll_info.virtual_size.h += adj;
-            Data.scroll_info.viewport.y += adj;
-            Data.origin.y -= adj;
+            scroll_info.virtual_size.h += adj;
+            scroll_info.viewport.y += adj;
+            origin.y -= adj;
             dvui.refresh(null, @src(), scroll.scroll.data().id);
         }
 
         // adjust left if needed
         if (bbox.x != 0) {
             const adj = -bbox.x;
-            Data.scroll_info.virtual_size.w += adj;
-            Data.scroll_info.viewport.x += adj;
-            Data.origin.x -= adj;
+            scroll_info.virtual_size.w += adj;
+            scroll_info.viewport.x += adj;
+            origin.x -= adj;
             dvui.refresh(null, @src(), scroll.scroll.data().id);
         }
 
         // adjust bottom if needed
-        if (bbox.h != Data.scroll_info.virtual_size.h) {
-            Data.scroll_info.virtual_size.h = bbox.h;
+        if (bbox.h != scroll_info.virtual_size.h) {
+            scroll_info.virtual_size.h = bbox.h;
             dvui.refresh(null, @src(), scroll.scroll.data().id);
         }
 
         // adjust right if needed
-        if (bbox.w != Data.scroll_info.virtual_size.w) {
-            Data.scroll_info.virtual_size.w = bbox.w;
+        if (bbox.w != scroll_info.virtual_size.w) {
+            scroll_info.virtual_size.w = bbox.w;
             dvui.refresh(null, @src(), scroll.scroll.data().id);
         }
     }
@@ -3120,11 +3116,19 @@ pub fn scrollCanvas(comptime data: u8) void {
     // Any mouse release during a drag here means the user released the mouse
     // outside any target widget.
     if (dragging_box) {
+        var done = false;
         for (evts) |*e| {
             if (!e.handled and e.evt == .mouse and e.evt.mouse.action == .release) {
+                done = true;
                 dvui.dragEnd();
                 dvui.refresh(null, @src(), null);
             }
+        }
+
+        if (!done) {
+            // still dragging, draw a half-opaque box to show we are dragging
+            const dr = Rect.Physical.fromPoint(dvui.currentWindow().mouse_pt.diff(.{ .x = 10, .y = 10 })).toSize(.all(20));
+            dr.fill(.{}, .{ .color = dvui.Color.lime.opacity(0.5) });
         }
     }
 }
@@ -3665,38 +3669,46 @@ pub fn debuggingErrors() void {
         }
 
         var tl = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal });
+        tl.format("Latest matched keybinding: {s}", .{g.latest_slice}, .{});
+        tl.deinit();
 
-        tl.format("Latest matched keybinding: {s}\n\n", .{g.latest_slice}, .{});
+        if (dvui.expander(@src(), "All Key bindings", .{}, .{ .expand = .horizontal })) {
+            var tl2 = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
+            defer tl2.deinit();
 
-        var any_overlaps = false;
-        var outer = dvui.currentWindow().keybinds.iterator();
-        while (outer.next()) |okv| {
-            var inner = outer;
-            while (inner.next()) |ikv| {
-                const okb = okv.value_ptr.*;
-                const ikb = ikv.value_ptr.*;
-                if ((okb.shift == ikb.shift or okb.shift == null or ikb.shift == null) and
-                    (okb.control == ikb.control or okb.control == null or ikb.control == null) and
-                    (okb.alt == ikb.alt or okb.alt == null or ikb.alt == null) and
-                    (okb.command == ikb.command or okb.command == null or ikb.command == null) and
-                    (okb.key == ikb.key or okb.key == null or ikb.key == null))
-                {
-                    tl.format("keybind \"{s}\" overlaps \"{s}\"\n", .{ okv.key_ptr.*, ikv.key_ptr.* }, .{});
-                    any_overlaps = true;
-                }
+            var outer = dvui.currentWindow().keybinds.iterator();
+            while (outer.next()) |okv| {
+                tl2.format("\n{s}\n    {}\n", .{ okv.key_ptr.*, okv.value_ptr }, .{});
             }
         }
 
-        if (!any_overlaps) {
-            tl.addText("No keybind overlaps found.\n", .{});
-        }
+        if (dvui.expander(@src(), "Overlapping Key bindings", .{}, .{ .expand = .horizontal })) {
+            var tl2 = dvui.textLayout(@src(), .{}, .{ .expand = .horizontal, .margin = .{ .x = 10 } });
+            defer tl2.deinit();
 
-        tl.addText("\nCurrent keybinds:\n", .{});
-        outer = dvui.currentWindow().keybinds.iterator();
-        while (outer.next()) |okv| {
-            tl.format("\n{s}\n    {}\n", .{ okv.key_ptr.*, okv.value_ptr }, .{});
+            var any_overlaps = false;
+            var outer = dvui.currentWindow().keybinds.iterator();
+            while (outer.next()) |okv| {
+                var inner = outer;
+                while (inner.next()) |ikv| {
+                    const okb = okv.value_ptr.*;
+                    const ikb = ikv.value_ptr.*;
+                    if ((okb.shift == ikb.shift or okb.shift == null or ikb.shift == null) and
+                        (okb.control == ikb.control or okb.control == null or ikb.control == null) and
+                        (okb.alt == ikb.alt or okb.alt == null or ikb.alt == null) and
+                        (okb.command == ikb.command or okb.command == null or ikb.command == null) and
+                        (okb.key == ikb.key))
+                    {
+                        tl2.format("keybind \"{s}\" overlaps \"{s}\"\n", .{ okv.key_ptr.*, ikv.key_ptr.* }, .{});
+                        any_overlaps = true;
+                    }
+                }
+            }
+
+            if (!any_overlaps) {
+                tl2.addText("No keybind overlaps found.", .{});
+            }
         }
-        tl.deinit();
     }
 
     if (dvui.expander(@src(), "Show Font Atlases", .{}, .{ .expand = .horizontal })) {
@@ -3733,7 +3745,7 @@ pub fn dialogDirect() void {
     }
 
     {
-        _ = dvui.spacer(@src(), .{}, .{ .expand = .vertical });
+        _ = dvui.spacer(@src(), .{ .expand = .vertical });
         var hbox = dvui.box(@src(), .horizontal, .{ .gravity_x = 1.0 });
         defer hbox.deinit();
 
@@ -4910,23 +4922,6 @@ test "DOCIMG menus" {
     try t.saveImage(frame, null, "Examples-menus.png");
 }
 
-test "DOCIMG focus" {
-    var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 300 } });
-    defer t.deinit();
-
-    const frame = struct {
-        fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
-            focus();
-            return .ok;
-        }
-    }.frame;
-
-    try dvui.testing.settle(frame);
-    try t.saveImage(frame, null, "Examples-focus.png");
-}
-
 test "DOCIMG scrolling" {
     var t = try dvui.testing.init(.{ .window_size = .{ .w = 500, .h = 400 } });
     defer t.deinit();
@@ -4952,7 +4947,7 @@ test "DOCIMG scroll_canvas" {
         fn frame() !dvui.App.Result {
             var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
             defer box.deinit();
-            scrollCanvas(1);
+            scrollCanvas();
             return .ok;
         }
     }.frame;

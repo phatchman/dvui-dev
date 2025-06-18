@@ -344,7 +344,8 @@ pub fn initWindow(window_state: *WindowState, options: InitOptions) !Context {
             win32.SWP_NOCOPYBITS,
         ), "SetWindowPos in initWindow");
     }
-    try toLastErr(win32.ShowWindow(hwnd, .{ .SHOWNORMAL = 1 }), "ShowWindow in initWindow");
+    // Returns 0 if the window was previously hidden
+    _ = win32.ShowWindow(hwnd, .{ .SHOWNORMAL = 1 });
     try toLastErr(win32.UpdateWindow(hwnd), "UpdateWindow in initWindow");
     return contextFromHwnd(hwnd);
 }
@@ -1170,17 +1171,24 @@ pub fn wndProc(
         win32.WM_MOUSEMOVE => {
             const x = win32.xFromLparam(lparam);
             const y = win32.yFromLparam(lparam);
-            _ = stateFromHwnd(hwnd).dvui_window.addEventMouseMotionPhysical(
+            _ = stateFromHwnd(hwnd).dvui_window.addEventMouseMotion(
                 .{ .x = @floatFromInt(x), .y = @floatFromInt(y) },
             ) catch {};
             return 0;
         },
-        win32.WM_MOUSEWHEEL => {
-            const wheel_delta: i16 = @bitCast(win32.hiword(wparam));
+        win32.WM_MOUSEWHEEL,
+        win32.WM_MOUSEHWHEEL,
+        => |msg| {
+            const delta: i16 = @bitCast(win32.hiword(wparam));
+            const float_delta: f32 = @floatFromInt(delta);
+            const wheel_delta: f32 = @floatFromInt(win32.WHEEL_DELTA);
             _ = stateFromHwnd(hwnd).dvui_window.addEventMouseWheel(
-                @floatFromInt(wheel_delta),
-                // TODO: Should this always be vertical?
-                .vertical,
+                float_delta / wheel_delta * 20,
+                switch (msg) {
+                    win32.WM_MOUSEWHEEL => .vertical,
+                    win32.WM_MOUSEHWHEEL => .horizontal,
+                    else => unreachable,
+                },
             ) catch {};
             return 0;
         },

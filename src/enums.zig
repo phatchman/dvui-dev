@@ -1,5 +1,6 @@
 const builtin = @import("builtin");
 const std = @import("std");
+const dvui = @import("dvui.zig");
 
 pub const Backend = enum {
     custom,
@@ -172,25 +173,54 @@ pub const Mod = enum(u16) {
         self.* = @enumFromInt(s & (~t));
     }
 
-    ///for debugging
-    pub fn print(self: Mod) void {
-        std.debug.print("Mod(", .{});
+    /// True if matches the named keybind ignoring Keybind.key (follows
+    /// Keybind.also).  See `matchKeyBind`.
+    pub fn matchBind(self: Mod, keybind_name: []const u8) bool {
+        const cw = dvui.currentWindow();
 
-        var found_set = false;
+        var name = keybind_name;
+        while (true) {
+            if (cw.keybinds.get(name)) |kb| {
+                if (self.matchKeyBind(kb)) {
+                    return true;
+                } else if (kb.also) |also_name| {
+                    name = also_name;
+                    continue;
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+    }
 
-        const mod_fields = comptime std.meta.fieldNames(Mod);
-        inline for (mod_fields[0..9]) |field_name| {
-            if (self.has(@field(Mod, field_name))) {
-                std.debug.print(".{s}, ", .{field_name});
-                found_set = true;
+    /// True if matches the named keybind ignoring Keybind.key (ignores
+    /// Keybind.also).   Usually you want `matchBind`.
+    pub fn matchKeyBind(self: Mod, kb: Keybind) bool {
+        return ((kb.shift == null or kb.shift.? == self.shift()) and
+            (kb.control == null or kb.control.? == self.control()) and
+            (kb.alt == null or kb.alt.? == self.alt()) and
+            (kb.command == null or kb.command.? == self.command()));
+    }
+
+    pub fn format(self: *const Mod, comptime _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
+        try writer.writeAll("Mod(");
+        var needs_separator = false;
+
+        if (self.* == .none) {
+            try writer.writeAll("none");
+        } else {
+            const mod_fields = comptime std.meta.fieldNames(Mod);
+            inline for (mod_fields[0..9]) |field_name| {
+                if (self.has(@field(Mod, field_name))) {
+                    if (needs_separator) try writer.writeAll(", ") else needs_separator = true;
+                    try writer.writeAll(field_name);
+                }
             }
         }
 
-        if (found_set == false) {
-            std.debug.print("{}", .{self});
-        }
-
-        std.debug.print(")\n", .{});
+        try writer.writeAll(")");
     }
 };
 
