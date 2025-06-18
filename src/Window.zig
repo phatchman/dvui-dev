@@ -139,6 +139,7 @@ pub const Subwindow = struct {
     rect: Rect = Rect{},
     rect_pixels: dvui.Rect.Physical = .{},
     focused_widgetId: ?WidgetId = null,
+    focused_widgetRect: Rect.Physical = .{},
     render_cmds: std.ArrayList(dvui.RenderCommand),
     render_cmds_after: std.ArrayList(dvui.RenderCommand),
     used: bool = true,

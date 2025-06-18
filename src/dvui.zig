@@ -1307,6 +1307,7 @@ pub fn focusWidget(id: ?WidgetId, subwindow_id: ?WidgetId, event_num: ?u16) void
         if (swid == sw.id) {
             if (sw.focused_widgetId != id) {
                 sw.focused_widgetId = id;
+                sw.focused_widgetRect = .{};
                 if (event_num) |en| {
                     focusRemainingEvents(en, sw.id, sw.focused_widgetId);
                 }
@@ -1322,6 +1323,8 @@ pub fn focusWidget(id: ?WidgetId, subwindow_id: ?WidgetId, event_num: ?u16) void
                         while (true) : (wd = wd.parent.data()) {
                             if (wd.id == wid) {
                                 cw.last_focused_id_this_frame = wid;
+                                sw.focused_widgetRect = wd.rectScale().r;
+                                std.debug.print("focused rect = {}\n", .{wd.rectScale()});
                                 break;
                             }
 
@@ -4675,8 +4678,11 @@ pub fn gridColumnTextEntry(
             std.debug.print("fr = {?}\n", .{new_focus_row});
         } else if (new_focus_row == row_num) {
             dvui.focusWidget(text.data().id, null, null);
-            var rs = text.data().rectScale();
-            var scrollto = Event{
+            //var rs = text.data().rectScale();
+            var rs: RectScale = .{ .r = dvui.currentWindow().subwindowFocused().focused_widgetRect, .s = 2 };
+            std.debug.print("rs = {}\n", .{rs.r});
+            std.debug.print("rs2 = {}\n", .{rs});
+            const scrollto = Event{
                 .evt = .{
                     .scroll_to = .{
                         // This is to take into account that the header takes up the top part of the screen scroll_area
@@ -4688,7 +4694,9 @@ pub fn gridColumnTextEntry(
                     },
                 },
             };
-            cell.data().parent.processEvent(&scrollto, true);
+            //cell.data().parent.processEvent(&scrollto, true);
+            //g.scroll.scroll.processEvent(&scrollto, true);
+            _ = scrollto;
             new_focus_row = null;
         }
     }

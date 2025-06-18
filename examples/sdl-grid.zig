@@ -101,7 +101,7 @@ const Data = struct {
     parity: Parity,
 };
 
-var data1 = makeData(20);
+var data1 = makeData(200);
 var data2 = makeData(20);
 var data_ptr: [data1.len]*Data = makeDataPtr();
 
@@ -229,7 +229,7 @@ fn gui_frame() !void {
         //const adapter = DataAdapter.SliceUpdatable(bool){ .slice = &selections };
         //const adapter = DataAdapter.BitSetUpdateable(@TypeOf(select_bitset)){ .bitset = &select_bitset };
         //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
-
+        var stf: dvui.GridWidget.Actions.ScrollToFocused = .init();
         {
             var col = grid.column(@src(), .{});
             defer col.deinit();
@@ -337,6 +337,7 @@ fn gui_frame() !void {
             //single_select.performAction(selection_changed, adapter);
             local.selector.processEvents();
             local.selector.performAction(selection_changed, adapter);
+            stf.performAction(grid);
         }
     }
 }
