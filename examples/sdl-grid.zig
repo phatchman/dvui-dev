@@ -89,7 +89,7 @@ pub fn main() !void {
         // waitTime and beginWait combine to achieve variable framerates
         const wait_event_micros = win.waitTime(end_micros, null);
         interrupted = try backend.waitEventTimeout(wait_event_micros);
-        std.debug.print("{s}, {s}, {s}\n", .{ data1[0].text, data1[1].text, data1[2].text });
+        //std.debug.print("{s}, {s}, {s}\n", .{ data1[0].text, data1[1].text, data1[2].text });
     }
 }
 

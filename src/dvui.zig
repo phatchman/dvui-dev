@@ -4675,13 +4675,20 @@ pub fn gridColumnTextEntry(
             std.debug.print("fr = {?}\n", .{new_focus_row});
         } else if (new_focus_row == row_num) {
             dvui.focusWidget(text.data().id, null, null);
-            var scrollto = Event{ .evt = .{ .scroll_to = .{
-                .screen_rect = text.data().rectScale().r,
-                .over_scroll = true,
-            } } };
-            // TODO: Must be a better way to bubble the events?
-            // Downside of hiding rows behind headers is that it will scroll to the row behind the header.
-            g.scroll.scroll.processEvent(&scrollto, true);
+            var rs = text.data().rectScale();
+            var scrollto = Event{
+                .evt = .{
+                    .scroll_to = .{
+                        // This is to take into account that the header takes up the top part of the screen scroll_area
+                        .screen_rect = if (new_focus_row.? < (current_focus_row orelse std.math.maxInt(usize)))
+                            rs.r.offsetPoint(.{ .x = 0, .y = -g.header_height * rs.s })
+                        else
+                            rs.r,
+                        .over_scroll = false,
+                    },
+                },
+            };
+            cell.data().parent.processEvent(&scrollto, true);
             new_focus_row = null;
         }
     }
