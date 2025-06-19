@@ -108,23 +108,29 @@ fn gui_frame() void {
     var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     defer grid.deinit();
     const CellStyle = dvui.GridWidget.CellStyle;
-    {}
     {
-        var col = grid.column(@src(), .{});
-        defer col.deinit();
+        var col = grid.columnHeader(@src(), .{});
         dvui.gridHeading(@src(), grid, "Col 1", .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green } });
+        col.deinit();
 
+        col = grid.columnHeader(@src(), .{});
+        dvui.gridHeading(@src(), grid, "Col 2", .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
+        col.deinit();
+    }
+    {
+        var col = grid.columnBody(@src(), .{});
+        defer col.deinit();
         for (1..30) |i| {
             var cell = grid.bodyCell(@src(), i, .{});
             defer cell.deinit();
             dvui.label(@src(), "0:{}", .{i}, .{ .gravity_x = 0.5 });
         }
+        col.deinit();
     }
 
     {
-        var col = grid.column(@src(), .{});
+        var col = grid.columnBody(@src(), .{});
         defer col.deinit();
-        dvui.gridHeading(@src(), grid, "Col 2", .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
 
         for (1..30) |i| {
             var cell = grid.bodyCell(@src(), i, .{});
