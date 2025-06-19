@@ -214,7 +214,6 @@ pub fn deinit(self: *GridWidget) void {
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
 
     if (self.hscroll) |*hscroll| {
-        hscroll.si.scrollToOffset(.vertical, 0);
         hscroll.deinit();
     }
     if (self.bscroll) |*bscroll| {
@@ -270,7 +269,6 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
         self.hscroll = ScrollAreaWidget.init(@src(), .{
             .horizontal_bar = .hide,
             .vertical_bar = .show,
-            .vertical = .auto,
             .scroll_info = &self.hsi,
             .follower = true,
         }, .{
@@ -325,7 +323,6 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
     //    self.clipReset();
     self.current_col = null;
     if (self.hscroll) |*hscroll| {
-        hscroll.si.scrollToOffset(.vertical, 0);
         hscroll.deinit();
         self.hscroll = null;
         self.col_num = std.math.maxInt(usize);
