@@ -125,9 +125,10 @@ pub const InitOpts = struct {
 pub const default_col_width: f32 = 100;
 
 vbox: BoxWidget = undefined,
-scroll: ScrollAreaWidget = undefined,
+hscroll: ?ScrollAreaWidget = null,
+bscroll: ?ScrollAreaWidget = null,
 si: ScrollInfo = undefined,
-hbox: BoxWidget = undefined,
+//hbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
@@ -182,20 +183,20 @@ pub fn install(self: *GridWidget) void {
     self.vbox.install();
     self.vbox.drawBackground();
 
-    self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
-    self.scroll.install();
+    //self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
+    //self.scroll.install();
     // Keep a copy of the scroll_info in case the viewport changes between column layouts.
-    self.si = self.scroll.si.*;
+    self.si = self.init_opts.scroll_opts.?.scroll_info.?.*; // TODO: FIX FIX
 
     // Lay out columns horizontally.
-    self.hbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
-        .expand = .both,
-        // TODO: Doesn't work
-        //        .rect = .{ .x = 0, .y = 0, .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
-        .border = Rect.all(1),
-    });
-    self.hbox.install();
-    self.hbox.drawBackground();
+    //    self.hbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
+    //        .expand = .both,
+    //        // TODO: Doesn't work
+    //        //        .rect = .{ .x = 0, .y = 0, .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
+    //        .border = Rect.all(1),
+    //    });
+    //    self.hbox.install();
+    //    self.hbox.drawBackground();
 }
 
 pub fn deinit(self: *GridWidget) void {
@@ -203,8 +204,14 @@ pub fn deinit(self: *GridWidget) void {
     self.clipReset();
 
     // TODO: Would rather do this by reporting widget sizes, but can't get that to work yet.
-    self.scroll.si.virtual_size.h = self.next_row_y;
-    self.scroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
+    if (self.hscroll) |hscroll| {
+        hscroll.si.virtual_size.h = self.header_height;
+        hscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
+    }
+    if (self.bscroll) |bscroll| {
+        bscroll.si.virtual_size.h = self.next_row_y;
+        bscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
+    }
 
     // resizing if row heights changed or a resize was requested via init options.
     self.resizing =
@@ -218,8 +225,13 @@ pub fn deinit(self: *GridWidget) void {
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
 
-    self.hbox.deinit();
-    self.scroll.deinit();
+    //self.hbox.deinit();
+    if (self.hscroll) |*hscroll| {
+        hscroll.deinit();
+    }
+    if (self.bscroll) |*bscroll| {
+        bscroll.deinit();
+    }
 
     self.vbox.deinit();
     self.* = undefined;
@@ -242,10 +254,65 @@ pub const GridColumn = struct {
 /// 2) opts.width if supplied
 /// 3) Otherewise column will expand to the available space.
 /// It is recommended that widths are provided for all columns.
-pub fn column(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
+pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
     _ = src;
     self.clipReset();
     self.current_col = null;
+
+    self.col_num +%= 1; // maxint wraps to 0 for first col.
+    self.next_row_y = self.rows_y_offset;
+    if (self.hscroll == null) {
+        self.hscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
+        self.hscroll.?.install();
+    }
+
+    const w: f32, const expand: ?Options.Expand = width: {
+        // Take width from col_opts if it is set.
+        if (self.init_opts.col_widths) |col_info| {
+            if (self.col_num < col_info.len) {
+                break :width .{ col_info[self.col_num], null };
+            } else {
+                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                break :width .{ default_col_width, null };
+            }
+        } else {
+            if (opts.width) |w| {
+                if (w > 0) {
+                    break :width .{ w, null };
+                } else {
+                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                    break :width .{ default_col_width, null };
+                }
+            } else {
+                // If there is no width specified either in col_info or col_opts,
+                // just expand to fill available width.
+                break :width .{ 0, .horizontal };
+            }
+        }
+    };
+    var col_opts = opts.toOptions();
+    col_opts.expand = expand;
+    col_opts.min_size_content = .{ .w = w, .h = self.last_height };
+    col_opts.max_size_content = if (w > 0) .width(w) else null;
+    col_opts.id_extra = self.col_num;
+
+    self.current_col = null;
+    return .{};
+}
+
+pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
+    _ = src;
+    self.clipReset();
+    self.current_col = null;
+    if (self.hscroll) |*hscroll| {
+        hscroll.deinit();
+        self.hscroll = null;
+        self.col_num = std.math.maxInt(usize);
+    }
+    if (self.bscroll == null) {
+        self.bscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
+        self.bscroll.?.install();
+    }
 
     self.col_num +%= 1; // maxint wraps to 0 for first col.
     self.next_row_y = self.rows_y_offset;
