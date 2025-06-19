@@ -190,6 +190,9 @@ pub fn install(self: *GridWidget) void {
     // Lay out columns horizontally.
     self.hbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
         .expand = .both,
+        // TODO: Doesn't work
+        //        .rect = .{ .x = 0, .y = 0, .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
+        .border = Rect.all(1),
     });
     self.hbox.install();
     self.hbox.drawBackground();
@@ -198,6 +201,10 @@ pub fn install(self: *GridWidget) void {
 pub fn deinit(self: *GridWidget) void {
     defer dvui.widgetFree(self);
     self.clipReset();
+
+    // TODO: Would rather do this by reporting widget sizes, but can't get that to work yet.
+    self.scroll.si.virtual_size.h = self.next_row_y;
+    self.scroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
 
     // resizing if row heights changed or a resize was requested via init options.
     self.resizing =
@@ -291,7 +298,7 @@ fn clipReset(self: *GridWidget) void {
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) *BoxWidget {
     const y: f32 = self.si.viewport.y;
-    const parent_rect = self.scroll.data().contentRect();
+    //const parent_rect = self.scroll.data().contentRect();
 
     const header_height: f32 = height: {
         if (opts.height) |height| {
@@ -301,7 +308,9 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
         }
     };
     var cell_opts = opts.toOptions();
-    cell_opts.rect = .{ .x = 0, .y = y, .w = parent_rect.w, .h = header_height };
+    const xpos = sumSlice(self.init_opts.col_widths.?[0..self.col_num]);
+    cell_opts.rect = .{ .x = xpos, .y = y, .w = self.init_opts.col_widths.?[self.col_num], .h = header_height };
+    std.debug.print("header rect = {}\n", .{cell_opts.rect.?});
 
     // Create the cell and install as parent.
     var cell = dvui.widgetAlloc(BoxWidget);
@@ -318,11 +327,20 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
     return cell;
 }
 
+pub fn sumSlice(slice: anytype) @TypeOf(slice[0]) {
+    var total: @TypeOf(slice[0]) = 0;
+    for (slice) |item| {
+        total += item;
+    }
+    return total;
+}
+
 /// Create a new body cell within a column
 /// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) *BoxWidget {
-    const parent_rect = self.scroll.data().contentRect();
+    // TOOD: What does this really do? Why are we setting width the to scroll rect?
+    //const parent_rect = self.scroll.data().contentRect();
 
     const cell_height: f32 = height: {
         if (opts.height) |height| {
@@ -341,11 +359,13 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
         clip_rect.y += header_height_scaled;
         clip_rect.h = self.si.viewport.h * rect_scale.s - header_height_scaled;
 
-        self.saved_clip_rect = dvui.clip(clip_rect);
+        //self.saved_clip_rect = dvui.clip(clip_rect);
     }
-
+    const xpos = sumSlice(self.init_opts.col_widths.?[0..self.col_num]);
     var cell_opts = opts.toOptions();
-    cell_opts.rect = .{ .x = 0, .y = self.next_row_y, .w = parent_rect.w, .h = cell_height };
+    cell_opts.rect = .{ .x = xpos, .y = self.next_row_y, .w = self.init_opts.col_widths.?[self.col_num], .h = cell_height };
+    std.debug.print("body rect = {}\n", .{cell_opts.rect.?});
+
     cell_opts.id_extra = row_num;
 
     var cell = dvui.widgetAlloc(BoxWidget);
