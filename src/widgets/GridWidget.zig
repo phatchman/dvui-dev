@@ -128,7 +128,6 @@ vbox: BoxWidget = undefined,
 hscroll: ?ScrollAreaWidget = null,
 bscroll: ?ScrollAreaWidget = null,
 si: ScrollInfo = undefined,
-//hbox: BoxWidget = undefined,
 init_opts: InitOpts = undefined,
 current_col: ?*BoxWidget = null,
 next_row_y: f32 = 0,
@@ -183,20 +182,7 @@ pub fn install(self: *GridWidget) void {
     self.vbox.install();
     self.vbox.drawBackground();
 
-    //self.scroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
-    //self.scroll.install();
-    // Keep a copy of the scroll_info in case the viewport changes between column layouts.
-    self.si = self.init_opts.scroll_opts.?.scroll_info.?.*; // TODO: FIX FIX
-
-    // Lay out columns horizontally.
-    //    self.hbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
-    //        .expand = .both,
-    //        // TODO: Doesn't work
-    //        //        .rect = .{ .x = 0, .y = 0, .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
-    //        .border = Rect.all(1),
-    //    });
-    //    self.hbox.install();
-    //    self.hbox.drawBackground();
+    self.si = self.init_opts.scroll_opts.?.scroll_info.?.*; // TODO: FIX Assumes scroll_info. Prob move to init.
 }
 
 pub fn deinit(self: *GridWidget) void {
@@ -204,9 +190,10 @@ pub fn deinit(self: *GridWidget) void {
     self.clipReset();
 
     // TODO: Would rather do this by reporting widget sizes, but can't get that to work yet.
+    // Also this won't interact will with virtual scrolling, which will want to set its own height.
     if (self.hscroll) |hscroll| {
         hscroll.si.virtual_size.h = self.header_height;
-        hscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
+        hscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]) + 100;
     }
     if (self.bscroll) |bscroll| {
         bscroll.si.virtual_size.h = self.next_row_y;
@@ -225,7 +212,6 @@ pub fn deinit(self: *GridWidget) void {
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
 
-    //self.hbox.deinit();
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
     }
@@ -246,6 +232,8 @@ pub const GridColumn = struct {
     pub fn deinit(_: GridColumn) void {}
 };
 
+// TODO: Split out the si's and store them separately.
+
 /// Start a new grid column.
 /// Returns a vbox.
 /// Ensure deinit() is called on the returned vbox before creating a new column.
@@ -256,13 +244,26 @@ pub const GridColumn = struct {
 /// It is recommended that widths are provided for all columns.
 pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
     _ = src;
-    self.clipReset();
+    //self.clipReset();
     self.current_col = null;
 
     self.col_num +%= 1; // maxint wraps to 0 for first col.
     self.next_row_y = self.rows_y_offset;
+    var scroll_opts = self.init_opts.scroll_opts orelse unreachable; // TODO:
+    scroll_opts.horizontal = .given;
+    scroll_opts.horizontal_bar = .hide;
+    scroll_opts.vertical = .none;
+    scroll_opts.vertical_bar = .hide;
     if (self.hscroll == null) {
-        self.hscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
+        self.hscroll = ScrollAreaWidget.init(@src(), scroll_opts, .{
+            .name = "GridWidgetHeaderScrollArea",
+            .expand = .horizontal,
+            .min_size_content = .{
+                .h = self.header_height,
+                // TODO: Width doesn't seem to affect.
+                .w = sumSlice(self.init_opts.col_widths.?[0..]) + scrollbar_padding_defaults.w,
+            },
+        });
         self.hscroll.?.install();
     }
 
@@ -292,9 +293,10 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
     };
     var col_opts = opts.toOptions();
     col_opts.expand = expand;
-    col_opts.min_size_content = .{ .w = w, .h = self.last_height };
+    col_opts.min_size_content = .{ .w = w, .h = self.header_height };
     col_opts.max_size_content = if (w > 0) .width(w) else null;
     col_opts.id_extra = self.col_num;
+    // TODO: Nothing happens with col_opts now.
 
     self.current_col = null;
     return .{};
@@ -302,7 +304,7 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
 
 pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
     _ = src;
-    self.clipReset();
+    //    self.clipReset();
     self.current_col = null;
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
@@ -346,6 +348,7 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
     col_opts.min_size_content = .{ .w = w, .h = self.last_height };
     col_opts.max_size_content = if (w > 0) .width(w) else null;
     col_opts.id_extra = self.col_num;
+    // TODO: Nothing happens with col_opts now.
 
     self.current_col = null;
     return .{};
@@ -377,7 +380,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
     var cell_opts = opts.toOptions();
     const xpos = sumSlice(self.init_opts.col_widths.?[0..self.col_num]);
     cell_opts.rect = .{ .x = xpos, .y = y, .w = self.init_opts.col_widths.?[self.col_num], .h = header_height };
-    std.debug.print("header rect = {}\n", .{cell_opts.rect.?});
+    //std.debug.print("header rect = {}\n", .{cell_opts.rect.?});
 
     // Create the cell and install as parent.
     var cell = dvui.widgetAlloc(BoxWidget);
@@ -390,7 +393,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: Cell
         const height = cell.data().rect.h;
         self.header_height = @max(self.header_height, height);
     }
-    self.next_row_y += self.header_height;
+    //self.next_row_y += self.header_height;
     return cell;
 }
 
@@ -431,7 +434,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     const xpos = sumSlice(self.init_opts.col_widths.?[0..self.col_num]);
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = xpos, .y = self.next_row_y, .w = self.init_opts.col_widths.?[self.col_num], .h = cell_height };
-    std.debug.print("body rect = {}\n", .{cell_opts.rect.?});
+    //    std.debug.print("body rect = {}\n", .{cell_opts.rect.?});
 
     cell_opts.id_extra = row_num;
 
