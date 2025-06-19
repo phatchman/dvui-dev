@@ -32,6 +32,7 @@ pub const InitOpts = struct {
     horizontal_bar: ScrollInfo.ScrollBarMode = .auto,
     focus_id: ?dvui.WidgetId = null, // clicking on a scrollbar will focus this id, or the scroll container if null
     lock_visible: bool = false,
+    follower: bool = false,
 };
 
 hbox: BoxWidget = undefined,
