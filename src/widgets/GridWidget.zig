@@ -127,6 +127,7 @@ pub const default_col_width: f32 = 100;
 vbox: BoxWidget = undefined,
 hscroll: ?ScrollAreaWidget = null,
 bscroll: ?ScrollAreaWidget = null,
+hsi: ScrollInfo = undefined,
 si: ScrollInfo = undefined,
 init_opts: InitOpts = undefined,
 current_col: ?*BoxWidget = null,
@@ -191,10 +192,10 @@ pub fn deinit(self: *GridWidget) void {
 
     // TODO: Would rather do this by reporting widget sizes, but can't get that to work yet.
     // Also this won't interact will with virtual scrolling, which will want to set its own height.
-    if (self.hscroll) |hscroll| {
-        hscroll.si.virtual_size.h = self.header_height;
-        hscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]) + 100;
-    }
+    //    if (self.hscroll) |_| {
+    //        self.hsi.virtual_size.h = self.header_height;
+    //        self.hsi.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]) + 100;
+    //    }
     if (self.bscroll) |bscroll| {
         bscroll.si.virtual_size.h = self.next_row_y;
         bscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
@@ -213,6 +214,7 @@ pub fn deinit(self: *GridWidget) void {
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
 
     if (self.hscroll) |*hscroll| {
+        hscroll.si.scrollToOffset(.vertical, 0);
         hscroll.deinit();
     }
     if (self.bscroll) |*bscroll| {
@@ -248,20 +250,34 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
     self.current_col = null;
 
     self.col_num +%= 1; // maxint wraps to 0 for first col.
-    self.next_row_y = self.rows_y_offset;
-    var scroll_opts = self.init_opts.scroll_opts orelse unreachable; // TODO:
-    scroll_opts.horizontal = .given;
-    scroll_opts.horizontal_bar = .hide;
-    scroll_opts.vertical = .none;
-    scroll_opts.vertical_bar = .hide;
+    //self.next_row_y = self.rows_y_offset;
     if (self.hscroll == null) {
-        self.hscroll = ScrollAreaWidget.init(@src(), scroll_opts, .{
+        self.hsi = .{
+            .horizontal = .given,
+            .vertical = .none,
+            .virtual_size = .{
+                .h = self.header_height,
+                .w = self.si.virtual_size.w,
+            },
+            .viewport = .{
+                .h = self.header_height,
+                .w = self.si.viewport.w - 10,
+                .x = self.si.viewport.x,
+                .y = 0,
+            },
+        };
+
+        self.hscroll = ScrollAreaWidget.init(@src(), .{
+            .horizontal_bar = .hide,
+            .scroll_info = &self.hsi,
+            .follower = true,
+        }, .{
             .name = "GridWidgetHeaderScrollArea",
             .expand = .horizontal,
             .min_size_content = .{
                 .h = self.header_height,
                 // TODO: Width doesn't seem to affect.
-                .w = sumSlice(self.init_opts.col_widths.?[0..]) + scrollbar_padding_defaults.w,
+                .w = sumSlice(self.init_opts.col_widths.?[0..]),
             },
         });
         self.hscroll.?.install();
@@ -307,6 +323,7 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
     //    self.clipReset();
     self.current_col = null;
     if (self.hscroll) |*hscroll| {
+        hscroll.si.scrollToOffset(.vertical, 0);
         hscroll.deinit();
         self.hscroll = null;
         self.col_num = std.math.maxInt(usize);
