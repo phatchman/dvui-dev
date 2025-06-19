@@ -254,14 +254,14 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
     if (self.hscroll == null) {
         self.hsi = .{
             .horizontal = .given,
-            .vertical = .none,
+            .vertical = .given,
             .virtual_size = .{
                 .h = self.header_height,
                 .w = self.si.virtual_size.w,
             },
             .viewport = .{
                 .h = self.header_height,
-                .w = self.si.viewport.w - 10,
+                .w = self.si.viewport.w,
                 .x = self.si.viewport.x,
                 .y = 0,
             },
@@ -269,6 +269,8 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
 
         self.hscroll = ScrollAreaWidget.init(@src(), .{
             .horizontal_bar = .hide,
+            .vertical_bar = .show,
+            .vertical = .auto,
             .scroll_info = &self.hsi,
             .follower = true,
         }, .{
@@ -384,7 +386,7 @@ fn clipReset(self: *GridWidget) void {
 /// Only one header cell is allowed per column.
 /// Height is taken from opts.height if provided, otherwise height is automatically determined.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) *BoxWidget {
-    const y: f32 = self.si.viewport.y;
+    const y: f32 = self.hsi.viewport.y;
     //const parent_rect = self.scroll.data().contentRect();
 
     const header_height: f32 = height: {
