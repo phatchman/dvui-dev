@@ -1,9 +1,11 @@
 // TODO: Need to make
 // TODO: We don't currently support ".expand" (i.e. when no width is provided) because we were relying on vboxes for that.
 // So either need to re-implement the .expand or make that the user's responsiblity?
-// TODO: How to set column width (outside of col_widths) if we get rid of the column() functions? Add it to the cell options???
-//    - Can it only be set on a header or body or?
 // TODO: If col widths allocation fails, then just return the default col width if that column doesn't exist.
+// TODO: set the col_widths struct if the widdth param is passed to a cell. Also the .expand handling if width is 0.
+// TODO: Variable row heights and next_row_y - style layouts
+// TODO: Passing mouse scroll events from header to body
+// TODO:
 
 const std = @import("std");
 const dvui = @import("../dvui.zig");
@@ -221,6 +223,16 @@ pub fn deinit(self: *GridWidget) void {
     defer self.* = undefined;
     defer dvui.widgetFree(self);
 
+    //    const events = dvui.events();
+    //    for (events) |*e| {
+    //        if (e.evt == .mouse) { // and dvui.eventMatchSimple(e, self.data())) {
+    //            if (e.evt.mouse.action == .wheel_x or e.evt.mouse.action == .wheel_y) {
+    //                std.debug.print("sending event\n", .{});
+    //                self.bscroll.?.processEvent(e, true);
+    //            }
+    //        }
+    //    }
+
     if (self.hsi.viewport.x != self.frame_viewport.x) self.hsi.viewport.x = self.bsi.viewport.x; // TODO
 
     // resizing if row heights changed or a resize was requested via init options.
@@ -258,11 +270,6 @@ pub fn deinit(self: *GridWidget) void {
 pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
 }
-
-pub const GridColumn = struct {
-    //
-    pub fn deinit(_: GridColumn) void {}
-};
 
 fn extendColIfRequired(self: *GridWidget, col_num: usize) void {
     // TODO: Could just check if col_widths == &col_widths_store?
