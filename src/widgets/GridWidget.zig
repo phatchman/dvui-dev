@@ -334,8 +334,8 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
             @src(),
             .{ .dir = .horizontal },
             .{
-                .min_size_content = .{ .h = 1000, .w = sumSlice(self.init_opts.col_widths.?[0..]) }, // TODO: assumes col_widths
-                .max_size_content = .{ .h = 1000, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
+                .min_size_content = .{ .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) }, // TODO: assumes col_widths
+                .max_size_content = .{ .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
                 .expand = .both,
             },
         );
