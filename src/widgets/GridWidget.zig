@@ -303,6 +303,70 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
     return .{};
 }
 
+pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: ColOptions) void {
+    _ = src;
+    self.current_col = null;
+
+    if (self.hscroll == null) {
+        self.hsi = .{
+            .horizontal = .given,
+            .vertical = .given,
+            .virtual_size = .{
+                .h = self.header_height,
+                .w = self.si.virtual_size.w,
+            },
+            .viewport = .{
+                .h = self.header_height,
+                .w = self.si.viewport.w,
+                .x = self.si.viewport.x,
+                .y = 0,
+            },
+        };
+
+        self.hscroll = ScrollAreaWidget.init(@src(), .{
+            .horizontal_bar = .hide,
+            .vertical_bar = .show,
+            .scroll_info = &self.hsi,
+            .follower = true,
+        }, .{
+            .name = "GridWidgetHeaderScrollArea",
+            .expand = .horizontal,
+            .min_size_content = .{
+                .h = self.header_height,
+                .w = sumSlice(self.init_opts.col_widths.?[0..]),
+            },
+        });
+        self.hscroll.?.install();
+    }
+
+    const w: f32, const expand: ?Options.Expand = width: {
+        // Take width from col_opts if it is set.
+        if (self.init_opts.col_widths) |col_info| {
+            if (col_num < col_info.len) {
+                break :width .{ col_info[col_num], null };
+            } else {
+                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                break :width .{ default_col_width, null };
+            }
+        } else {
+            if (opts.width) |w| {
+                if (w > 0) {
+                    break :width .{ w, null };
+                } else {
+                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                    break :width .{ default_col_width, null };
+                }
+            } else {
+                // If there is no width specified either in col_info or col_opts,
+                // just expand to fill available width.
+                break :width .{ 0, .horizontal };
+            }
+        }
+    };
+    _ = expand;
+    _ = w;
+}
+
 pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
     _ = src;
     //    self.clipReset();
@@ -317,7 +381,7 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
             .name = "GridWidgetScrollArea",
         });
         self.bscroll.?.install();
-        // Use this box to set the size of the scrollable area.
+        // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
         self.bbox = BoxWidget.init(
             @src(),
             .{ .dir = .horizontal },
@@ -370,12 +434,108 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
     return .{};
 }
 
+pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: ColOptions) void {
+    _ = src;
+    //    self.clipReset();
+    self.next_row_y = 0; // TODO: TEMP.
+    self.current_col = null;
+    if (self.hscroll) |*hscroll| {
+        hscroll.deinit();
+        self.hscroll = null;
+    }
+    if (self.bscroll == null) {
+        self.bscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{
+            .name = "GridWidgetScrollArea",
+        });
+        self.bscroll.?.install();
+        // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
+        self.bbox = BoxWidget.init(
+            @src(),
+            .{ .dir = .horizontal },
+            .{
+                .min_size_content = .{ .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) }, // TODO: assumes col_widths
+                .max_size_content = .{ .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
+                .expand = .both,
+            },
+        );
+        self.bbox.install();
+    }
+
+    self.next_row_y = self.rows_y_offset;
+
+    const w: f32, const expand: ?Options.Expand = width: {
+        // Take width from col_opts if it is set.
+        if (self.init_opts.col_widths) |col_info| {
+            if (col_num < col_info.len) {
+                break :width .{ col_info[col_num], null };
+            } else {
+                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                break :width .{ default_col_width, null };
+            }
+        } else {
+            if (opts.width) |w| {
+                if (w > 0) {
+                    break :width .{ w, null };
+                } else {
+                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+                    break :width .{ default_col_width, null };
+                }
+            } else {
+                // If there is no width specified either in col_info or col_opts,
+                // just expand to fill available width.
+                break :width .{ 0, .horizontal };
+            }
+        }
+    };
+    var col_opts = opts.toOptions();
+    col_opts.expand = expand;
+    col_opts.min_size_content = .{ .w = w, .h = self.last_height };
+    col_opts.max_size_content = if (w > 0) .width(w) else null;
+    col_opts.id_extra = col_num;
+    // TODO: Nothing happens with col_opts now.
+    // How to set column width if get rid of the column() functions? Add it to the cell options???
+    //
+
+    self.current_col = null;
+}
+
 /// Restore saved clip region.
 fn clipReset(self: *GridWidget) void {
     if (self.saved_clip_rect) |cr| {
         dvui.clipSet(cr);
         self.saved_clip_rect = null;
     }
+}
+
+pub fn headerCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
+    //const parent_rect = self.scroll.data().contentRect();
+    // TODO: check col_num is valid
+    if (self.hscroll == null) {
+        self.columnHeader2(src, col_num, .{});
+    }
+    const header_height: f32 = height: {
+        if (opts.height) |height| {
+            break :height height;
+        } else {
+            break :height if (self.resizing) 0 else self.header_height;
+        }
+    };
+    var cell_opts = opts.toOptions();
+    const xpos = sumSlice(self.init_opts.col_widths.?[0..col_num]);
+    cell_opts.rect = .{ .x = xpos, .y = 0, .w = self.init_opts.col_widths.?[col_num], .h = header_height };
+
+    // Create the cell and install as parent.
+    var cell = dvui.widgetAlloc(BoxWidget);
+    cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
+    cell.install();
+    cell.drawBackground();
+
+    // Determine heights for next frame.
+    if (cell.data().contentRect().h > 0) {
+        const height = cell.data().rect.h;
+        self.header_height = @max(self.header_height, height);
+    }
+    return cell;
 }
 
 /// Create a new header cell within a column
@@ -437,21 +597,50 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usi
     };
 
     // Prevent the header from being overwritten when scrolling.
-    if (self.saved_clip_rect == null) {
-        const rect_scale = self.vbox.data().rectScale();
-        const header_height_scaled = self.header_height * rect_scale.s;
-
-        var clip_rect = rect_scale.r;
-        clip_rect.y += header_height_scaled;
-        clip_rect.h = self.si.viewport.h * rect_scale.s - header_height_scaled;
-
-        //self.saved_clip_rect = dvui.clip(clip_rect);
-    }
     const xpos = sumSlice(self.init_opts.col_widths.?[0..self.col_num]);
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = xpos, .y = self.next_row_y, .w = self.init_opts.col_widths.?[self.col_num], .h = cell_height };
     //    std.debug.print("body rect = {}\n", .{cell_opts.rect.?});
 
+    cell_opts.id_extra = row_num;
+
+    var cell = dvui.widgetAlloc(BoxWidget);
+    cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
+    cell.install();
+    cell.drawBackground();
+
+    if (cell.data().contentRect().h > 0) {
+        const measured_cell_height = cell.data().rect.h;
+        self.row_height = @max(self.row_height, measured_cell_height);
+    }
+
+    // If user provided a height, use that to position the next row, otherwise use the
+    // calculated row_height.
+    self.next_row_y += opts.height orelse self.row_height;
+
+    return cell;
+}
+
+pub fn bodyCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
+    std.debug.print("{}:{}\n", .{ col_num, row_num });
+    if (self.bscroll == null) {
+        self.columnBody2(src, col_num, .{});
+    }
+    const cell_height: f32 = height: {
+        if (opts.height) |height| {
+            break :height height;
+        } else {
+            break :height if (self.resizing) 0 else self.row_height;
+        }
+    };
+
+    const xpos = sumSlice(self.init_opts.col_widths.?[0..col_num]);
+    var cell_opts = opts.toOptions();
+    const row_num_f: f32 = @floatFromInt(row_num);
+    // TODO: This doesn't work for variable sized-rows. It needs to either be sequential using next_row_y or based on row_heights.
+    cell_opts.rect = .{ .x = xpos, .y = row_num_f * self.row_height, .w = self.init_opts.col_widths.?[col_num], .h = cell_height };
+    // TODO: No id is added for columns() Calling cols in a loop will currently break? But can we make use of the Virtual Parent or similar?
+    // Or just create a Widget for each col?
     cell_opts.id_extra = row_num;
 
     var cell = dvui.widgetAlloc(BoxWidget);

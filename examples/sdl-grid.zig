@@ -109,33 +109,38 @@ fn gui_frame() void {
     defer grid.deinit();
     const CellStyle = dvui.GridWidget.CellStyle;
     {
-        var col = grid.columnHeader(@src(), .{});
-        dvui.gridHeading(@src(), grid, "Col 1", .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green } });
-        col.deinit();
-
-        col = grid.columnHeader(@src(), .{});
-        dvui.gridHeading(@src(), grid, "Col 2", .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
-        col.deinit();
+        dvui.gridHeading(@src(), grid, "Col 2", 1, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
     }
     {
-        var col = grid.columnBody(@src(), .{});
-        defer col.deinit();
-        for (1..30) |i| {
-            var cell = grid.bodyCell(@src(), i, .{});
+        dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green } });
+
+        for (1..15) |i| {
+            var cell = grid.bodyCell2(@src(), 1, i - 1, .{});
             defer cell.deinit();
             dvui.label(@src(), "0:{}", .{i}, .{ .gravity_x = 0.5 });
         }
-        col.deinit();
     }
 
     {
-        var col = grid.columnBody(@src(), .{});
-        defer col.deinit();
-
-        for (1..30) |i| {
-            var cell = grid.bodyCell(@src(), i, .{});
+        for (1..15) |i| {
+            var cell = grid.bodyCell2(@src(), 0, i - 1, .{});
             defer cell.deinit();
             dvui.label(@src(), "1:{}", .{i}, .{ .gravity_x = 0.5 });
+        }
+    }
+
+    {
+        for (15..30) |i| {
+            {
+                var cell = grid.bodyCell2(@src(), 0, 43 - i, .{});
+                defer cell.deinit();
+                dvui.label(@src(), "0:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+            }
+            {
+                var cell = grid.bodyCell2(@src(), 1, 43 - i, .{});
+                defer cell.deinit();
+                dvui.label(@src(), "1:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+            }
         }
     }
 }
