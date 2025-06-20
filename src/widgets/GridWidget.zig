@@ -42,38 +42,41 @@ pub var defaults: Options = .{
 
 pub var scrollbar_padding_defaults: Size = .{ .h = 10, .w = 10 };
 
-pub const ColOptions = struct {
-    width: ?f32 = null,
-    border: ?Rect = null,
-    background: ?bool = null,
-    color_fill: ?ColorOrName = null,
-    color_border: ?ColorOrName = null,
-
-    pub fn toOptions(self: *const ColOptions) Options {
-        return .{
-            // height is not converted
-            .border = self.border,
-            .background = self.background,
-            .color_fill = self.color_fill,
-            .color_border = self.color_border,
-        };
-    }
-
-    pub fn override(self: *const ColOptions, over: CellOptions) CellOptions {
-        var ret = self.*;
-
-        inline for (@typeInfo(ColOptions).@"struct".fields) |f| {
-            if (@field(over, f.name)) |fval| {
-                @field(ret, f.name) = fval;
-            }
-        }
-
-        return ret;
-    }
-};
-
+//pub const ColOptions = struct {
+//    width: ?f32 = null,
+//    border: ?Rect = null,
+//    background: ?bool = null,
+//    color_fill: ?ColorOrName = null,
+//    color_border: ?ColorOrName = null,
+//
+//    pub fn toOptions(self: *const ColOptions) Options {
+//        return .{
+//            // height is not converted
+//            .border = self.border,
+//            .background = self.background,
+//            .color_fill = self.color_fill,
+//            .color_border = self.color_border,
+//        };
+//    }
+//
+//    pub fn override(self: *const ColOptions, over: CellOptions) ColOptions {
+//        var ret = self.*;
+//
+//        inline for (@typeInfo(ColOptions).@"struct".fields) |f| {
+//            if (@field(over, f.name)) |fval| {
+//                @field(ret, f.name) = fval;
+//            }
+//        }
+//
+//        return ret;
+//    }
+//};
+//
 pub const CellOptions = struct {
-    height: ?f32 = null,
+    // Manually control height or width
+    // height must be consistent for all columns in a row
+    // width must be consistent for all rows in a column (including the header cell)
+    size: ?Size = null,
     margin: ?Rect = null,
     border: ?Rect = null,
     padding: ?Rect = null,
@@ -82,9 +85,17 @@ pub const CellOptions = struct {
     color_fill_hover: ?ColorOrName = null,
     color_border: ?ColorOrName = null,
 
+    pub fn height(self: *const CellOptions) f32 {
+        return if (self.size) |size| size.h else 0;
+    }
+
+    pub fn width(self: *const CellOptions) f32 {
+        return if (self.size) |size| size.w else 0;
+    }
+
     pub fn toOptions(self: *const CellOptions) Options {
         return .{
-            // does not convert height
+            // does not convert size, but maybe it should now... hmmm???
             .margin = self.margin,
             .border = self.border,
             .padding = self.padding,
@@ -244,99 +255,10 @@ pub const GridColumn = struct {
     pub fn deinit(_: GridColumn) void {}
 };
 
-/// Start a new grid column.
-/// Returns a vbox.
-/// Ensure deinit() is called on the returned vbox before creating a new column.
-/// Column width is determined from:
-/// 1) init_opts.col_width if supplied
-/// 2) opts.width if supplied
-/// 3) Otherewise column will expand to the available space.
-/// It is recommended that widths are provided for all columns.
-//pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
-//    _ = src;
-//    self.current_col = null;
-//
-//    self.col_num +%= 1; // maxint wraps to 0 for first col.
-//    if (self.hscroll == null) {
-//        self.hsi = .{
-//            .horizontal = .given,
-//            .vertical = .given,
-//            .virtual_size = .{
-//                .h = self.header_height,
-//                .w = self.si.virtual_size.w,
-//            },
-//            .viewport = .{
-//                .h = self.header_height,
-//                .w = self.si.viewport.w,
-//                .x = self.si.viewport.x,
-//                .y = 0,
-//            },
-//        };
-//
-//        self.hscroll = ScrollAreaWidget.init(@src(), .{
-//            .horizontal_bar = .hide,
-//            .vertical_bar = .show,
-//            .scroll_info = &self.hsi,
-//            .follower = true,
-//        }, .{
-//            .name = "GridWidgetHeaderScrollArea",
-//            .expand = .horizontal,
-//            .min_size_content = .{
-//                .h = self.header_height,
-//                .w = sumSlice(self.init_opts.col_widths.?[0..]),
-//            },
-//        });
-//        self.hscroll.?.install();
-//    }
-//
-//    const w: f32, const expand: ?Options.Expand = width: {
-//        // Take width from col_opts if it is set.
-//        if (self.init_opts.col_widths) |col_info| {
-//            if (self.col_num < col_info.len) {
-//                break :width .{ col_info[self.col_num], null };
-//            } else {
-//                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
-//                break :width .{ default_col_width, null };
-//            }
-//        } else {
-//            if (opts.width) |w| {
-//                if (w > 0) {
-//                    break :width .{ w, null };
-//                } else {
-//                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
-//                    break :width .{ default_col_width, null };
-//                }
-//            } else {
-//                // If there is no width specified either in col_info or col_opts,
-//                // just expand to fill available width.
-//                break :width .{ 0, .horizontal };
-//            }
-//        }
-//    };
-//    _ = expand;
-//    _ = w;
-//    return .{};
-//}
-
-pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: ColOptions) void {
+pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize) void {
     _ = src;
     self.max_col = @max(self.max_col, col_num);
     if (self.hscroll == null) {
-        //        self.hsi = .{
-        //            .horizontal = .given,
-        //            .vertical = .given,
-        //            .virtual_size = .{
-        //                .h = self.header_height,
-        //                .w = self.si.virtual_size.w,
-        //            },
-        //            .viewport = .{
-        //                .h = self.header_height,
-        //                .w = self.si.viewport.w,
-        //                .x = self.si.viewport.x,
-        //                .y = 0,
-        //            },
-        //        };
-
         self.hscroll = ScrollAreaWidget.init(@src(), .{
             .horizontal_bar = .hide,
             .vertical_bar = .show,
@@ -353,102 +275,35 @@ pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num
         self.hscroll.?.install();
     }
 
-    const w: f32, const expand: ?Options.Expand = width: {
-        // Take width from col_opts if it is set.
-        if (self.init_opts.col_widths) |col_info| {
-            if (col_num < col_info.len) {
-                break :width .{ col_info[col_num], null };
-            } else {
-                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
-                break :width .{ default_col_width, null };
-            }
-        } else {
-            if (opts.width) |w| {
-                if (w > 0) {
-                    break :width .{ w, null };
-                } else {
-                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
-                    break :width .{ default_col_width, null };
-                }
-            } else {
-                // If there is no width specified either in col_info or col_opts,
-                // just expand to fill available width.
-                break :width .{ 0, .horizontal };
-            }
-        }
-    };
-    _ = expand;
-    _ = w;
+    //    const w: f32, const expand: ?Options.Expand = width: {
+    //        // Take width from col_opts if it is set.
+    //        if (self.init_opts.col_widths) |col_info| {
+    //            if (col_num < col_info.len) {
+    //                break :width .{ col_info[col_num], null };
+    //            } else {
+    //                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
+    //                break :width .{ default_col_width, null };
+    //            }
+    //        } else {
+    //            if (opts.width) |w| {
+    //                if (w > 0) {
+    //                    break :width .{ w, null };
+    //                } else {
+    //                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+    //                    break :width .{ default_col_width, null };
+    //                }
+    //            } else {
+    //                // If there is no width specified either in col_info or col_opts,
+    //                // just expand to fill available width.
+    //                break :width .{ 0, .horizontal };
+    //            }
+    //        }
+    //    };
+    //    _ = expand;
+    //    _ = w;
 }
 
-//pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
-//    _ = src;
-//    //    self.clipReset();
-//    self.current_col = null;
-//    if (self.hscroll) |*hscroll| {
-//        hscroll.deinit();
-//        self.hscroll = null;
-//        self.col_num = std.math.maxInt(usize);
-//    }
-//    if (self.bscroll == null) {
-//        self.bscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{
-//            .name = "GridWidgetScrollArea",
-//        });
-//        self.bscroll.?.install();
-//        // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
-//        self.bbox = BoxWidget.init(
-//            @src(),
-//            .{ .dir = .horizontal },
-//            .{
-//                .min_size_content = .{ .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) }, // TODO: assumes col_widths
-//                .max_size_content = .{ .h = self.last_height, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
-//                .expand = .both,
-//            },
-//        );
-//        self.bbox.install();
-//    }
-//
-//    self.col_num +%= 1; // maxint wraps to 0 for first col.
-//    self.next_row_y = self.rows_y_offset;
-//
-//    const w: f32, const expand: ?Options.Expand = width: {
-//        // Take width from col_opts if it is set.
-//        if (self.init_opts.col_widths) |col_info| {
-//            if (self.col_num < col_info.len) {
-//                break :width .{ col_info[self.col_num], null };
-//            } else {
-//                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
-//                break :width .{ default_col_width, null };
-//            }
-//        } else {
-//            if (opts.width) |w| {
-//                if (w > 0) {
-//                    break :width .{ w, null };
-//                } else {
-//                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
-//                    break :width .{ default_col_width, null };
-//                }
-//            } else {
-//                // If there is no width specified either in col_info or col_opts,
-//                // just expand to fill available width.
-//                break :width .{ 0, .horizontal };
-//            }
-//        }
-//    };
-//    var col_opts = opts.toOptions();
-//    col_opts.expand = expand;
-//    col_opts.min_size_content = .{ .w = w, .h = self.last_height };
-//    col_opts.max_size_content = if (w > 0) .width(w) else null;
-//    col_opts.id_extra = self.col_num;
-//    // TODO: Nothing happens with col_opts now.
-//    // How to set column width if get rid of the column() functions? Add it to the cell options???
-//    //
-//
-//    self.current_col = null;
-//    return .{};
-//}
-
-pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: ColOptions) void {
+pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize) void {
     _ = src;
     self.max_col = @max(self.max_col, col_num);
 
@@ -479,32 +334,32 @@ pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
         self.bbox.install();
     }
 
-    const w: f32, const expand: ?Options.Expand = width: {
-        // Take width from col_opts if it is set.
-        if (self.init_opts.col_widths) |col_info| {
-            if (col_num < col_info.len) {
-                break :width .{ col_info[col_num], null };
-            } else {
-                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
-                break :width .{ default_col_width, null };
-            }
-        } else {
-            if (opts.width) |w| {
-                if (w > 0) {
-                    break :width .{ w, null };
-                } else {
-                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
-                    break :width .{ default_col_width, null };
-                }
-            } else {
-                // If there is no width specified either in col_info or col_opts,
-                // just expand to fill available width.
-                break :width .{ 0, .horizontal };
-            }
-        }
-    };
-    _ = w;
-    _ = expand;
+    //    const w: f32, const expand: ?Options.Expand = width: {
+    //        // Take width from col_opts if it is set.
+    //        if (self.init_opts.col_widths) |col_info| {
+    //            if (col_num < col_info.len) {
+    //                break :width .{ col_info[col_num], null };
+    //            } else {
+    //                dvui.log.debug("GridWidget {x} has more columns than set in init_opts.col_widths. Using default column width of {d}\n", .{ self.data().id, default_col_width });
+    //                break :width .{ default_col_width, null };
+    //            }
+    //        } else {
+    //            if (opts.width) |w| {
+    //                if (w > 0) {
+    //                    break :width .{ w, null };
+    //                } else {
+    //                    dvui.log.debug("GridWidget {x} invalid opts.width provided to column(). Using default column width of {d}\n", .{ self.data().id, default_col_width });
+    //                    break :width .{ default_col_width, null };
+    //                }
+    //            } else {
+    //                // If there is no width specified either in col_info or col_opts,
+    //                // just expand to fill available width.
+    //                break :width .{ 0, .horizontal };
+    //            }
+    //        }
+    //    };
+    //    _ = w;
+    //    _ = expand;
 }
 
 pub fn headerCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
@@ -513,11 +368,11 @@ pub fn headerCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
     self.max_col = @max(self.max_col, col_num);
 
     if (self.hscroll == null) {
-        self.columnHeader2(src, col_num, .{});
+        self.columnHeader2(src, col_num);
     }
     const header_height: f32 = height: {
-        if (opts.height) |height| {
-            break :height height;
+        if (opts.height() > 0) {
+            break :height opts.height();
         } else {
             break :height if (self.resizing) 0 else self.header_height;
         }
@@ -540,41 +395,6 @@ pub fn headerCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
     return cell;
 }
 
-/// Create a new header cell within a column
-/// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
-/// Only one header cell is allowed per column.
-/// Height is taken from opts.height if provided, otherwise height is automatically determined.
-//pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, opts: CellOptions) *BoxWidget {
-//    const y: f32 = self.hsi.viewport.y;
-//    //const parent_rect = self.scroll.data().contentRect();
-//
-//    const header_height: f32 = height: {
-//        if (opts.height) |height| {
-//            break :height height;
-//        } else {
-//            break :height if (self.resizing) 0 else self.header_height;
-//        }
-//    };
-//    var cell_opts = opts.toOptions();
-//    const xpos = sumSlice(self.init_opts.col_widths.?[0..self.col_num]);
-//    cell_opts.rect = .{ .x = xpos, .y = y, .w = self.init_opts.col_widths.?[self.col_num], .h = header_height };
-//    //std.debug.print("header rect = {}\n", .{cell_opts.rect.?});
-//
-//    // Create the cell and install as parent.
-//    var cell = dvui.widgetAlloc(BoxWidget);
-//    cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
-//    cell.install();
-//    cell.drawBackground();
-//
-//    // Determine heights for next frame.
-//    if (cell.data().contentRect().h > 0) {
-//        const height = cell.data().rect.h;
-//        self.header_height = @max(self.header_height, height);
-//    }
-//    //self.next_row_y += self.header_height;
-//    return cell;
-//}
-//
 pub fn sumSlice(slice: anytype) @TypeOf(slice[0]) {
     var total: @TypeOf(slice[0]) = 0;
     for (slice) |item| {
@@ -583,52 +403,15 @@ pub fn sumSlice(slice: anytype) @TypeOf(slice[0]) {
     return total;
 }
 
-/// Create a new body cell within a column
-/// Returns a hbox. deinit() must be called on this hbox before creating a new cell.
-/// Height is taken from opts.height if provided, otherwise height is automatically determined.
-//pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, row_num: usize, opts: CellOptions) *BoxWidget {
-//    const cell_height: f32 = height: {
-//        if (opts.height) |height| {
-//            break :height height;
-//        } else {
-//            break :height if (self.resizing) 0 else self.row_height;
-//        }
-//    };
-//
-//    // Prevent the header from being overwritten when scrolling.
-//    const xpos = sumSlice(self.init_opts.col_widths.?[0..self.col_num]);
-//    var cell_opts = opts.toOptions();
-//    cell_opts.rect = .{ .x = xpos, .y = self.next_row_y, .w = self.init_opts.col_widths.?[self.col_num], .h = cell_height };
-//    //    std.debug.print("body rect = {}\n", .{cell_opts.rect.?});
-//
-//    cell_opts.id_extra = row_num;
-//
-//    var cell = dvui.widgetAlloc(BoxWidget);
-//    cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
-//    cell.install();
-//    cell.drawBackground();
-//
-//    if (cell.data().contentRect().h > 0) {
-//        const measured_cell_height = cell.data().rect.h;
-//        self.row_height = @max(self.row_height, measured_cell_height);
-//    }
-//
-//    // If user provided a height, use that to position the next row, otherwise use the
-//    // calculated row_height.
-//    self.next_row_y += opts.height orelse self.row_height;
-//
-//    return cell;
-//}
-
 pub fn bodyCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
     self.max_col = @max(self.max_col, col_num);
     self.max_row = @max(self.max_row, row_num);
     if (self.bscroll == null) {
-        self.columnBody2(src, col_num, .{});
+        self.columnBody2(src, col_num);
     }
     const cell_height: f32 = height: {
-        if (opts.height) |height| {
-            break :height height;
+        if (opts.height() > 0) {
+            break :height opts.height();
         } else {
             break :height if (self.resizing) 0 else self.row_height;
         }
@@ -651,7 +434,6 @@ pub fn bodyCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: us
         const measured_cell_height = cell.data().rect.h;
         self.row_height = @max(self.row_height, measured_cell_height);
     }
-
     // If user provided a height, use that to position the next row, otherwise use the
     // calculated row_height.
     //self.next_row_y += opts.height orelse self.row_height;
