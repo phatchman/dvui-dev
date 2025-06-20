@@ -105,7 +105,10 @@ fn gui_frame() void {
     }
     var hbox = dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer hbox.deinit();
-    var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
+    // var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
+    //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
+    var grid = dvui.grid(@src(), .{ .col_widths = &col_widths }, .{ .expand = .both });
+    //var grid = dvui.grid(@src(), .{}, .{ .expand = .both });
     defer grid.deinit();
     const CellStyle = dvui.GridWidget.CellStyle;
     if (false) {
