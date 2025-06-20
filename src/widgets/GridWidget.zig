@@ -6,6 +6,11 @@
 // 4) Need to always use a col_info or similar to store the col widths so that the header widths and body widths can be kept in sync. But *only* the body can set widths in that case?
 // 5) Probably just need to get rid of the vboxes altogether.. maybe that is the first step?
 
+// TODO: We don't currently support ".expand" (i.e. when no width is provided) because we were relying on vboxes for that.
+// So either need to re-implement the .expand or make that the user's responsiblity?
+// TODO: How to set column width (outside of col_widths) if we get rid of the column() functions? Add it to the cell options???
+//    - Can it only be set on a header or body or?
+
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
@@ -191,17 +196,6 @@ pub fn deinit(self: *GridWidget) void {
     defer dvui.widgetFree(self);
     self.clipReset();
 
-    // TODO: Would rather do this by reporting widget sizes, but can't get that to work yet.
-    // Also this won't interact will with virtual scrolling, which will want to set its own height.
-    //    if (self.hscroll) |_| {
-    //        self.hsi.virtual_size.h = self.header_height;
-    //        self.hsi.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]) + 100;
-    //    }
-    //    if (self.bscroll) |bscroll| {
-    //        bscroll.si.virtual_size.h = self.next_row_y;
-    //        bscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
-    //    }
-
     // resizing if row heights changed or a resize was requested via init options.
     self.resizing =
         self.init_opts.resize_rows or
@@ -245,11 +239,9 @@ pub const GridColumn = struct {
 /// It is recommended that widths are provided for all columns.
 pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColOptions) GridColumn {
     _ = src;
-    //self.clipReset();
     self.current_col = null;
 
     self.col_num +%= 1; // maxint wraps to 0 for first col.
-    //self.next_row_y = self.rows_y_offset;
     if (self.hscroll == null) {
         self.hsi = .{
             .horizontal = .given,
@@ -276,7 +268,6 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
             .expand = .horizontal,
             .min_size_content = .{
                 .h = self.header_height,
-                // TODO: Width doesn't seem to affect.
                 .w = sumSlice(self.init_opts.col_widths.?[0..]),
             },
         });
@@ -307,14 +298,8 @@ pub fn columnHeader(self: *GridWidget, src: std.builtin.SourceLocation, opts: Co
             }
         }
     };
-    var col_opts = opts.toOptions();
-    col_opts.expand = expand;
-    col_opts.min_size_content = .{ .w = w, .h = self.header_height };
-    col_opts.max_size_content = if (w > 0) .width(w) else null;
-    col_opts.id_extra = self.col_num;
-    // TODO: Nothing happens with col_opts now.
-
-    self.current_col = null;
+    _ = expand;
+    _ = w;
     return .{};
 }
 
@@ -328,8 +313,11 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
         self.col_num = std.math.maxInt(usize);
     }
     if (self.bscroll == null) {
-        self.bscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
+        self.bscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{
+            .name = "GridWidgetScrollArea",
+        });
         self.bscroll.?.install();
+        // Use this box to set the size of the scrollable area.
         self.bbox = BoxWidget.init(
             @src(),
             .{ .dir = .horizontal },
@@ -375,6 +363,8 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
     col_opts.max_size_content = if (w > 0) .width(w) else null;
     col_opts.id_extra = self.col_num;
     // TODO: Nothing happens with col_opts now.
+    // How to set column width if get rid of the column() functions? Add it to the cell options???
+    //
 
     self.current_col = null;
     return .{};

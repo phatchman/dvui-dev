@@ -91,7 +91,7 @@ pub fn main() !void {
 }
 
 var col_widths: [2]f32 = .{ 500, 500 };
-var scroll_info: dvui.ScrollInfo = .{ .horizontal = .given, .vertical = .given };
+var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto };
 // both dvui and SDL drawing
 fn gui_frame() void {
     {
