@@ -108,38 +108,46 @@ fn gui_frame() void {
     var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     defer grid.deinit();
     const CellStyle = dvui.GridWidget.CellStyle;
-    {
-        dvui.gridHeading(@src(), grid, "Col 2", 1, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
-    }
-    {
-        dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green } });
-
-        for (1..15) |i| {
-            var cell = grid.bodyCell2(@src(), 1, i - 1, .{});
+    if (false) {
+        for (0..2) |i| {
+            var cell = grid.bodyCell2(@src(), i, 0, .{});
             defer cell.deinit();
-            dvui.label(@src(), "0:{}", .{i}, .{ .gravity_x = 0.5 });
+            dvui.label(@src(), "{}", .{i}, .{});
         }
-    }
-
-    {
-        for (1..15) |i| {
-            var cell = grid.bodyCell2(@src(), 0, i - 1, .{});
-            defer cell.deinit();
-            dvui.label(@src(), "1:{}", .{i}, .{ .gravity_x = 0.5 });
+    } else {
+        {
+            dvui.gridHeading(@src(), grid, "Col 2", 1, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
         }
-    }
+        {
+            dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green } });
 
-    {
-        for (15..30) |i| {
-            {
-                var cell = grid.bodyCell2(@src(), 0, 43 - i, .{});
+            for (1..15) |i| {
+                var cell = grid.bodyCell2(@src(), 1, i - 1, .{});
                 defer cell.deinit();
-                dvui.label(@src(), "0:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+                dvui.label(@src(), "1:{}", .{i}, .{ .gravity_x = 0.5 });
             }
-            {
-                var cell = grid.bodyCell2(@src(), 1, 43 - i, .{});
+        }
+
+        {
+            for (1..15) |i| {
+                var cell = grid.bodyCell2(@src(), 0, i - 1, .{});
                 defer cell.deinit();
-                dvui.label(@src(), "1:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+                dvui.label(@src(), "0:{}", .{i}, .{ .gravity_x = 0.5 });
+            }
+        }
+
+        {
+            for (15..30) |i| {
+                {
+                    var cell = grid.bodyCell2(@src(), 0, 43 - i, .{});
+                    defer cell.deinit();
+                    dvui.label(@src(), "0:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+                }
+                {
+                    var cell = grid.bodyCell2(@src(), 1, 43 - i, .{});
+                    defer cell.deinit();
+                    dvui.label(@src(), "1:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+                }
             }
         }
     }
