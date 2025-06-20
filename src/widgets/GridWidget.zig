@@ -339,7 +339,6 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
                 .expand = .both,
             },
         );
-        std.debug.print("bbox = {}\n", .{self.bbox.data().rect});
         self.bbox.install();
     }
 
