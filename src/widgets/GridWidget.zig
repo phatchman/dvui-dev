@@ -127,6 +127,7 @@ pub const default_col_width: f32 = 100;
 vbox: BoxWidget = undefined,
 hscroll: ?ScrollAreaWidget = null,
 bscroll: ?ScrollAreaWidget = null,
+bbox: BoxWidget = undefined,
 hsi: ScrollInfo = undefined,
 si: ScrollInfo = undefined,
 init_opts: InitOpts = undefined,
@@ -196,10 +197,10 @@ pub fn deinit(self: *GridWidget) void {
     //        self.hsi.virtual_size.h = self.header_height;
     //        self.hsi.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]) + 100;
     //    }
-    if (self.bscroll) |bscroll| {
-        bscroll.si.virtual_size.h = self.next_row_y;
-        bscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
-    }
+    //    if (self.bscroll) |bscroll| {
+    //        bscroll.si.virtual_size.h = self.next_row_y;
+    //        bscroll.si.virtual_size.w = sumSlice(self.init_opts.col_widths.?[0..]);
+    //    }
 
     // resizing if row heights changed or a resize was requested via init options.
     self.resizing =
@@ -217,6 +218,7 @@ pub fn deinit(self: *GridWidget) void {
         hscroll.deinit();
     }
     if (self.bscroll) |*bscroll| {
+        self.bbox.deinit();
         bscroll.deinit();
     }
 
@@ -232,8 +234,6 @@ pub const GridColumn = struct {
     //
     pub fn deinit(_: GridColumn) void {}
 };
-
-// TODO: Split out the si's and store them separately.
 
 /// Start a new grid column.
 /// Returns a vbox.
@@ -330,6 +330,17 @@ pub fn columnBody(self: *GridWidget, src: std.builtin.SourceLocation, opts: ColO
     if (self.bscroll == null) {
         self.bscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{ .name = "GridWidgetScrollArea", .expand = .both });
         self.bscroll.?.install();
+        self.bbox = BoxWidget.init(
+            @src(),
+            .{ .dir = .horizontal },
+            .{
+                .min_size_content = .{ .h = 1000, .w = sumSlice(self.init_opts.col_widths.?[0..]) }, // TODO: assumes col_widths
+                .max_size_content = .{ .h = 1000, .w = sumSlice(self.init_opts.col_widths.?[0..]) },
+                .expand = .both,
+            },
+        );
+        std.debug.print("bbox = {}\n", .{self.bbox.data().rect});
+        self.bbox.install();
     }
 
     self.col_num +%= 1; // maxint wraps to 0 for first col.

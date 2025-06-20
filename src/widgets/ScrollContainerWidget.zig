@@ -542,7 +542,7 @@ pub fn processEventsAfter(self: *ScrollContainerWidget) void {
 var frame_count: usize = 0;
 pub fn deinit(self: *ScrollContainerWidget) void {
     defer frame_count += 1;
-    std.debug.print("deinit: {}:{x} - si.viewport = {}\n", .{ frame_count / 2, self.wd.id, self.si.viewport });
+    //std.debug.print("deinit: {}:{x} - si.viewport = {}\n", .{ frame_count / 2, self.wd.id, self.si.viewport });
 
     defer dvui.widgetFree(self);
     self.processEventsAfter();
