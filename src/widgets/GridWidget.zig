@@ -152,6 +152,7 @@ resizing: bool = false,
 rows_y_offset: f32 = 0,
 max_row: usize = 0,
 max_col: usize = 0,
+fixed_viewport: Point = undefined,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) GridWidget {
     var self = GridWidget{};
@@ -177,6 +178,13 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     if (dvui.dataGet(null, self.data().id, "_sort_direction", SortDirection)) |sort_direction| {
         self.sort_direction = sort_direction;
     }
+    if (dvui.dataGet(null, self.data().id, "_hsi", ScrollInfo)) |hsi| {
+        self.hsi = hsi;
+    } else {
+        // TODO: Set any sizes here?
+        self.hsi = .{ .horizontal = .auto, .vertical = .none };
+    }
+    self.fixed_viewport = self.init_opts.scroll_opts.?.scroll_info.?.viewport.topLeft();
     // Ensure resize on first initialization.
     if (self.last_height == 0) {
         self.resizing = true;
@@ -199,6 +207,7 @@ pub fn install(self: *GridWidget) void {
 pub fn deinit(self: *GridWidget) void {
     defer self.* = undefined;
     defer dvui.widgetFree(self);
+    if (self.hsi.viewport.x != self.fixed_viewport.x) self.hsi.viewport.x = self.si.viewport.x;
 
     // resizing if row heights changed or a resize was requested via init options.
     self.resizing =
@@ -213,6 +222,7 @@ pub fn deinit(self: *GridWidget) void {
     dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
     dvui.dataSet(null, self.data().id, "_sort_col", self.sort_col_number);
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
+    dvui.dataSet(null, self.data().id, "_hsi", self.hsi);
 
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
@@ -312,26 +322,26 @@ pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num
     _ = src;
     self.max_col = @max(self.max_col, col_num);
     if (self.hscroll == null) {
-        self.hsi = .{
-            .horizontal = .given,
-            .vertical = .given,
-            .virtual_size = .{
-                .h = self.header_height,
-                .w = self.si.virtual_size.w,
-            },
-            .viewport = .{
-                .h = self.header_height,
-                .w = self.si.viewport.w,
-                .x = self.si.viewport.x,
-                .y = 0,
-            },
-        };
+        //        self.hsi = .{
+        //            .horizontal = .given,
+        //            .vertical = .given,
+        //            .virtual_size = .{
+        //                .h = self.header_height,
+        //                .w = self.si.virtual_size.w,
+        //            },
+        //            .viewport = .{
+        //                .h = self.header_height,
+        //                .w = self.si.viewport.w,
+        //                .x = self.si.viewport.x,
+        //                .y = 0,
+        //            },
+        //        };
 
         self.hscroll = ScrollAreaWidget.init(@src(), .{
             .horizontal_bar = .hide,
             .vertical_bar = .show,
             .scroll_info = &self.hsi,
-            .follower = true,
+            .frame_viewport = .{ .x = self.fixed_viewport.x },
         }, .{
             .name = "GridWidgetHeaderScrollArea",
             .expand = .horizontal,
@@ -446,10 +456,15 @@ pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
         hscroll.deinit();
         self.hscroll = null;
     }
+    self.init_opts.scroll_opts.?.frame_viewport = self.fixed_viewport;
     if (self.bscroll == null) {
-        self.bscroll = ScrollAreaWidget.init(@src(), self.init_opts.scroll_opts orelse .{}, .{
-            .name = "GridWidgetScrollArea",
-        });
+        self.bscroll = ScrollAreaWidget.init(
+            @src(),
+            self.init_opts.scroll_opts orelse unreachable,
+            .{
+                .name = "GridWidgetScrollArea",
+            },
+        );
         self.bscroll.?.install();
         // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
         self.bbox = BoxWidget.init(
