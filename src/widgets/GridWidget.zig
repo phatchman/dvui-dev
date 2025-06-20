@@ -27,6 +27,7 @@ const WidgetData = dvui.WidgetData;
 const Event = dvui.Event;
 const BoxWidget = dvui.BoxWidget;
 const ScrollAreaWidget = dvui.ScrollAreaWidget;
+const ScrollContainerWidget = dvui.ScrollContainerWidget;
 const ScrollBarWidget = dvui.ScrollBarWidget;
 
 pub const CellStyle = @import("GridWidget/CellStyle.zig");
@@ -42,36 +43,6 @@ pub var defaults: Options = .{
 
 pub var scrollbar_padding_defaults: Size = .{ .h = 10, .w = 10 };
 
-//pub const ColOptions = struct {
-//    width: ?f32 = null,
-//    border: ?Rect = null,
-//    background: ?bool = null,
-//    color_fill: ?ColorOrName = null,
-//    color_border: ?ColorOrName = null,
-//
-//    pub fn toOptions(self: *const ColOptions) Options {
-//        return .{
-//            // height is not converted
-//            .border = self.border,
-//            .background = self.background,
-//            .color_fill = self.color_fill,
-//            .color_border = self.color_border,
-//        };
-//    }
-//
-//    pub fn override(self: *const ColOptions, over: CellOptions) ColOptions {
-//        var ret = self.*;
-//
-//        inline for (@typeInfo(ColOptions).@"struct".fields) |f| {
-//            if (@field(over, f.name)) |fval| {
-//                @field(ret, f.name) = fval;
-//            }
-//        }
-//
-//        return ret;
-//    }
-//};
-//
 pub const CellOptions = struct {
     // Manually control height or width
     // height must be consistent for all columns in a row
@@ -146,11 +117,12 @@ pub const InitOpts = struct {
 pub const default_col_width: f32 = 100;
 
 vbox: BoxWidget = undefined,
+scroll: ScrollAreaWidget = undefined,
 hscroll: ?ScrollAreaWidget = null,
-bscroll: ?ScrollAreaWidget = null,
+bscroll: ?ScrollContainerWidget = undefined,
 bbox: BoxWidget = undefined,
 hsi: ScrollInfo = undefined,
-si: ScrollInfo = undefined,
+//si: ScrollInfo = undefined,
 init_opts: InitOpts = undefined,
 last_height: f32 = 0,
 header_height: f32 = 0,
@@ -195,7 +167,9 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
         // TODO: Set any sizes here?
         self.hsi = .{ .horizontal = .auto, .vertical = .none };
     }
-    self.fixed_viewport = self.init_opts.scroll_opts.?.scroll_info.?.viewport.topLeft();
+    self.fixed_viewport = self.init_opts.scroll_opts.?.scroll_info.?.viewport.topLeft(); // TODO:
+    self.init_opts.scroll_opts.?.frame_viewport = self.fixed_viewport; // TODO:
+
     // Ensure resize on first initialization.
     if (self.last_height == 0) {
         self.resizing = true;
@@ -212,13 +186,22 @@ pub fn install(self: *GridWidget) void {
     self.vbox.install();
     self.vbox.drawBackground();
 
-    self.si = self.init_opts.scroll_opts.?.scroll_info.?.*; // TODO: FIX Assumes scroll_info. Prob move to init.
+    self.init_opts.scroll_opts.?.frame_viewport = self.fixed_viewport; // TODO:
+    self.scroll = ScrollAreaWidget.init(
+        @src(),
+        self.init_opts.scroll_opts orelse unreachable,
+        .{
+            .name = "GridWidgetScrollArea",
+        },
+    );
+    self.scroll.installScrollBars();
 }
 
 pub fn deinit(self: *GridWidget) void {
     defer self.* = undefined;
     defer dvui.widgetFree(self);
-    if (self.hsi.viewport.x != self.fixed_viewport.x) self.hsi.viewport.x = self.si.viewport.x;
+
+    if (self.hsi.viewport.x != self.fixed_viewport.x) self.hsi.viewport.x = self.init_opts.scroll_opts.?.scroll_info.?.viewport.x; // TODO
 
     // resizing if row heights changed or a resize was requested via init options.
     self.resizing =
@@ -238,11 +221,13 @@ pub fn deinit(self: *GridWidget) void {
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
     }
+
+    // TODO: Is this bbox guaranteed to exit?
     if (self.bscroll) |*bscroll| {
         self.bbox.deinit();
         bscroll.deinit();
     }
-
+    self.scroll.deinit();
     self.vbox.deinit();
 }
 
@@ -304,23 +289,25 @@ pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num
 }
 
 pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize) void {
-    _ = src;
     self.max_col = @max(self.max_col, col_num);
 
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
         self.hscroll = null;
     }
-    self.init_opts.scroll_opts.?.frame_viewport = self.fixed_viewport;
     if (self.bscroll == null) {
-        self.bscroll = ScrollAreaWidget.init(
-            @src(),
-            self.init_opts.scroll_opts orelse unreachable,
+        self.bscroll = ScrollContainerWidget.init(
+            src,
+            self.init_opts.scroll_opts.?.scroll_info.?,
+            .{ .frame_viewport = self.fixed_viewport },
             .{
-                .name = "GridWidgetScrollArea",
+                .name = "GridWidgetScrollContainer",
             },
-        );
+        ); // TODO:
+
         self.bscroll.?.install();
+        self.bscroll.?.processEvents();
+        self.bscroll.?.processVelocity();
         // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
         self.bbox = BoxWidget.init(
             @src(),
@@ -370,6 +357,10 @@ pub fn headerCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
     if (self.hscroll == null) {
         self.columnHeader2(src, col_num);
     }
+    // TODO: allow setting the header_width as well.
+    // It should update col_info with that width????
+    // Not sure? Because what if different widths per col. when dealing with the body Just set it to the max width I suppose?
+
     const header_height: f32 = height: {
         if (opts.height() > 0) {
             break :height opts.height();
@@ -429,7 +420,6 @@ pub fn bodyCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: us
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
     cell.install();
     cell.drawBackground();
-
     if (cell.data().contentRect().h > 0) {
         const measured_cell_height = cell.data().rect.h;
         self.row_height = @max(self.row_height, measured_cell_height);
