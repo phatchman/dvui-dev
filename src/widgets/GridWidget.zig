@@ -3,6 +3,7 @@
 // So either need to re-implement the .expand or make that the user's responsiblity?
 // TODO: How to set column width (outside of col_widths) if we get rid of the column() functions? Add it to the cell options???
 //    - Can it only be set on a header or body or?
+// TODO: If col widths allocation fails, then just return the default col width if that column doesn't exist.
 
 const std = @import("std");
 const dvui = @import("../dvui.zig");
@@ -268,7 +269,7 @@ fn extendColIfRequired(self: *GridWidget, col_num: usize) void {
     if (self.init_opts.col_widths) |col_widths| {
         std.debug.assert(col_num < col_widths.len);
     } else if (col_num >= self.col_widths_store.items.len) {
-        self.col_widths_store.appendNTimes(dvui.currentWindow().arena(), 0, col_num + 1 - self.col_widths_store.items.len) catch {}; // TODO:
+        self.col_widths_store.appendNTimes(dvui.currentWindow().arena(), default_col_width, col_num + 1 - self.col_widths_store.items.len) catch {}; // TODO:
         self.col_widths = self.col_widths_store.items;
     }
 }
