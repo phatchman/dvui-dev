@@ -556,7 +556,7 @@ pub const VirtualScroller = struct {
         const end_padding = total_rows_f / 100_000;
         si.virtual_size.h = @max(total_rows_f * grid.row_height + scrollbar_padding_defaults.h + end_padding, si.viewport.h);
 
-        const first_row: f32 = @floatFromInt(_startRow(grid, si, init_opts.total_rows));
+        const first_row: f32 = @floatFromInt(_startRow(grid, init_opts.total_rows));
         grid.offsetRowsBy(first_row * grid.row_height);
         return .{
             .grid = grid,
@@ -565,13 +565,12 @@ pub const VirtualScroller = struct {
         };
     }
 
-    fn _startRow(grid: *const GridWidget, si: *ScrollInfo, total_rows: usize) usize {
-        _ = si;
+    fn _startRow(grid: *const GridWidget, total_rows: usize) usize {
         if (grid.row_height < 1) {
             return 0;
         }
-        //const first_row_in_viewport: usize = @intFromFloat(@round(si.viewport.y / grid.row_height));
         const first_row_in_viewport: usize = @intFromFloat(@round(grid.frame_viewport.y / grid.row_height));
+
         if (first_row_in_viewport == 0) {
             return 0;
         }
@@ -579,7 +578,7 @@ pub const VirtualScroller = struct {
     }
     /// Return the first row to render (inclusive)
     pub fn startRow(self: *const VirtualScroller) usize {
-        return _startRow(self.grid, self.si, self.total_rows);
+        return _startRow(self.grid, self.total_rows);
     }
 
     /// Return the end row to render (exclusive)
