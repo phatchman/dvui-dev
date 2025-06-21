@@ -108,57 +108,59 @@ fn gui_frame() void {
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths }, .{ .expand = .both });
-    var grid = dvui.grid(@src(), .{ .resize_cols = resize_cols, .cols = .{ .num = 2 } }, .{ .expand = .both });
-    defer grid.deinit();
-    resize_cols = false;
-    const CellStyle = dvui.GridWidget.CellStyle;
-    if (false) {
-        for (0..2) |i| {
-            var cell = grid.bodyCell(@src(), i, 0, .{});
-            defer cell.deinit();
-            dvui.label(@src(), "{}", .{i}, .{});
-        }
-    } else {
-        {
-            dvui.gridHeading(@src(), grid, "Col 2", 1, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
-        }
-        {
-            dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green, .size = .{ .w = 500 } } });
-
-            for (1..15) |i| {
-                const size: ?dvui.Size = if (stepped) .{ .w = @as(f32, @floatFromInt(i * 20)) } else null;
-                var cell = grid.bodyCell(@src(), 1, i - 1, .{ .size = size, .background = true, .color_fill = .fill_hover });
-                //var cell = grid.bodyCell(@src(), 1, i - 1, .{ .background = true, .color_fill = .fill_hover });
+    {
+        var grid = dvui.grid(@src(), .{ .resize_cols = resize_cols, .cols = .{ .num = 2 } }, .{ .expand = .both });
+        defer grid.deinit();
+        resize_cols = false;
+        const CellStyle = dvui.GridWidget.CellStyle;
+        if (false) {
+            for (0..2) |i| {
+                var cell = grid.bodyCell(@src(), i, 0, .{});
                 defer cell.deinit();
-                dvui.label(@src(), "1:{}", .{i}, .{ .gravity_x = 0.5 });
+                dvui.label(@src(), "{}", .{i}, .{});
             }
-        }
-
-        {
-            for (1..15) |i| {
-                var cell = grid.bodyCell(@src(), 0, i - 1, .{});
-                defer cell.deinit();
-                dvui.label(@src(), "0:{}", .{i}, .{ .gravity_x = 0.5 });
+        } else {
+            {
+                dvui.gridHeading(@src(), grid, "Col 2", 1, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
             }
-        }
+            {
+                dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green, .size = .{ .w = 500 } } });
 
-        {
-            for (15..30) |i| {
-                {
-                    var cell = grid.bodyCell(@src(), 0, 43 - i, .{});
+                for (1..15) |i| {
+                    const size: ?dvui.Size = if (stepped) .{ .w = @as(f32, @floatFromInt(i * 20)) } else null;
+                    var cell = grid.bodyCell(@src(), 1, i - 1, .{ .size = size, .background = true, .color_fill = .fill_hover });
+                    //var cell = grid.bodyCell(@src(), 1, i - 1, .{ .background = true, .color_fill = .fill_hover });
                     defer cell.deinit();
-                    dvui.label(@src(), "0:{}", .{44 - i}, .{ .gravity_x = 0.5 });
-                }
-                {
-                    var cell = grid.bodyCell(@src(), 1, 43 - i, .{ .background = true, .color_fill = .fill_hover });
-                    defer cell.deinit();
-                    dvui.label(@src(), "1:{}", .{44 - i}, .{ .gravity_x = 0.5 });
+                    dvui.label(@src(), "1:{}", .{i}, .{ .gravity_x = 0.5 });
                 }
             }
+
+            {
+                for (1..15) |i| {
+                    var cell = grid.bodyCell(@src(), 0, i - 1, .{});
+                    defer cell.deinit();
+                    dvui.label(@src(), "0:{}", .{i}, .{ .gravity_x = 0.5 });
+                }
+            }
+
+            {
+                for (15..30) |i| {
+                    {
+                        var cell = grid.bodyCell(@src(), 0, 43 - i, .{});
+                        defer cell.deinit();
+                        dvui.label(@src(), "0:{}", .{44 - i}, .{ .gravity_x = 0.5 });
+                    }
+                    {
+                        var cell = grid.bodyCell(@src(), 1, 43 - i, .{ .background = true, .color_fill = .fill_hover });
+                        defer cell.deinit();
+                        dvui.label(@src(), "1:{}", .{44 - i}, .{ .gravity_x = 0.5 });
+                    }
+                }
+            }
         }
+        _ = dvui.checkbox(@src(), &stepped, "Stepped?", .{});
+        _ = dvui.checkbox(@src(), &resize_cols, "Resize Cols?", .{});
     }
-    _ = dvui.checkbox(@src(), &stepped, "Stepped?", .{});
-    _ = dvui.checkbox(@src(), &resize_cols, "Resize Cols?", .{});
 }
 
 var stepped = false;

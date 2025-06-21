@@ -239,6 +239,7 @@ pub fn install(self: *GridWidget) void {
         scroll_opts,
         .{
             .name = "GridWidgetScrollArea",
+            .expand = .both,
         },
     );
     self.scroll.installScrollBars();
@@ -336,6 +337,7 @@ pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocat
             .{ .frame_viewport = self.frame_viewport },
             .{
                 .name = "GridWidgetScrollContainer",
+                .expand = .both,
             },
         ); // TODO:
 
@@ -449,7 +451,6 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     // TODO: Should prob warn here that row height always required with var row heights.
     const ypos = if (self.init_opts.var_row_heights) self.next_row_y else self.row_height * row_num_f; // TODO: log error here.
     var cell_opts = opts.toOptions();
-    // TODO: This doesn't work for variable sized-rows. It needs to either be sequential using next_row_y or based on row_heights.
     cell_opts.rect = .{ .x = xpos, .y = ypos, .w = cell_width, .h = cell_height };
 
     // To support being called in a loop, combine col and row numbers as id_extra.
@@ -464,10 +465,8 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
         const cell_size = cell.data().rect.size();
         self.colWidthSet(col_num, cell_size.w);
         self.row_height = @max(self.row_height, cell_size.h);
-        std.debug.print("size = {}\n", .{cell_size});
     }
     self.next_row_y += opts.height();
-    std.debug.print("nr_y = {d}\n", .{self.next_row_y});
 
     return cell;
 }
