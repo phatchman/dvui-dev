@@ -5,7 +5,7 @@
 // TODO: set the col_widths struct if the widdth param is passed to a cell. Also the .expand handling if width is 0.
 // TODO: Variable row heights and next_row_y - style layouts
 // TODO: Passing mouse scroll events from header to body
-// TODO:
+// TODO: Turn row and col num into a Cell-Co-ords type? We're now always using them in pairs.
 
 const std = @import("std");
 const dvui = @import("../dvui.zig");
@@ -471,7 +471,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
 
     // To support being called in a loop, combine col and row numbers as id_extra.
     // 9_223_372_036_854_775K cols should be enough for anyone.
-    cell_opts.id_extra = col_num * std.math.maxInt(usize) / 2 + row_num;
+    cell_opts.id_extra = (col_num << @bitSizeOf(usize) / 2) + row_num;
 
     var cell = dvui.widgetAlloc(BoxWidget);
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
@@ -509,26 +509,26 @@ pub fn pointToBodyRelative(self: *GridWidget, point: Point.Physical) ?Point {
 }
 
 /// Set the grid's sort order when manually managing column sorting.
-pub fn colSortSet(self: *GridWidget, dir: SortDirection) void {
-    self.sort_col_number = self.col_num;
+pub fn colSortSet(self: *GridWidget, col_num: usize, dir: SortDirection) void {
+    self.sort_col_number = col_num;
     self.sort_direction = dir;
 }
 
 /// For automatic management of sort order, this must be called whenever
 /// the sort order for any column has changed.
-pub fn sortChanged(self: *GridWidget) void {
+pub fn sortChanged(self: *GridWidget, col_num: usize) void {
     // If sorting on a new column, change current sort column to unsorted.
-    if (self.col_num != self.sort_col_number) {
+    if (col_num != self.sort_col_number) {
         self.sort_direction = .unsorted;
-        self.sort_col_number = self.col_num;
+        self.sort_col_number = col_num;
     }
     // If new sort column, then ascending, otherwise opposite of current sort.
     self.sort_direction = if (self.sort_direction != .ascending) .ascending else .descending;
 }
 
 /// Returns the sort order for the current column.
-pub fn colSortOrder(self: *const GridWidget) SortDirection {
-    if (self.col_num == self.sort_col_number) {
+pub fn colSortOrder(self: *const GridWidget, col_num: usize) SortDirection {
+    if (col_num == self.sort_col_number) {
         return self.sort_direction;
     } else {
         return .unsorted;
