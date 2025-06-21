@@ -6,6 +6,7 @@
 // TODO: Variable row heights and next_row_y - style layouts
 // TODO: Passing mouse scroll events from header to body
 // TODO: Turn row and col num into a Cell-Co-ords type? We're now always using them in pairs.
+// TODO: Fix issue where have to specify col width the the var row height demo. Not sure why that is needed?
 
 const std = @import("std");
 const dvui = @import("../dvui.zig");
@@ -135,7 +136,7 @@ sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
 saved_clip_rect: ?Rect.Physical = null,
 resizing: bool = false,
-rows_y_offset: f32 = 0,
+//rows_y_offset: f32 = 0,
 max_row: usize = 0,
 frame_viewport: Point = undefined,
 col_widths_store: std.ArrayListUnmanaged(f32) = .empty,
@@ -302,7 +303,7 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
             .expand = .horizontal,
             .min_size_content = .{
                 .h = self.header_height,
-                .w = sumSlice(self.col_widths[0..]),
+                .w = self.totalWidth(),
             },
         });
         self.hscroll.?.install();
@@ -331,6 +332,7 @@ pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocat
     }
 
     if (self.bscroll == null) {
+        //self.next_row_y = self.rows_y_offset;
         self.bscroll = ScrollContainerWidget.init(
             src,
             self.bsi,
@@ -345,7 +347,7 @@ pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocat
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
         // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
-        const w = sumSlice(self.col_widths[0..]);
+        const w = self.totalWidth();
         self.bbox = BoxWidget.init(
             @src(),
             .{ .dir = .horizontal },
@@ -400,7 +402,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
         }
     };
     var cell_opts = opts.toOptions();
-    const xpos = sumSlice(self.col_widths[0..col_num]);
+    const xpos = self.posX(col_num);
     cell_opts.rect = .{ .x = xpos, .y = 0, .w = header_width, .h = header_height };
 
     // Create the cell and install as parent.
@@ -418,10 +420,19 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     return cell;
 }
 
-pub fn sumSlice(slice: anytype) @TypeOf(slice[0]) {
-    var total: @TypeOf(slice[0]) = 0;
-    for (slice) |item| {
-        total += item;
+pub fn posX(self: *GridWidget, col_num: usize) f32 {
+    const end = @min(col_num, self.col_widths.len);
+    var total: f32 = 0;
+    for (self.col_widths[0..end]) |w| {
+        total += w;
+    }
+    return total;
+}
+
+pub fn totalWidth(self: *GridWidget) f32 {
+    var total: f32 = 0;
+    for (self.col_widths) |w| {
+        total += w;
     }
     return total;
 }
@@ -447,9 +458,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     };
 
     const row_num_f: f32 = @floatFromInt(row_num);
-    const xpos = sumSlice(self.col_widths[0..col_num]);
-    // TODO: Should prob warn here that row height always required with var row heights.
-    const ypos = if (self.init_opts.var_row_heights) self.next_row_y else self.row_height * row_num_f; // TODO: log error here.
+    const xpos = self.posX(col_num);
+    const ypos = if (self.init_opts.var_row_heights) self.next_row_y else self.row_height * row_num_f;
+    //    const ypos = ypos_rel + self.rows_y_offset;
+    //if (row_num == 10) std.debug.print("ypos_rel = {d}, y_pos = {d}, y_offset = {d}\n", .{ ypos_rel, ypos, self.rows_y_offset });
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = xpos, .y = ypos, .w = cell_width, .h = cell_height };
 
@@ -471,10 +483,13 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     return cell;
 }
 
+// TODO: Does this get removed? Whjat about for var row heights?
 /// Set the starting y value to begin rendering rows.
 /// Used for setting the y location of the first row when virtual scrolling.
 pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
-    self.rows_y_offset = offset;
+    //self.rows_y_offset = offset;
+    _ = offset;
+    _ = self;
 }
 
 /// Converts a physical point (e.g. a mouse position) into a logical point
@@ -551,10 +566,12 @@ pub const VirtualScroller = struct {
     }
 
     fn _startRow(grid: *const GridWidget, si: *ScrollInfo, total_rows: usize) usize {
+        _ = si;
         if (grid.row_height < 1) {
             return 0;
         }
-        const first_row_in_viewport: usize = @intFromFloat(@round(si.viewport.y / grid.row_height));
+        //const first_row_in_viewport: usize = @intFromFloat(@round(si.viewport.y / grid.row_height));
+        const first_row_in_viewport: usize = @intFromFloat(@round(grid.frame_viewport.y / grid.row_height));
         if (first_row_in_viewport == 0) {
             return 0;
         }
@@ -572,7 +589,8 @@ pub const VirtualScroller = struct {
             if (self.grid.row_height < 1)
                 0
             else
-                @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.grid.row_height));
+                @intFromFloat(@round((self.grid.frame_viewport.y + self.si.viewport.h) / self.grid.row_height));
+        //                @intFromFloat(@round((self.si.viewport.y + self.si.viewport.h) / self.grid.row_height));
         return @min(last_row_in_viewport + 1, self.total_rows);
     }
 };

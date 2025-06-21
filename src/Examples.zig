@@ -4552,20 +4552,16 @@ fn gridVirtualScrolling() void {
     dvui.gridHeading(@src(), grid, "Number", 0, .fixed, .{});
     dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, .{});
 
-    // Number column
-    {
-        for (first..last) |num| {
-            var cell = grid.bodyCell(@src(), num, 0, highlight_hovered_1.cellOptions(0, num));
+    for (first..last) |num| {
+        {
+            var cell = grid.bodyCell(@src(), 0, num, highlight_hovered_1.cellOptions(0, num));
             defer cell.deinit();
             dvui.label(@src(), "{d}", .{num}, .{});
         }
-    }
-    // Prime column
-    {
-        const check_img = @embedFile("icons/entypo/check.tvg");
+        {
+            const check_img = @embedFile("icons/entypo/check.tvg");
 
-        for (first..last) |num| {
-            var cell = grid.bodyCell(@src(), num, 1, highlight_hovered_2.cellOptions(1, num));
+            var cell = grid.bodyCell(@src(), 1, num, highlight_hovered_2.cellOptions(1, num));
             defer cell.deinit();
             if (local.isPrime(num)) {
                 dvui.icon(@src(), "Check", check_img, .{}, .{ .gravity_x = 0.5, .gravity_y = 0.5, .background = false });
