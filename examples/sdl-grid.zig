@@ -108,7 +108,7 @@ fn gui_frame() void {
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths }, .{ .expand = .both });
-    var grid = dvui.grid(@src(), .{}, .{ .expand = .both });
+    var grid = dvui.grid(@src(), .{ .cols = .{ .num = 2 } }, .{ .expand = .both });
     defer grid.deinit();
     const CellStyle = dvui.GridWidget.CellStyle;
     if (false) {
@@ -125,7 +125,8 @@ fn gui_frame() void {
             dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green, .size = .{ .w = 500 } } });
 
             for (1..15) |i| {
-                var cell = grid.bodyCell(@src(), 1, i - 1, .{});
+                var cell = grid.bodyCell(@src(), 1, i - 1, .{ .size = .{ .w = @as(f32, @floatFromInt(i * 20)) }, .background = true, .color_fill = .fill_hover });
+                //var cell = grid.bodyCell(@src(), 1, i - 1, .{ .background = true, .color_fill = .fill_hover });
                 defer cell.deinit();
                 dvui.label(@src(), "1:{}", .{i}, .{ .gravity_x = 0.5 });
             }
@@ -144,12 +145,12 @@ fn gui_frame() void {
                 {
                     var cell = grid.bodyCell(@src(), 0, 43 - i, .{});
                     defer cell.deinit();
-                    dvui.label(@src(), "0:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+                    dvui.label(@src(), "0:{}", .{44 - i}, .{ .gravity_x = 0.5 });
                 }
                 {
-                    var cell = grid.bodyCell(@src(), 1, 43 - i, .{ .size = .{ .w = 500 } });
+                    var cell = grid.bodyCell(@src(), 1, 43 - i, .{ .background = true, .color_fill = .fill_hover });
                     defer cell.deinit();
-                    dvui.label(@src(), "1:{}", .{43 - i}, .{ .gravity_x = 0.5 });
+                    dvui.label(@src(), "1:{}", .{44 - i}, .{ .gravity_x = 0.5 });
                 }
             }
         }
