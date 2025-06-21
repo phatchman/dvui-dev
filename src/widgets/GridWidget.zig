@@ -99,9 +99,16 @@ pub const SortDirection = enum {
     }
 };
 
+pub const WidthsOrCount = union(enum) {
+    widths: []f32,
+    num: usize,
+};
+
 pub const InitOpts = struct {
+    // Must supply either the number of columns or a
+    // []f32 containing column widths.
+    cols: WidthsOrCount,
     scroll_opts: ?ScrollAreaWidget.InitOpts = null,
-    col_widths: ?[]f32 = null,
     // Recalculate row heights. Only set this when row heights could have changed, .e.g on column resize.
     resize_rows: bool = false,
     // TODO: Not currently supported.
@@ -131,16 +138,11 @@ saved_clip_rect: ?Rect.Physical = null,
 resizing: bool = false,
 rows_y_offset: f32 = 0,
 max_row: usize = 0,
-// TODO: User might need to specify number of cols as an init_opts,
-// as otherwise we have to dynamically create the col_opts array as max_cols increases.
-max_col: usize = 0,
 frame_viewport: Point = undefined,
 col_widths_store: std.ArrayListUnmanaged(f32) = .empty,
 col_widths: []f32 = undefined,
 
-var frame_count: usize = 0;
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) GridWidget {
-    frame_count += 1;
     var self = GridWidget{};
     self.init_opts = init_opts;
     const options = defaults.override(opts);
@@ -173,9 +175,6 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     if (dvui.dataGet(null, self.data().id, "_default_si", ScrollInfo)) |default_si| {
         self.default_scroll_info = default_si;
     }
-    if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []f32)) |col_widths| {
-        self.col_widths_store.appendSlice(dvui.currentWindow().arena(), col_widths) catch {}; // TODO
-    }
 
     // Ensure resize on first initialization.
     if (self.last_height == 0) {
@@ -189,8 +188,36 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     return self;
 }
 
+var oom_col_width: [1]f32 = .{0};
+
 pub fn install(self: *GridWidget) void {
-    self.col_widths = self.init_opts.col_widths orelse self.col_widths_store.items;
+    blk: {
+        switch (self.init_opts.cols) {
+            .num => |num_cols| {
+                std.debug.print("num\n", .{});
+                if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []f32)) |col_widths| {
+                    if (col_widths.len == num_cols) {
+                        std.debug.print("num, exist\n", .{});
+
+                        self.col_widths = col_widths;
+                        break :blk;
+                    }
+                }
+                std.debug.print("num, not exist: num {}\n", .{num_cols});
+
+                self.col_widths = dvui.currentWindow().arena().alloc(f32, num_cols) catch |err| default: {
+                    dvui.logError(@src(), err, "GridWidget {x} could not allocate column widths", .{self.data().id});
+                    break :default &oom_col_width;
+                };
+                @memset(self.col_widths, default_col_width); // TODO: This should be 0 and then .expand
+                std.debug.print("self.col_widths.len = {}\n", .{self.col_widths.len});
+            },
+            .widths => |col_widths| {
+                self.col_widths = col_widths;
+            },
+        }
+    }
+
     if (self.init_opts.scroll_opts) |*scroll_opts| {
         if (scroll_opts.scroll_info) |scroll_info| {
             self.bsi = scroll_info;
@@ -252,7 +279,9 @@ pub fn deinit(self: *GridWidget) void {
     if (self.bsi == &self.default_scroll_info) {
         dvui.dataSet(null, self.data().id, "_default_si", self.default_scroll_info); // TODO: Can just  be default as well?
     }
-    dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths_store.items);
+    if (self.init_opts.cols == .num) {
+        dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths);
+    }
 
     self.vbox.deinit();
 }
@@ -261,18 +290,7 @@ pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
 }
 
-fn extendColIfRequired(self: *GridWidget, col_num: usize) void {
-    // TODO: Could just check if col_widths == &col_widths_store?
-    if (self.init_opts.col_widths) |col_widths| {
-        std.debug.assert(col_num < col_widths.len);
-    } else if (col_num >= self.col_widths_store.items.len) {
-        self.col_widths_store.appendNTimes(dvui.currentWindow().arena(), default_col_width, col_num + 1 - self.col_widths_store.items.len) catch {}; // TODO:
-        self.col_widths = self.col_widths_store.items;
-    }
-}
-
-fn headerScrollAreaCreate(self: *GridWidget, col_num: usize) void {
-    self.max_col = @max(self.max_col, col_num);
+fn headerScrollAreaCreate(self: *GridWidget) void {
     if (self.hscroll == null) {
         self.hscroll = ScrollAreaWidget.init(@src(), .{
             .horizontal_bar = .hide,
@@ -331,8 +349,7 @@ fn headerScrollAreaCreate(self: *GridWidget, col_num: usize) void {
     //    _ = w;
 }
 
-pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize) void {
-    self.max_col = @max(self.max_col, col_num);
+pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation) void {
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
         self.hscroll = null;
@@ -393,22 +410,32 @@ pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocat
     //    _ = expand;
 }
 
-pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
-    //const parent_rect = self.scroll.data().contentRect();
-    // TODO: check col_num is valid
-    self.extendColIfRequired(col_num); // TODO: This should do max_col as well.
-    self.max_col = @max(self.max_col, col_num);
+pub fn colWidth(self: *GridWidget, col_num: usize) f32 {
+    if (col_num >= self.col_widths.len) {
+        dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} using default col_width\n", .{ self.data().id, col_num, self.col_widths.len });
+        return default_col_width;
+    }
+    return self.col_widths[col_num];
+}
 
+pub fn colWidthSet(self: *GridWidget, col_num: usize, width: f32) void {
+    if (col_num >= self.col_widths.len) {
+        dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} ignoring col_width change\n", .{ self.data().id, col_num, self.col_widths.len });
+        return;
+    }
+    self.col_widths[col_num] = width;
+}
+
+pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
     if (self.hscroll == null) {
         if (self.bscroll != null) {
             dvui.log.debug("GridWidget {x} all header cells must be created before any body cells. Header will be placed in body.\n", .{self.data().id});
         } else {
-            self.headerScrollAreaCreate(col_num);
+            self.headerScrollAreaCreate();
         }
     }
-
     if (opts.width() > 0) {
-        self.col_widths[col_num] = opts.width(); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
+        self.colWidthSet(col_num, opts.width()); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
     }
 
     const header_height: f32 = height: {
@@ -420,7 +447,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     };
     var cell_opts = opts.toOptions();
     const xpos = sumSlice(self.col_widths[0..col_num]);
-    cell_opts.rect = .{ .x = xpos, .y = 0, .w = self.col_widths[col_num], .h = header_height };
+    cell_opts.rect = .{ .x = xpos, .y = 0, .w = self.colWidth(col_num), .h = header_height };
 
     // Create the cell and install as parent.
     var cell = dvui.widgetAlloc(BoxWidget);
@@ -445,14 +472,12 @@ pub fn sumSlice(slice: anytype) @TypeOf(slice[0]) {
 }
 
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
-    self.extendColIfRequired(col_num); // TODO: This should do max_col as well?
-    self.max_col = @max(self.max_col, col_num);
     self.max_row = @max(self.max_row, row_num);
     if (self.bscroll == null) {
-        self.bodyScrollContainerCreate(src, col_num);
+        self.bodyScrollContainerCreate(src);
     }
     if (opts.width() > 0) {
-        self.col_widths[col_num] = opts.width(); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
+        self.colWidthSet(col_num, opts.width()); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
     }
 
     const cell_height: f32 = height: {
@@ -467,7 +492,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     var cell_opts = opts.toOptions();
     const row_num_f: f32 = @floatFromInt(row_num);
     // TODO: This doesn't work for variable sized-rows. It needs to either be sequential using next_row_y or based on row_heights.
-    cell_opts.rect = .{ .x = xpos, .y = row_num_f * self.row_height, .w = self.col_widths[col_num], .h = cell_height };
+    cell_opts.rect = .{ .x = xpos, .y = row_num_f * self.row_height, .w = self.colWidth(col_num), .h = cell_height };
 
     // To support being called in a loop, combine col and row numbers as id_extra.
     // 9_223_372_036_854_775K cols should be enough for anyone.
