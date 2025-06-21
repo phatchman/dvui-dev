@@ -1,11 +1,7 @@
-// TODO: Need to make
 // TODO: We don't currently support ".expand" (i.e. when no width is provided) because we were relying on vboxes for that.
 // So either need to re-implement the .expand or make that the user's responsiblity?
-// TODO: If col widths allocation fails, then just return the default col width if that column doesn't exist.
-// TODO: set the col_widths struct if the widdth param is passed to a cell. Also the .expand handling if width is 0.
-// TODO: Variable row heights and next_row_y - style layouts
-// TODO: Passing mouse scroll events from header to body
 // TODO: Turn row and col num into a Cell-Co-ords type? We're now always using them in pairs.
+//       - I don;t see much benefit as users will usually be generating them separately. They don't live together except in the grid?
 // TODO: Fix issue where have to specify col width the the var row height demo. Not sure why that is needed?
 // TODO: Do we maintain the y-offset thing so that people with variable row heights can do their own virtual scrolling?
 //            - Maybe dump it unless someone actually needs it. It's pretty hard to virtual scroll with variable heights.
