@@ -223,16 +223,6 @@ pub fn deinit(self: *GridWidget) void {
     defer self.* = undefined;
     defer dvui.widgetFree(self);
 
-    //    const events = dvui.events();
-    //    for (events) |*e| {
-    //        if (e.evt == .mouse) { // and dvui.eventMatchSimple(e, self.data())) {
-    //            if (e.evt.mouse.action == .wheel_x or e.evt.mouse.action == .wheel_y) {
-    //                std.debug.print("sending event\n", .{});
-    //                self.bscroll.?.processEvent(e, true);
-    //            }
-    //        }
-    //    }
-
     if (self.hsi.viewport.x != self.frame_viewport.x) self.hsi.viewport.x = self.bsi.viewport.x; // TODO
 
     // resizing if row heights changed or a resize was requested via init options.
@@ -299,6 +289,19 @@ pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num
             },
         });
         self.hscroll.?.install();
+    }
+
+    // Any scroll-wheel events in the header should be applied to the body instead.
+    const events = dvui.events();
+    for (events) |*e| {
+        if (e.evt == .mouse and dvui.eventMatchSimple(e, self.hscroll.?.data())) {
+            const me = e.evt.mouse;
+            if (me.action == .wheel_y) {
+                self.bsi.scrollByOffset(.vertical, -me.action.wheel_y);
+            } else if (me.action == .wheel_x) {
+                self.bsi.scrollByOffset(.horizontal, me.action.wheel_x);
+            }
+        }
     }
 
     //    const w: f32, const expand: ?Options.Expand = width: {
@@ -399,9 +402,9 @@ pub fn headerCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
     if (self.hscroll == null) {
         self.columnHeader2(src, col_num);
     }
-    // TODO: allow setting the header_width as well.
-    // It should update col_info with that width????
-    // Not sure? Because what if different widths per col. when dealing with the body Just set it to the max width I suppose?
+    if (opts.width() > 0) {
+        self.col_widths[col_num] = opts.width(); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
+    }
 
     const header_height: f32 = height: {
         if (opts.height() > 0) {
@@ -443,6 +446,10 @@ pub fn bodyCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: us
     if (self.bscroll == null) {
         self.columnBody2(src, col_num);
     }
+    if (opts.width() > 0) {
+        self.col_widths[col_num] = opts.width(); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
+    }
+
     const cell_height: f32 = height: {
         if (opts.height() > 0) {
             break :height opts.height();
@@ -456,8 +463,10 @@ pub fn bodyCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: us
     const row_num_f: f32 = @floatFromInt(row_num);
     // TODO: This doesn't work for variable sized-rows. It needs to either be sequential using next_row_y or based on row_heights.
     cell_opts.rect = .{ .x = xpos, .y = row_num_f * self.row_height, .w = self.col_widths[col_num], .h = cell_height };
-    // TODO: Review. This seems fair? You can have usize/2 columns and usize / 2 rows?
-    cell_opts.id_extra = col_num * std.math.maxInt(isize) + row_num;
+
+    // To support being called in a loop, combine col and row numbers as id_extra.
+    // 9_223_372_036_854_775K cols should be enough for anyone.
+    cell_opts.id_extra = col_num * std.math.maxInt(usize) / 2 + row_num;
 
     var cell = dvui.widgetAlloc(BoxWidget);
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);

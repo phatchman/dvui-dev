@@ -105,7 +105,7 @@ fn gui_frame() void {
     }
     var hbox = dvui.box(@src(), .horizontal, .{ .expand = .both, .background = true });
     defer hbox.deinit();
-    // var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
+    //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .scroll_info = &scroll_info, .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths }, .{ .expand = .both });
     var grid = dvui.grid(@src(), .{}, .{ .expand = .both });
@@ -122,7 +122,7 @@ fn gui_frame() void {
             dvui.gridHeading(@src(), grid, "Col 2", 1, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
         }
         {
-            dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green } });
+            dvui.gridHeading(@src(), grid, "Col 1", 0, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .green, .size = .{ .w = 500 } } });
 
             for (1..15) |i| {
                 var cell = grid.bodyCell2(@src(), 1, i - 1, .{});
