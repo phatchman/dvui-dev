@@ -4575,7 +4575,7 @@ fn gridVirtualScrolling() void {
 }
 
 fn gridVariableRowHeights() void {
-    var grid = dvui.grid(@src(), .{ .cols = .{ .num = 1 } }, .{
+    var grid = dvui.grid(@src(), .{ .var_row_heights = true, .cols = .{ .num = 1 } }, .{
         .expand = .both,
         .padding = Rect.all(0),
     });
@@ -4594,7 +4594,8 @@ fn gridVariableRowHeights() void {
             @src(),
             0,
             row_num,
-            cell_style.cellOptions(0, row_num).override(.{ .size = .{ .h = @floatFromInt(row_height) } }),
+            // TODO: TODO TODO: Remove the width from here. The grid needs to be able to work it out. not sure why it can;t.
+            cell_style.cellOptions(0, row_num).override(.{ .size = .{ .h = @floatFromInt(row_height), .w = 500 } }),
         );
         defer cell.deinit();
         dvui.label(@src(), "h = {d}", .{row_height}, cell_style.options(0, row_num));

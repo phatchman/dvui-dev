@@ -99,12 +99,11 @@ pub const SortDirection = enum {
     }
 };
 
-pub const WidthsOrCount = union(enum) {
-    widths: []f32,
-    num: usize,
-};
-
 pub const InitOpts = struct {
+    pub const WidthsOrCount = union(enum) {
+        widths: []f32,
+        num: usize,
+    };
     // Must supply either the number of columns or a
     // []f32 containing column widths.
     cols: WidthsOrCount,
@@ -113,11 +112,9 @@ pub const InitOpts = struct {
     resize_rows: bool = false,
     // Only used when cols.num is specified. Allows col widths to shrink this frame.
     resize_cols: bool = false,
-    // TODO: Not currently supported.
-    // var row heights will place some restrictions on population order
-    // and need need to keep track of the next row y, rather than calculating the position
-    // and also calculate the grid scroll height differently.
-    variable_row_heights: bool = false,
+    // If var row heights is now set to true, then size.h is ignored.
+    // When using var row heights row_nr must be populated sequentially for each column when ceeating bodyCells.
+    var_row_heights: bool = false,
 };
 pub const default_col_width: f32 = 100;
 
@@ -143,6 +140,8 @@ max_row: usize = 0,
 frame_viewport: Point = undefined,
 col_widths_store: std.ArrayListUnmanaged(f32) = .empty,
 col_widths: []f32 = undefined,
+// Next y position for this column when using variable row heights.
+next_row_y: f32 = 0,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) GridWidget {
     var self = GridWidget{};
@@ -268,7 +267,8 @@ pub fn deinit(self: *GridWidget) void {
     self.scroll.deinit();
     // TODO: Broken for no columns and for variable row heights.
     const max_row_f: f32 = @floatFromInt(self.max_row);
-    dvui.dataSet(null, self.data().id, "_last_height", (max_row_f + 1) * self.row_height);
+    const this_height: f32 = if (self.init_opts.var_row_heights) self.next_row_y else (max_row_f + 1) * self.row_height;
+    dvui.dataSet(null, self.data().id, "_last_height", this_height);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
     dvui.dataSet(null, self.data().id, "_resizing", self.resizing);
     dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
@@ -437,18 +437,20 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
         }
     };
     const cell_height: f32 = height: {
-        if (opts.height() > 0) {
+        if (self.init_opts.var_row_heights and opts.height() > 0) {
             break :height opts.height();
         } else {
             break :height if (self.resizing) 0 else self.row_height;
         }
     };
 
-    const xpos = sumSlice(self.col_widths[0..col_num]);
-    var cell_opts = opts.toOptions();
     const row_num_f: f32 = @floatFromInt(row_num);
+    const xpos = sumSlice(self.col_widths[0..col_num]);
+    // TODO: Should prob warn here that row height always required with var row heights.
+    const ypos = if (self.init_opts.var_row_heights) self.next_row_y else self.row_height * row_num_f; // TODO: log error here.
+    var cell_opts = opts.toOptions();
     // TODO: This doesn't work for variable sized-rows. It needs to either be sequential using next_row_y or based on row_heights.
-    cell_opts.rect = .{ .x = xpos, .y = row_num_f * self.row_height, .w = cell_width, .h = cell_height };
+    cell_opts.rect = .{ .x = xpos, .y = ypos, .w = cell_width, .h = cell_height };
 
     // To support being called in a loop, combine col and row numbers as id_extra.
     // 9_223_372_036_854_775K cols should be enough for anybody.
@@ -462,10 +464,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
         const cell_size = cell.data().rect.size();
         self.colWidthSet(col_num, cell_size.w);
         self.row_height = @max(self.row_height, cell_size.h);
+        std.debug.print("size = {}\n", .{cell_size});
     }
-    // If user provided a height, use that to position the next row, otherwise use the
-    // calculated row_height.
-    //self.next_row_y += opts.height orelse self.row_height;
+    self.next_row_y += opts.height();
+    std.debug.print("nr_y = {d}\n", .{self.next_row_y});
 
     return cell;
 }
