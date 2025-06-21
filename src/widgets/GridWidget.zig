@@ -451,7 +451,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     cell_opts.rect = .{ .x = xpos, .y = row_num_f * self.row_height, .w = cell_width, .h = cell_height };
 
     // To support being called in a loop, combine col and row numbers as id_extra.
-    // 9_223_372_036_854_775K cols should be enough for anyone.
+    // 9_223_372_036_854_775K cols should be enough for anybody.
     cell_opts.id_extra = (col_num << @bitSizeOf(usize) / 2) | row_num;
 
     var cell = dvui.widgetAlloc(BoxWidget);
