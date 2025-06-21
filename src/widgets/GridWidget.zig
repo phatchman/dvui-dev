@@ -7,6 +7,8 @@
 // TODO: Passing mouse scroll events from header to body
 // TODO: Turn row and col num into a Cell-Co-ords type? We're now always using them in pairs.
 // TODO: Fix issue where have to specify col width the the var row height demo. Not sure why that is needed?
+// TODO: Do we maintain the y-offset thing so that people with variable row heights can do their own virtual scrolling?
+//            - Maybe dump it unless someone actually needs it. It's pretty hard to virtual scroll with variable heights.
 
 const std = @import("std");
 const dvui = @import("../dvui.zig");
