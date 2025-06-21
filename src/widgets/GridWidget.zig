@@ -5,7 +5,9 @@
 // TODO: Fix issue where have to specify col width the the var row height demo. Not sure why that is needed?
 // TODO: Do we maintain the y-offset thing so that people with variable row heights can do their own virtual scrolling?
 //            - Maybe dump it unless someone actually needs it. It's pretty hard to virtual scroll with variable heights.
-
+// TODO: Fix error in demo when turning on horizontal scrolling
+// TODO: Used to be able to limit resizing to just withing the window, i.e. not start hscrolling. Can we still do that?
+// TODO: Resizable demo starts out hscrolling rather than fitting to window like previous. What should it be doing???
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
