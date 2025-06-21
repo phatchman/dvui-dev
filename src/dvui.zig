@@ -4702,7 +4702,7 @@ pub fn gridHeading(
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
 
     const label_options = label_defaults.override(opts.options(col_num, 0));
-    var cell = g.headerCell2(src, col_num, opts.cellOptions(col_num, 0));
+    var cell = g.headerCell(src, col_num, opts.cellOptions(col_num, 0));
     defer cell.deinit();
 
     labelNoFmt(@src(), heading, .{}, label_options);

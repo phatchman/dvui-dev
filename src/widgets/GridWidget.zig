@@ -271,8 +271,7 @@ fn extendColIfRequired(self: *GridWidget, col_num: usize) void {
     }
 }
 
-pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize) void {
-    _ = src;
+fn headerScrollAreaCreate(self: *GridWidget, col_num: usize) void {
     self.max_col = @max(self.max_col, col_num);
     if (self.hscroll == null) {
         self.hscroll = ScrollAreaWidget.init(@src(), .{
@@ -332,7 +331,7 @@ pub fn columnHeader2(self: *GridWidget, src: std.builtin.SourceLocation, col_num
     //    _ = w;
 }
 
-pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize) void {
+pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize) void {
     self.max_col = @max(self.max_col, col_num);
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
@@ -353,12 +352,13 @@ pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
         // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
+        const w = sumSlice(self.col_widths[0..]);
         self.bbox = BoxWidget.init(
             @src(),
             .{ .dir = .horizontal },
             .{
-                .min_size_content = .{ .h = self.last_height, .w = sumSlice(self.col_widths[0..]) }, // TODO: assumes col_widths
-                .max_size_content = .{ .h = self.last_height, .w = sumSlice(self.col_widths[0..]) },
+                .min_size_content = .{ .h = self.last_height, .w = w },
+                .max_size_content = .{ .h = self.last_height, .w = w },
                 .expand = .both,
             },
         );
@@ -393,15 +393,20 @@ pub fn columnBody2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: 
     //    _ = expand;
 }
 
-pub fn headerCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
+pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
     //const parent_rect = self.scroll.data().contentRect();
     // TODO: check col_num is valid
     self.extendColIfRequired(col_num); // TODO: This should do max_col as well.
     self.max_col = @max(self.max_col, col_num);
 
     if (self.hscroll == null) {
-        self.columnHeader2(src, col_num);
+        if (self.bscroll != null) {
+            dvui.log.debug("GridWidget {x} all header cells must be created before any body cells. Header will be placed in body.\n", .{self.data().id});
+        } else {
+            self.headerScrollAreaCreate(col_num);
+        }
     }
+
     if (opts.width() > 0) {
         self.col_widths[col_num] = opts.width(); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
     }
@@ -439,12 +444,12 @@ pub fn sumSlice(slice: anytype) @TypeOf(slice[0]) {
     return total;
 }
 
-pub fn bodyCell2(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
-    self.extendColIfRequired(col_num); // TODO: This should do max_col as well.
+pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
+    self.extendColIfRequired(col_num); // TODO: This should do max_col as well?
     self.max_col = @max(self.max_col, col_num);
     self.max_row = @max(self.max_row, row_num);
     if (self.bscroll == null) {
-        self.columnBody2(src, col_num);
+        self.bodyScrollContainerCreate(src, col_num);
     }
     if (opts.width() > 0) {
         self.col_widths[col_num] = opts.width(); // TODO: This will prob end up being @max and using the same resizing rules as for rows?
