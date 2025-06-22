@@ -391,6 +391,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
             break :width self.colWidth(col_num);
         }
     };
+    std.debug.print("header_w = {d}\n", .{header_width});
     const header_height: f32 = height: {
         if (opts.height() > 0) {
             break :height opts.height();
@@ -411,7 +412,8 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     // Determine heights for next frame.
     if (cell.data().contentRect().h > 0) {
         const cell_size = cell.data().rect.size();
-        self.colWidthSet(col_num, cell_size.w);
+        if (opts.width() > 0) // TODO: Can we clean this up somehow?
+            self.colWidthSet(col_num, cell_size.w);
         self.header_height = @max(self.header_height, cell_size.h);
     }
     return cell;
@@ -601,6 +603,8 @@ pub const HeaderResizeWidget = struct {
         min_size: ?f32 = null,
         // Will not resize to more than this value
         max_size: ?f32 = null,
+        // The total width of all columns will not exceed this value. // TODO:
+        total_size: ?f32 = null,
 
         pub const fixed: ?InitOptions = null;
     };

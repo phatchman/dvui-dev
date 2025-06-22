@@ -113,7 +113,7 @@ fn gui_frame() void {
         defer grid.deinit();
         resize_cols = false;
         const CellStyle = dvui.GridWidget.CellStyle;
-        if (true) {
+        if (false) {
             for (0..2) |row| {
                 for (0..2) |col| {
                     var cell = grid.bodyCell(@src(), col, row, .{ .size = if (row == 0) .{ .h = 50 } else null });
@@ -131,7 +131,6 @@ fn gui_frame() void {
                 for (1..15) |i| {
                     const size: ?dvui.Size = if (stepped) .{ .w = @as(f32, @floatFromInt(i * 20)) } else null;
                     var cell = grid.bodyCell(@src(), 1, i - 1, .{ .size = size, .background = true, .color_fill = .fill_hover });
-                    //var cell = grid.bodyCell(@src(), 1, i - 1, .{ .background = true, .color_fill = .fill_hover });
                     defer cell.deinit();
                     dvui.label(@src(), "1:{}", .{i}, .{ .gravity_x = 0.5 });
                 }
@@ -146,6 +145,9 @@ fn gui_frame() void {
             }
 
             {
+                //                var hcell = grid.headerCell(@src(), 0, .{});
+                //                dvui.labelNoFmt(@src(), "Rogue", .{}, .{});
+                //                hcell.deinit();
                 for (15..30) |i| {
                     {
                         var cell = grid.bodyCell(@src(), 0, 43 - i, .{});

@@ -4018,7 +4018,7 @@ fn gridStyling() void {
         var banding: Banding = .none;
         var margin: f32 = 0;
         var padding: f32 = 0;
-
+        var col_widths: [2]f32 = @splat(0);
         const Banding = enum { none, rows, cols };
     };
 
@@ -4027,11 +4027,13 @@ fn gridStyling() void {
     const row_background = local.banding != .none or local.borders.nonZero();
 
     {
-        var grid = dvui.grid(@src(), .{ .cols = .{ .num = 2 }, .resize_rows = local.resize_rows }, .{
+        var grid = dvui.grid(@src(), .{ .cols = .{ .widths = &local.col_widths }, .resize_rows = local.resize_rows }, .{
             .expand = .both,
             .background = true,
             .border = Rect.all(1),
         });
+        dvui.columnLayoutFitContent(&.{ 0, 0 }, &local.col_widths, grid.data().contentRect().w);
+
         defer grid.deinit();
         local.resize_rows = false; // Only resize rows when needed.
 
@@ -4491,6 +4493,8 @@ fn gridVirtualScrolling() void {
         var primes: std.StaticBitSet(num_rows) = .initFull();
         var generated_primes: bool = false;
         var highlighted_row: ?usize = null;
+        var last_col_width: f32 = 0;
+        var resize_cols: bool = false;
 
         // Generate prime numbers using The Sieve of Eratosthenes.
         fn generatePrimes() void {
@@ -4524,12 +4528,23 @@ fn gridVirtualScrolling() void {
     var grid = dvui.grid(@src(), .{
         .cols = .{ .num = 2 },
         .scroll_opts = .{ .scroll_info = &local.scroll_info },
+        .resize_cols = local.resize_cols,
     }, .{
         .expand = .both,
         .background = true,
         .border = Rect.all(1),
     });
     defer grid.deinit();
+    local.resize_cols = false;
+
+    // dvui.columnLayoutFitContent will calculate column sizes for you. But this example is highlighting
+    // passing column widths though the cell options rather than using the col_widths slice.
+    // Note that if column widths shrink, the resize_cols init options must be used.
+    const col_width = (grid.data().contentRect().w - GridWidget.scrollbar_padding_defaults.w) / 2.0;
+    if (col_width < local.last_col_width) {
+        local.resize_cols = true;
+    }
+    local.last_col_width = col_width;
 
     // Highlight hovered row.
     // Each column has slightly different border requirements, so create separate options for each.
@@ -4539,18 +4554,22 @@ fn gridVirtualScrolling() void {
             .border = .{ .x = 1, .w = 1, .h = 1 },
             .background = true,
             .color_fill_hover = .fill_hover,
+            .size = .{ .w = col_width },
         },
     };
     highlight_hovered_1.processEvents(grid, &local.scroll_info);
-    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{ .border = .{ .w = 1, .h = 1 } });
+    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{
+        .border = .{ .w = 1, .h = 1 },
+    });
 
     // Virtual scrolling
     const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
     const last = scroller.endRow(); // Note that endRow is exclusive, meaning it can be used as a slice end index.
-
-    dvui.gridHeading(@src(), grid, "Number", 0, .fixed, .{});
-    dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, .{});
+    const CellStyle = GridWidget.CellStyle;
+    std.debug.print("col_width = {d}\n", .{col_width});
+    dvui.gridHeading(@src(), grid, "Number", 0, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
+    dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
 
     for (first..last) |num| {
         {
