@@ -181,7 +181,7 @@ pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options)
     return self;
 }
 
-// Default col_widths to if allocation fails this frame.
+// Default col_widths slice to use if allocation fails this frame.
 var oom_col_width: [1]f32 = .{0};
 
 pub fn install(self: *GridWidget) void {
@@ -199,6 +199,7 @@ pub fn install(self: *GridWidget) void {
                 }
                 self.col_widths = dvui.currentWindow().arena().alloc(f32, num_cols) catch |err| default: {
                     dvui.logError(@src(), err, "GridWidget {x} could not allocate column widths", .{self.data().id});
+                    dvui.currentWindow().debug_widget_id = self.data().id;
                     break :default &oom_col_width;
                 };
                 @memset(self.col_widths, 0);
@@ -371,6 +372,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     if (self.hscroll == null) {
         if (self.bscroll != null) {
             dvui.log.debug("GridWidget {x} all header cells must be created before any body cells. Header will be placed in body.\n", .{self.data().id});
+            dvui.currentWindow().debug_widget_id = self.bscroll.?.data().id;
         } else {
             self.headerScrollAreaCreate();
         }
