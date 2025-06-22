@@ -4030,7 +4030,7 @@ fn gridStyling() void {
         var grid = dvui.grid(@src(), .{
             .cols = .{ .widths = &local.col_widths },
             .resize_rows = local.resize_rows,
-            .scroll_opts = .{ .vertical_bar = .show },
+            //            .scroll_opts = .{ .vertical_bar = .show },
         }, .{
             .expand = .both,
             .background = true,
@@ -4038,7 +4038,8 @@ fn gridStyling() void {
         });
         // Normally this would just be grid.data().contentRect().w but we want to keep the right-hand panel fixed size.
         //dvui.columnLayoutFitContent(&.{ 0, 0 }, &local.col_widths, @floor(outer_hbox.data().contentRect().w - grid_panel_size.w));
-        dvui.columnLayoutProportional(&.{ -1, -1 }, &local.col_widths, @floor(outer_hbox.data().contentRect().w - grid_panel_size.w));
+        // TODO: Why does this need -10? The columnLayoutProportional is already subtracting the scrollbar width from the content width?
+        dvui.columnLayoutProportional(&.{ -1, -1 }, &local.col_widths, outer_hbox.data().contentRect().w - grid_panel_size.w - 10);
         std.debug.print("hbox_ = {d}, grid_w = {d}, widths = {d}\n", .{ outer_hbox.data().contentRect().w, grid.data().contentRect().w, local.col_widths });
 
         defer grid.deinit();
