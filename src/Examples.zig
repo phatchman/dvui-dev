@@ -4222,6 +4222,7 @@ fn gridLayouts() void {
         const column_ratios = [num_cols]f32{ checkbox_w, -10, -10, -7, -15, -30 };
         const fixed_widths = [num_cols]f32{ checkbox_w, 80, 120, 80, 100, 300 };
         const equal_spacing = [num_cols]f32{ checkbox_w, -1, -1, -1, -1, -1 };
+        const fit_window: [num_cols]f32 = @splat(0);
         var selection_state: dvui.GridColumnSelectAllState = .select_none;
         var sort_dir: GridWidget.SortDirection = .unsorted;
         var layout_style: Layout = .proportional;
@@ -4359,13 +4360,13 @@ fn gridLayouts() void {
         else
             null;
 
-        const col_widths: ?[]f32 = switch (local.layout_style) {
-            .fit_window => null,
-            else => &local.col_widths,
-        };
+        //        const col_widths: ?[]f32 = switch (local.layout_style) {
+        //            .fit_window => null,
+        //            else => &local.col_widths,
+        //        };
 
         var grid = dvui.grid(@src(), .{
-            .cols = if (col_widths) |widths| .{ .widths = widths } else .{ .num = local.col_widths.len },
+            .cols = .{ .widths = &local.col_widths },
             .scroll_opts = scroll_opts,
             .resize_rows = local.resize_rows,
         }, .{
@@ -4376,19 +4377,26 @@ fn gridLayouts() void {
             .max_size_content = .height(content_h),
         });
         defer grid.deinit();
+        local.resize_rows = false;
 
-        // Fit columns to the grid visible area, or to the virtual scroll area if horizontal scorlling is enabled.
-        const maybe_ratio = switch (local.layout_style) {
+        const col_widths_src: ?[]const f32 = switch (local.layout_style) {
             .equal_spacing => &local.equal_spacing,
             .fixed_width => &local.fixed_widths,
             .proportional => &local.column_ratios,
-            .fit_window => null,
+            .fit_window => &local.fit_window,
             .user_resizable => null,
         };
-        if (maybe_ratio) |ratio| {
-            dvui.columnLayoutProportional(ratio, &local.col_widths, if (local.h_scroll) 1024 else grid.data().contentRect().w);
+        if (col_widths_src) |col_widths| {
+            switch (local.layout_style) {
+                .fit_window => {
+                    dvui.columnLayoutFitContent(col_widths, &local.col_widths, grid.data().contentRect().w);
+                },
+                else => {
+                    // Fit columns to the grid visible area, or to the virtual scroll area if horizontal scorlling is enabled.
+                    dvui.columnLayoutProportional(col_widths, &local.col_widths, if (local.h_scroll) 1024 else grid.data().contentRect().w);
+                },
+            }
         }
-        local.resize_rows = false;
 
         if (dvui.gridHeadingCheckbox(@src(), grid, 0, &local.selection_state, .{})) {
             for (all_cars) |*car| {
