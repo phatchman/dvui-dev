@@ -4626,7 +4626,8 @@ fn gridVariableRowHeights() void {
             0,
             row_num,
             // TODO: TODO TODO: Remove the width from here. The grid needs to be able to work it out. not sure why it can;t.
-            cell_style.cellOptions(0, row_num).override(.{ .size = .{ .h = @floatFromInt(row_height), .w = 500 } }),
+            //            cell_style.cellOptions(0, row_num).override(.{ .size = .{ .h = @floatFromInt(row_height), .w = 500 } }),
+            cell_style.cellOptions(0, row_num),
         );
         defer cell.deinit();
         dvui.label(@src(), "h = {d}", .{row_height}, cell_style.options(0, row_num));

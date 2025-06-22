@@ -490,7 +490,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
         self.colWidthSet(col_num, cell_size.w);
         self.row_height = @max(self.row_height, cell_size.h);
     }
-    self.next_row_y += opts.height();
+    self.next_row_y += if (opts.height() > 0) opts.height() else self.row_height;
 
     return cell;
 }
