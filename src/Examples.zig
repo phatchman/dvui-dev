@@ -4027,12 +4027,17 @@ fn gridStyling() void {
     const row_background = local.banding != .none or local.borders.nonZero();
 
     {
-        var grid = dvui.grid(@src(), .{ .cols = .{ .widths = &local.col_widths }, .resize_rows = local.resize_rows }, .{
+        var grid = dvui.grid(@src(), .{
+            .cols = .{ .widths = &local.col_widths },
+            .resize_rows = local.resize_rows,
+        }, .{
             .expand = .both,
             .background = true,
             .border = Rect.all(1),
         });
-        dvui.columnLayoutFitContent(&.{ 0, 0 }, &local.col_widths, grid.data().contentRect().w);
+        // Normally this would just be grid.data().contentRect().w but we want to keep the right-hand panel fixed size.
+        dvui.columnLayoutFitContent(&.{ 0, 0 }, &local.col_widths, outer_hbox.data().contentRect().w - grid_panel_size.w);
+        std.debug.print("hbox_ = {d}, grid_w = {d}, widths = {d}\n", .{ outer_hbox.data().contentRect().w, grid.data().contentRect().w, local.col_widths });
 
         defer grid.deinit();
         local.resize_rows = false; // Only resize rows when needed.
@@ -4567,7 +4572,6 @@ fn gridVirtualScrolling() void {
     const first = scroller.startRow();
     const last = scroller.endRow(); // Note that endRow is exclusive, meaning it can be used as a slice end index.
     const CellStyle = GridWidget.CellStyle;
-    std.debug.print("col_width = {d}\n", .{col_width});
     dvui.gridHeading(@src(), grid, "Number", 0, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
     dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
 

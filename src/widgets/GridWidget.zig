@@ -8,6 +8,10 @@
 // TODO: Fix error in demo when turning on horizontal scrolling
 // TODO: Used to be able to limit resizing to just withing the window, i.e. not start hscrolling. Can we still do that?
 // TODO: Resizable demo starts out hscrolling rather than fitting to window like previous. What should it be doing???
+// TODO: Tension between setting the min content width on bbox in the body scroll area and horizontal scrolling.
+//        - So if set min content size, then it will hscroll without asking. Maybe that is better.
+//        - But it also means that the grid won't be the first widget to collapse, even if another has a min content size.
+// What if we use a rect instead?
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
@@ -300,7 +304,7 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
             .expand = .horizontal,
             .min_size_content = .{
                 .h = self.header_height,
-                .w = self.totalWidth(),
+                //.w = self.totalWidth(),
             },
         });
         self.hscroll.?.install();
@@ -343,18 +347,27 @@ pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocat
         self.bscroll.?.install();
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
+
+        // TODO: What is the proper way to do this?
+        // - Set the virtual size directly on hte scroll_containers scroll_info? This seems dangerous if they aren't using .given
+        // - Use the box to represent the area
+        // - Some other way?
+        //self.bsi.virtual_size.h = self.last_height;
+        //self.bsi.virtual_size.w = self.totalWidth();
         // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
-        const w = self.totalWidth();
+        //const w = self.totalWidth();
         self.bbox = BoxWidget.init(
             @src(),
             .{ .dir = .horizontal },
             .{
-                .min_size_content = .{ .h = self.last_height, .w = w },
-                .max_size_content = .{ .h = self.last_height, .w = w },
-                .expand = .both,
+                //.rect = .{ .x = 0, .y = 0, .w = self.totalWidth(), .h = self.last_height },
+                .min_size_content = .{ .h = self.last_height, .w = self.totalWidth() },
+                //.max_size_content = .height(self.last_height),
+                //.expand = .both,
             },
         );
         self.bbox.install();
+        //self.bbox.minSizeForChild(.{ .h = self.last_height, .w = self.totalWidth() });
     }
 }
 
@@ -391,7 +404,6 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
             break :width self.colWidth(col_num);
         }
     };
-    std.debug.print("header_w = {d}\n", .{header_width});
     const header_height: f32 = height: {
         if (opts.height() > 0) {
             break :height opts.height();
