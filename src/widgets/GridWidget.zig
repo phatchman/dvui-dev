@@ -1,5 +1,19 @@
+//! A scrollable grid widget for displaying tabular data. IT has support for:
+//!  - Optional headers
+//!  - Consistent or variable row heights.
+//!  - Horizontal and vertical scrolling
+//!  - Individual cell styling
+//!
+//! If var_row_heights is false, then rows cand columns can be laid out in any order, including
+//! sparse layouts where not all columns are provided. If var_row_heights is true, then rows must
+//! be laid out sequentiually. Either sequentially all rows for a column before moving to the next column,
+//! or all columns for a row before moving to the next sequential row.
+//!
+
 // TODO: Resizable demo starts out hscrolling rather than fitting to window like previous. What should it be doing???
 // TODO: Why do we need to subtract more scrollbar padding from the fit window layout?
+// TODO: Implement Max width on the resizable headers.
+// TODO: Fix the error when enabling hscrolling in demo. Check all that more thoroughly
 
 const std = @import("std");
 const dvui = @import("../dvui.zig");
@@ -34,9 +48,9 @@ pub var defaults: Options = .{
 pub var scrollbar_padding_defaults: Size = .{ .h = 10, .w = 10 };
 
 pub const CellOptions = struct {
-    // Manually control height or width
-    // height must be consistent for all columns in a row
-    // width must be consistent for all rows in a column (including the header cell)
+    // size manually control height or width of a cell.
+    // height is ignored unless var_row_heights = true. height should be the same for all cells in a row.
+    // width is ignored when col_widths is supplied. width should be the same for all cells in a column (including the header cell)
     size: ?Size = null,
     margin: ?Rect = null,
     border: ?Rect = null,
@@ -56,7 +70,7 @@ pub const CellOptions = struct {
 
     pub fn toOptions(self: *const CellOptions) Options {
         return .{
-            // does not convert size, but maybe it should now... hmmm???
+            // does not convert size
             .margin = self.margin,
             .border = self.border,
             .padding = self.padding,
@@ -94,12 +108,13 @@ pub const SortDirection = enum {
 };
 
 pub const InitOpts = struct {
-    pub const WidthsOrCount = union(enum) {
+    pub const WidthsOrNum = union(enum) {
         widths: []f32,
         num: usize,
     };
     // Must supply either the number of columns or a slice of column widths
-    cols: WidthsOrCount,
+    cols: WidthsOrNum,
+    // Scroll options for the grid body
     scroll_opts: ?ScrollAreaWidget.InitOpts = null,
     // Recalculate row heights. Only set this when row heights could have changed, .e.g on column resize.
     resize_rows: bool = false,
@@ -111,29 +126,41 @@ pub const InitOpts = struct {
 };
 pub const default_col_width: f32 = 100;
 
+//Widgets
 vbox: BoxWidget = undefined,
 scroll: ScrollAreaWidget = undefined,
 hscroll: ?ScrollAreaWidget = null,
-bscroll: ?ScrollContainerWidget = undefined,
-bbox: BoxWidget = undefined,
-hsi: ScrollInfo = undefined,
-bsi: *ScrollInfo = undefined,
-default_scroll_info: ScrollInfo = .{ .horizontal = .auto, .vertical = .auto },
-init_opts: InitOpts = undefined,
+bscroll: ?ScrollContainerWidget = null,
+bbox: BoxWidget = undefined, // has the same lifetime as bscroll.
+
+// Not valid untill after install
+hsi: ScrollInfo = undefined, // Header scroll info
+bsi: *ScrollInfo = undefined, // Body scroll info
+frame_viewport: Point = undefined, // Fixed scroll viewport for this frame.
+col_widths: []f32 = undefined,
+
+// Persistent state
+resizing: bool = false,
 last_height: f32 = 0,
 header_height: f32 = 0,
-row_height: f32 = 0,
 last_row_height: f32 = 0,
-sort_col_number: usize = 0,
 sort_direction: SortDirection = .unsorted,
-saved_clip_rect: ?Rect.Physical = null,
-resizing: bool = false,
-//rows_y_offset: f32 = 0,
+sort_col_number: usize = 0,
+default_scroll_info: ScrollInfo = .{ .horizontal = .auto, .vertical = .auto },
+
+// Non-persistent state
+row_height: f32 = 0,
 max_row: usize = 0,
-frame_viewport: Point = undefined,
-col_widths: []f32 = undefined,
+cur_row: usize = std.math.maxInt(usize),
 // Next y position for this column when using variable row heights.
 next_row_y: f32 = 0,
+this_row_y: f32 = 0,
+
+// Options
+init_opts: InitOpts = undefined,
+
+// TODO: Keep or chuck?
+//rows_y_offset: f32 = 0,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) GridWidget {
     var self = GridWidget{};
@@ -282,74 +309,7 @@ pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
 }
 
-fn headerScrollAreaCreate(self: *GridWidget) void {
-    if (self.hscroll == null) {
-        self.hscroll = ScrollAreaWidget.init(@src(), .{
-            .horizontal_bar = .hide,
-            .vertical_bar = .show,
-            .scroll_info = &self.hsi,
-            .frame_viewport = .{ .x = self.frame_viewport.x },
-        }, .{
-            .name = "GridWidgetHeaderScrollArea",
-            .expand = .horizontal,
-            .min_size_content = .{
-                .h = self.header_height,
-                //.w = self.totalWidth(),
-            },
-        });
-        self.hscroll.?.install();
-    }
-
-    // Any scroll-wheel events in the header should be applied to the body instead.
-    const events = dvui.events();
-    for (events) |*e| {
-        if (e.evt == .mouse and dvui.eventMatchSimple(e, self.hscroll.?.data())) {
-            const me = e.evt.mouse;
-            if (me.action == .wheel_y) {
-                e.handle(@src(), self.data());
-                self.bsi.scrollByOffset(.vertical, -me.action.wheel_y);
-            } else if (me.action == .wheel_x) {
-                e.handle(@src(), self.data());
-                self.bsi.scrollByOffset(.horizontal, me.action.wheel_x);
-            }
-        }
-    }
-}
-
-pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation) void {
-    if (self.hscroll) |*hscroll| {
-        hscroll.deinit();
-        self.hscroll = null;
-    }
-
-    if (self.bscroll == null) {
-        //self.next_row_y = self.rows_y_offset;
-        self.bscroll = ScrollContainerWidget.init(
-            src,
-            self.bsi,
-            .{ .frame_viewport = self.frame_viewport },
-            .{
-                .name = "GridWidgetScrollContainer",
-                .expand = .both,
-            },
-        ); // TODO:
-
-        self.bscroll.?.install();
-        self.bscroll.?.processEvents();
-        self.bscroll.?.processVelocity();
-
-        // This box ise used to set the size of the scrollable area in the scroll container.
-        self.bbox = BoxWidget.init(
-            @src(),
-            .{ .dir = .horizontal },
-            .{
-                .min_size_content = .{ .h = self.last_height, .w = self.totalWidth() },
-            },
-        );
-        self.bbox.install();
-    }
-}
-
+/// Returns the width of the requested column
 pub fn colWidth(self: *GridWidget, col_num: usize) f32 {
     if (col_num >= self.col_widths.len) {
         dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} using default col_width\n", .{ self.data().id, col_num, self.col_widths.len });
@@ -358,6 +318,8 @@ pub fn colWidth(self: *GridWidget, col_num: usize) f32 {
     return self.col_widths[col_num];
 }
 
+/// Sets the column width of the requested column, only if the user didn't
+/// supply their own col_widths slice. Otherwise ignore the change.
 pub fn colWidthSet(self: *GridWidget, col_num: usize, width: f32) void {
     if (col_num >= self.col_widths.len) {
         dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} ignoring col_width change\n", .{ self.data().id, col_num, self.col_widths.len });
@@ -368,6 +330,30 @@ pub fn colWidthSet(self: *GridWidget, col_num: usize, width: f32) void {
     }
 }
 
+/// Returns the x position of the requested column
+pub fn posX(self: *GridWidget, col_num: usize) f32 {
+    const end = @min(col_num, self.col_widths.len);
+    var total: f32 = 0;
+    for (self.col_widths[0..end]) |w| {
+        total += w;
+    }
+    return total;
+}
+
+/// Returns the total width of all columns
+pub fn totalWidth(self: *GridWidget) f32 {
+    var total: f32 = 0;
+    for (self.col_widths) |w| {
+        total += w;
+    }
+    return total;
+}
+
+/// Create a header cell for the requested column
+/// Returns a hbox for the created cell.
+/// deinit() must be called on this hbox before any new cells are created.
+/// Header cells can be created in any order, but it is more efficient to create them from left to right.
+/// No header cells should be created after the first body cell is created.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
     if (self.hscroll == null) {
         if (self.bscroll != null) {
@@ -412,24 +398,23 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     return cell;
 }
 
-pub fn posX(self: *GridWidget, col_num: usize) f32 {
-    const end = @min(col_num, self.col_widths.len);
-    var total: f32 = 0;
-    for (self.col_widths[0..end]) |w| {
-        total += w;
-    }
-    return total;
-}
-
-pub fn totalWidth(self: *GridWidget) f32 {
-    var total: f32 = 0;
-    for (self.col_widths) |w| {
-        total += w;
-    }
-    return total;
-}
-
+/// Create a body cell for the requested column and row
+/// Returns a hbox for the created cell.
+/// deinit() must be called on this hbox before any new body cells are created.
+/// If var_row_heights is false:
+///   - body cells can be created using any order or col_num row_num
+/// if var_row_heights is true then either:
+///   - All rows for a column must be created in ascending row order.
+///   - All columns for a row must be created before creating moving to the next row.
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
+    if (row_num < self.cur_row) {
+        self.this_row_y = 0; // TODO: or y_offset if we are keeping that
+        self.next_row_y = 0;
+        self.cur_row = row_num;
+    } else if (row_num > self.cur_row) {
+        self.this_row_y = self.next_row_y;
+        self.cur_row = row_num;
+    }
     self.max_row = @max(self.max_row, row_num);
     if (self.bscroll == null) {
         self.bodyScrollContainerCreate(src);
@@ -451,7 +436,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
 
     const row_num_f: f32 = @floatFromInt(row_num);
     const xpos = self.posX(col_num);
-    const ypos = if (self.init_opts.var_row_heights) self.next_row_y else self.row_height * row_num_f;
+    const ypos = if (self.init_opts.var_row_heights) self.this_row_y else self.row_height * row_num_f;
     var cell_opts = opts.toOptions();
     cell_opts.rect = .{ .x = xpos, .y = ypos, .w = cell_width, .h = cell_height };
 
@@ -470,7 +455,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     if (cell.data().contentRect().w > 0) {
         self.colWidthSet(col_num, cell_size.w);
     }
-    self.next_row_y += if (opts.height() > 0) opts.height() else self.row_height;
+    self.next_row_y = @max(self.next_row_y, self.this_row_y + if (opts.height() > 0) opts.height() else self.row_height);
 
     return cell;
 }
@@ -523,6 +508,73 @@ pub fn colSortOrder(self: *const GridWidget, col_num: usize) SortDirection {
         return self.sort_direction;
     } else {
         return .unsorted;
+    }
+}
+
+fn headerScrollAreaCreate(self: *GridWidget) void {
+    if (self.hscroll == null) {
+        self.hscroll = ScrollAreaWidget.init(@src(), .{
+            .horizontal_bar = .hide,
+            .vertical_bar = .show,
+            .scroll_info = &self.hsi,
+            .frame_viewport = .{ .x = self.frame_viewport.x },
+        }, .{
+            .name = "GridWidgetHeaderScrollArea",
+            .expand = .horizontal,
+            .min_size_content = .{
+                .h = self.header_height,
+            },
+        });
+        self.hscroll.?.install();
+    }
+
+    // Any scroll-wheel events in the header should be applied to the body instead.
+    const events = dvui.events();
+    for (events) |*e| {
+        if (e.evt == .mouse and dvui.eventMatchSimple(e, self.hscroll.?.data())) {
+            const me = e.evt.mouse;
+            if (me.action == .wheel_y) {
+                e.handle(@src(), self.data());
+                self.bsi.scrollByOffset(.vertical, -me.action.wheel_y);
+            } else if (me.action == .wheel_x) {
+                e.handle(@src(), self.data());
+                self.bsi.scrollByOffset(.horizontal, me.action.wheel_x);
+            }
+        }
+    }
+}
+
+fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation) void {
+    if (self.hscroll) |*hscroll| {
+        hscroll.deinit();
+        self.hscroll = null;
+    }
+
+    if (self.bscroll == null) {
+        //self.next_row_y = self.rows_y_offset;
+        self.bscroll = ScrollContainerWidget.init(
+            src,
+            self.bsi,
+            .{ .frame_viewport = self.frame_viewport },
+            .{
+                .name = "GridWidgetScrollContainer",
+                .expand = .both,
+            },
+        );
+
+        self.bscroll.?.install();
+        self.bscroll.?.processEvents();
+        self.bscroll.?.processVelocity();
+
+        // This box ise used to set the size of the scrollable area in the scroll container.
+        self.bbox = BoxWidget.init(
+            @src(),
+            .{ .dir = .horizontal },
+            .{
+                .min_size_content = .{ .h = self.last_height, .w = self.totalWidth() },
+            },
+        );
+        self.bbox.install();
     }
 }
 

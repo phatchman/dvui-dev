@@ -4361,11 +4361,6 @@ fn gridLayouts() void {
         else
             null;
 
-        //        const col_widths: ?[]f32 = switch (local.layout_style) {
-        //            .fit_window => null,
-        //            else => &local.col_widths,
-        //        };
-
         var grid = dvui.grid(@src(), .{
             .cols = .{ .widths = &local.col_widths },
             .scroll_opts = scroll_opts,
@@ -4384,13 +4379,13 @@ fn gridLayouts() void {
             .equal_spacing => &local.equal_spacing,
             .fixed_width => &local.fixed_widths,
             .proportional => &local.column_ratios,
-            .fit_window => &local.fit_window,
+            .fit_window => &local.equal_spacing,
             .user_resizable => null,
         };
         if (col_widths_src) |col_widths| {
             switch (local.layout_style) {
                 .fit_window => {
-                    dvui.columnLayoutFitContent(col_widths, &local.col_widths, grid.data().contentRect().w);
+                    dvui.columnLayoutProportional(col_widths, &local.col_widths, grid.data().contentRect().w);
                 },
                 else => {
                     // Fit columns to the grid visible area, or to the virtual scroll area if horizontal scorlling is enabled.

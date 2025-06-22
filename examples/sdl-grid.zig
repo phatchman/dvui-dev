@@ -109,14 +109,16 @@ fn gui_frame() void {
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths }, .{ .expand = .both });
     {
-        var grid = dvui.grid(@src(), .{ .resize_cols = resize_cols, .cols = .{ .num = 2 } }, .{ .expand = .both });
+        var grid = dvui.grid(@src(), .{ .resize_cols = resize_cols, .cols = .{ .num = 2 }, .var_row_heights = true }, .{ .expand = .both });
         defer grid.deinit();
         resize_cols = false;
         const CellStyle = dvui.GridWidget.CellStyle;
-        if (false) {
-            for (0..2) |row| {
-                for (0..2) |col| {
-                    var cell = grid.bodyCell(@src(), col, row, .{ .size = if (row == 0) .{ .h = 50 } else null });
+        if (true) {
+            for (0..2) |_col| {
+                for (0..2) |_row| {
+                    const row: usize = _row;
+                    const col: usize = 1 - _col;
+                    var cell = grid.bodyCell(@src(), col, row, .{ .size = if (col == 0) .{ .h = 50 } else .{ .h = 50 }, .border = dvui.Rect.all(1), .background = true });
                     defer cell.deinit();
                     dvui.label(@src(), "{}:{}", .{ col, row }, .{});
                 }
@@ -162,9 +164,9 @@ fn gui_frame() void {
                 }
             }
         }
-        _ = dvui.checkbox(@src(), &stepped, "Stepped?", .{});
-        _ = dvui.checkbox(@src(), &resize_cols, "Resize Cols?", .{});
     }
+    _ = dvui.checkbox(@src(), &stepped, "Stepped?", .{});
+    _ = dvui.checkbox(@src(), &resize_cols, "Resize Cols?", .{});
 }
 
 var stepped = false;
