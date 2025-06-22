@@ -4986,7 +4986,7 @@ pub fn columnLayoutProportional(ratio_widths: []const f32, col_widths: []f32, co
 // Any columns with a width of 0 will be expanded to take up any available space.
 // It is safe to use the same slice for col_widths and result_widths.
 pub fn columnLayoutFitContent(col_widths: []const f32, result_widths: []f32, content_width: f32) void {
-    const scroll_bar_w: f32 = GridWidget.scrollbar_padding_defaults.w;
+    const scroll_bar_w: f32 = GridWidget.scrollbar_padding_defaults.w + 10; // TODO: Need to fiugure this out.
     std.debug.assert(col_widths.len == result_widths.len); // input and output slices must be the same length
 
     const used_w: f32, const expand_count: f32 = sum: {

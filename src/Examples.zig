@@ -4030,13 +4030,15 @@ fn gridStyling() void {
         var grid = dvui.grid(@src(), .{
             .cols = .{ .widths = &local.col_widths },
             .resize_rows = local.resize_rows,
+            .scroll_opts = .{ .vertical_bar = .show },
         }, .{
             .expand = .both,
             .background = true,
             .border = Rect.all(1),
         });
         // Normally this would just be grid.data().contentRect().w but we want to keep the right-hand panel fixed size.
-        dvui.columnLayoutFitContent(&.{ 0, 0 }, &local.col_widths, outer_hbox.data().contentRect().w - grid_panel_size.w);
+        //dvui.columnLayoutFitContent(&.{ 0, 0 }, &local.col_widths, @floor(outer_hbox.data().contentRect().w - grid_panel_size.w));
+        dvui.columnLayoutProportional(&.{ -1, -1 }, &local.col_widths, @floor(outer_hbox.data().contentRect().w - grid_panel_size.w));
         std.debug.print("hbox_ = {d}, grid_w = {d}, widths = {d}\n", .{ outer_hbox.data().contentRect().w, grid.data().contentRect().w, local.col_widths });
 
         defer grid.deinit();
@@ -4049,6 +4051,7 @@ fn gridStyling() void {
             .ascending, .unsorted => .{ 0, 100, 5 },
             .descending => .{ 100, 0, -5 },
         };
+
         std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Temperature range must be a multiple of interval
 
         // Manually control sorting, so that sort direction is always reversed regardless of
@@ -4222,7 +4225,7 @@ fn gridLayouts() void {
         const column_ratios = [num_cols]f32{ checkbox_w, -10, -10, -7, -15, -30 };
         const fixed_widths = [num_cols]f32{ checkbox_w, 80, 120, 80, 100, 300 };
         const equal_spacing = [num_cols]f32{ checkbox_w, -1, -1, -1, -1, -1 };
-        const fit_window: [num_cols]f32 = @splat(0);
+        const fit_window = [num_cols]f32{ checkbox_w, 0, 0, 0, 0, 0 };
         var selection_state: dvui.GridColumnSelectAllState = .select_none;
         var sort_dir: GridWidget.SortDirection = .unsorted;
         var layout_style: Layout = .proportional;

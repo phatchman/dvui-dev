@@ -11,7 +11,9 @@
 // TODO: Tension between setting the min content width on bbox in the body scroll area and horizontal scrolling.
 //        - So if set min content size, then it will hscroll without asking. Maybe that is better.
 //        - But it also means that the grid won't be the first widget to collapse, even if another has a min content size.
-// What if we use a rect instead?
+// What if we use a rect instead? - Nope.
+// TODO: Why do we need to subtract more scrollbar padding from the fit window layout?
+
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
@@ -367,6 +369,7 @@ pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocat
             },
         );
         self.bbox.install();
+        std.debug.print("min_size = {}\n", .{self.bbox.data().options.min_size_content orelse dvui.Size.zero});
         //self.bbox.minSizeForChild(.{ .h = self.last_height, .w = self.totalWidth() });
     }
 }
