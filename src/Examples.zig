@@ -4037,10 +4037,7 @@ fn gridStyling() void {
             .border = Rect.all(1),
         });
         // Normally this would just be grid.data().contentRect().w but we want to keep the right-hand panel fixed size.
-        //dvui.columnLayoutFitContent(&.{ 0, 0 }, &local.col_widths, @floor(outer_hbox.data().contentRect().w - grid_panel_size.w));
-        // TODO: Why does this need -10? The columnLayoutProportional is already subtracting the scrollbar width from the content width?
         dvui.columnLayoutProportional(&.{ -1, -1 }, &local.col_widths, outer_hbox.data().contentRect().w - grid_panel_size.w - 10);
-        std.debug.print("hbox_ = {d}, grid_w = {d}, widths = {d}\n", .{ outer_hbox.data().contentRect().w, grid.data().contentRect().w, local.col_widths });
 
         defer grid.deinit();
         local.resize_rows = false; // Only resize rows when needed.
@@ -4625,9 +4622,7 @@ fn gridVariableRowHeights() void {
             @src(),
             0,
             row_num,
-            // TODO: TODO TODO: Remove the width from here. The grid needs to be able to work it out. not sure why it can;t.
-            //            cell_style.cellOptions(0, row_num).override(.{ .size = .{ .h = @floatFromInt(row_height), .w = 500 } }),
-            cell_style.cellOptions(0, row_num),
+            cell_style.cellOptions(0, row_num).override(.{ .size = .{ .h = @floatFromInt(row_height), .w = 500 } }),
         );
         defer cell.deinit();
         dvui.label(@src(), "h = {d}", .{row_height}, cell_style.options(0, row_num));

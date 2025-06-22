@@ -1,17 +1,4 @@
-// TODO: We don't currently support ".expand" (i.e. when no width is provided) because we were relying on vboxes for that.
-// So either need to re-implement the .expand or make that the user's responsiblity?
-// TODO: Turn row and col num into a Cell-Co-ords type? We're now always using them in pairs.
-//       - I don;t see much benefit as users will usually be generating them separately. They don't live together except in the grid?
-// TODO: Fix issue where have to specify col width the the var row height demo. Not sure why that is needed?
-// TODO: Do we maintain the y-offset thing so that people with variable row heights can do their own virtual scrolling?
-//            - Maybe dump it unless someone actually needs it. It's pretty hard to virtual scroll with variable heights.
-// TODO: Fix error in demo when turning on horizontal scrolling
-// TODO: Used to be able to limit resizing to just withing the window, i.e. not start hscrolling. Can we still do that?
 // TODO: Resizable demo starts out hscrolling rather than fitting to window like previous. What should it be doing???
-// TODO: Tension between setting the min content width on bbox in the body scroll area and horizontal scrolling.
-//        - So if set min content size, then it will hscroll without asking. Maybe that is better.
-//        - But it also means that the grid won't be the first widget to collapse, even if another has a min content size.
-// What if we use a rect instead? - Nope.
 // TODO: Why do we need to subtract more scrollbar padding from the fit window layout?
 
 const std = @import("std");
@@ -281,7 +268,7 @@ pub fn deinit(self: *GridWidget) void {
     dvui.dataSet(null, self.data().id, "_sort_direction", self.sort_direction);
     dvui.dataSet(null, self.data().id, "_hsi", self.hsi);
     if (self.bsi == &self.default_scroll_info) {
-        dvui.dataSet(null, self.data().id, "_default_si", self.default_scroll_info); // TODO: Can just  be default as well?
+        dvui.dataSet(null, self.data().id, "_default_si", self.default_scroll_info);
     }
     if (self.init_opts.cols == .num) {
         dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths);
@@ -350,27 +337,15 @@ pub fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocat
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
 
-        // TODO: What is the proper way to do this?
-        // - Set the virtual size directly on hte scroll_containers scroll_info? This seems dangerous if they aren't using .given
-        // - Use the box to represent the area
-        // - Some other way?
-        //self.bsi.virtual_size.h = self.last_height;
-        //self.bsi.virtual_size.w = self.totalWidth();
-        // Use this box to set the size of the scrollable area. Not sure why min/max size content on the scroll area doesn't work?
-        //const w = self.totalWidth();
+        // This box ise used to set the size of the scrollable area in the scroll container.
         self.bbox = BoxWidget.init(
             @src(),
             .{ .dir = .horizontal },
             .{
-                //.rect = .{ .x = 0, .y = 0, .w = self.totalWidth(), .h = self.last_height },
                 .min_size_content = .{ .h = self.last_height, .w = self.totalWidth() },
-                //.max_size_content = .height(self.last_height),
-                //.expand = .both,
             },
         );
         self.bbox.install();
-        std.debug.print("min_size = {}\n", .{self.bbox.data().options.min_size_content orelse dvui.Size.zero});
-        //self.bbox.minSizeForChild(.{ .h = self.last_height, .w = self.totalWidth() });
     }
 }
 
@@ -425,11 +400,12 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     cell.drawBackground();
 
     // Determine heights for next frame.
+    const cell_size = cell.data().rect.size();
     if (cell.data().contentRect().h > 0) {
-        const cell_size = cell.data().rect.size();
-        if (opts.width() > 0) // TODO: Can we clean this up somehow?
-            self.colWidthSet(col_num, cell_size.w);
         self.header_height = @max(self.header_height, cell_size.h);
+    }
+    if (cell.data().contentRect().w > 0) {
+        self.colWidthSet(col_num, cell_size.w);
     }
     return cell;
 }
@@ -485,10 +461,12 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
     cell.install();
     cell.drawBackground();
+    const cell_size = cell.data().rect.size();
     if (cell.data().contentRect().h > 0) {
-        const cell_size = cell.data().rect.size();
-        self.colWidthSet(col_num, cell_size.w);
         self.row_height = @max(self.row_height, cell_size.h);
+    }
+    if (cell.data().contentRect().w > 0) {
+        self.colWidthSet(col_num, cell_size.w);
     }
     self.next_row_y += if (opts.height() > 0) opts.height() else self.row_height;
 
