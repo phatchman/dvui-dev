@@ -4309,13 +4309,13 @@ fn gridLayouts() void {
         const resize_min = 80;
         const resize_max = 500;
         fn headerResizeOptions(grid: *GridWidget, col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
+            _ = grid;
             if (layout_style != .user_resizable) return .fixed;
             return .{
                 .sizes = &col_widths,
                 .num = col_num,
                 .min_size = resize_min,
                 .max_size = resize_max,
-                .total_size = if (!h_scroll) grid.data().contentRect().w else null,
             };
         }
 

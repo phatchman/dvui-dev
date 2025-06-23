@@ -151,15 +151,14 @@ default_scroll_info: ScrollInfo = .{ .horizontal = .auto, .vertical = .auto },
 row_height: f32 = 0,
 max_row: usize = 0,
 cur_row: usize = std.math.maxInt(usize),
+//
+rows_y_offset: f32 = 0,
 // Next y position for this column when using variable row heights.
 next_row_y: f32 = 0,
 this_row_y: f32 = 0,
 
 // Options
 init_opts: InitOpts = undefined,
-
-// TODO: Keep or chuck?
-//rows_y_offset: f32 = 0,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) GridWidget {
     var self = GridWidget{};
@@ -350,9 +349,9 @@ pub fn totalWidth(self: *GridWidget) f32 {
 
 /// Create a header cell for the requested column
 /// Returns a hbox for the created cell.
-/// deinit() must be called on this hbox before any new cells are created.
-/// Header cells can be created in any order, but it is more efficient to create them from left to right.
-/// No header cells should be created after the first body cell is created.
+/// - deinit() must be called on this hbox before any new cells are created.
+/// - header cells can be created in any order, but it is more efficient to create them from left to right.
+/// - no header cells should be created after the first body cell is created.
 pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, opts: CellOptions) *BoxWidget {
     if (self.hscroll == null) {
         if (self.bscroll != null) {
@@ -399,7 +398,8 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
 
 /// Create a body cell for the requested column and row
 /// Returns a hbox for the created cell.
-/// deinit() must be called on this hbox before any new body cells are created.
+/// - deinit() must be called on this hbox before any new body cells are created.
+///
 /// If var_row_heights is false:
 ///   - body cells can be created using any order or col_num row_num
 /// if var_row_heights is true then either:
@@ -407,8 +407,8 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
 ///   - All columns for a row must be created before creating moving to the next row.
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
     if (row_num < self.cur_row) {
-        self.this_row_y = 0; // TODO: or y_offset if we are keeping that
-        self.next_row_y = 0;
+        self.this_row_y = self.rows_y_offset;
+        self.next_row_y = self.rows_y_offset;
         self.cur_row = row_num;
     } else if (row_num > self.cur_row) {
         self.this_row_y = self.next_row_y;
@@ -459,16 +459,12 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     return cell;
 }
 
-// TODO: Does this get removed? What about for var row heights?
-/// Set the starting y value to begin rendering rows.
-/// Used for setting the y location of the first row when virtual scrolling.
+/// Set the starting y value in the scroll container to begin rendering rows.
+/// Can be used to set the start of rendering if virtual scrolling using variable row heights.
 pub fn offsetRowsBy(self: *GridWidget, offset: f32) void {
-    //self.rows_y_offset = offset;
-    _ = offset;
-    _ = self;
+    self.rows_y_offset = offset;
 }
 
-// TODO: We should be able to remove the header height offset now? If we use the body scroll instead?
 /// Converts a physical point (e.g. a mouse position) into a logical point
 /// relative to the top-left of the grid's body.
 /// Return the logical point if it is located within the grid body,
@@ -514,15 +510,13 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
     if (self.hscroll == null) {
         self.hscroll = ScrollAreaWidget.init(@src(), .{
             .horizontal_bar = .hide,
-            .vertical_bar = .show,
+            .vertical_bar = .hide,
             .scroll_info = &self.hsi,
             .frame_viewport = .{ .x = self.frame_viewport.x },
         }, .{
-            .name = "GridWidgetHeaderScrollArea",
+            .name = "GridWidgetHeaderScroll",
             .expand = .horizontal,
-            .min_size_content = .{
-                .h = self.header_height,
-            },
+            .min_size_content = .{ .h = self.header_height },
         });
         self.hscroll.?.install();
     }
@@ -544,35 +538,30 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
 }
 
 fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation) void {
+    // Finished with headers.
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
         self.hscroll = null;
     }
 
     if (self.bscroll == null) {
-        //self.next_row_y = self.rows_y_offset;
         self.bscroll = ScrollContainerWidget.init(
             src,
             self.bsi,
             .{ .frame_viewport = self.frame_viewport },
             .{
-                .name = "GridWidgetScrollContainer",
+                .name = "GridWidgetBodyScroll",
                 .expand = .both,
             },
         );
-
         self.bscroll.?.install();
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
 
         // This box ise used to set the size of the scrollable area in the scroll container.
-        self.bbox = BoxWidget.init(
-            @src(),
-            .{ .dir = .horizontal },
-            .{
-                .min_size_content = .{ .h = self.last_height, .w = self.totalWidth() },
-            },
-        );
+        self.bbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
+            .min_size_content = .{ .h = self.last_height, .w = self.totalWidth() },
+        });
         self.bbox.install();
     }
 }
@@ -634,8 +623,6 @@ pub const VirtualScroller = struct {
     }
 };
 
-// TODO: Implement stealing space from the next col to the right if constrained to a total_size
-
 /// Provides a draggable separator between columns
 /// size must be a pointer into the same col_widths slice
 /// passed to the GridWidget init_option.
@@ -653,7 +640,7 @@ pub const HeaderResizeWidget = struct {
         // Will not resize to more than this value
         max_size: ?f32 = null,
         // The total width of all columns will not exceed this value. // TODO:
-        total_size: ?f32 = null,
+        max_size_total: ?f32 = null,
 
         pub const fixed: ?InitOptions = null;
     };
@@ -796,7 +783,7 @@ pub const HeaderResizeWidget = struct {
                         self.init_opts.max_size orelse dvui.max_float_safe,
                     );
                     const new_size = blk: {
-                        if (self.init_opts.total_size) |total_size| {
+                        if (self.init_opts.max_size_total) |total_size| {
                             // TODO: Make this less confusing!
                             const overcommit = @max(self.sizeTotal() - self.size() + clamped_size - total_size, 0);
                             break :blk @max(clamped_size - overcommit, self.init_opts.min_size orelse 1);
