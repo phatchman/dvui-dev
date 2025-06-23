@@ -4,16 +4,16 @@
 //!  - Horizontal and vertical scrolling
 //!  - Individual cell styling
 //!
-//! If var_row_heights is false, then rows cand columns can be laid out in any order, including
-//! sparse layouts where not all columns are provided. If var_row_heights is true, then rows must
-//! be laid out sequentiually. Either sequentially all rows for a column before moving to the next column,
-//! or all columns for a row before moving to the next sequential row.
+//! - If var_row_heights is false, rows and cols can be laid out in any order, including
+//!   sparse layouts where not all rows or cols are provided.
+//! - If var_row_heights is true, then rows must be laid out sequentially.
+//!   Either sequentially all rows for a column before moving to the next column,
+//!   or all columns for a row before moving to the next sequential row.
 //!
-
-// TODO: Resizable demo starts out hscrolling rather than fitting to window like previous. What should it be doing???
-// TODO: Implement Max width on the resizable headers.
-// TODO: Fix the error when enabling hscrolling in demo. Check all that more thoroughly
-
+//! See related:
+//! - CellStyle: helpers to style grid cells and widgets.
+//! - HeaderResizeWidget: draggable header resizing.
+//! - VirtualScroller: scrolling through large datasets.
 const std = @import("std");
 const dvui = @import("../dvui.zig");
 
@@ -132,11 +132,11 @@ hscroll: ?ScrollAreaWidget = null,
 bscroll: ?ScrollContainerWidget = null,
 bbox: BoxWidget = undefined, // has the same lifetime as bscroll.
 
-// Not valid untill after install
+// Not valid untill after install()
 hsi: ScrollInfo = undefined, // Header scroll info
 bsi: *ScrollInfo = undefined, // Body scroll info
 frame_viewport: Point = undefined, // Fixed scroll viewport for this frame.
-col_widths: []f32 = undefined,
+col_widths: []f32 = undefined, // Internal or user-supplied column widths.
 
 // Persistent state
 resizing: bool = false,
@@ -151,11 +151,9 @@ default_scroll_info: ScrollInfo = .{ .horizontal = .auto, .vertical = .auto },
 row_height: f32 = 0,
 max_row: usize = 0,
 cur_row: usize = std.math.maxInt(usize),
-//
 rows_y_offset: f32 = 0,
-// Next y position for this column when using variable row heights.
-next_row_y: f32 = 0,
-this_row_y: f32 = 0,
+next_row_y: f32 = 0, // Next y position for laying out rows with variable heights.
+this_row_y: f32 = 0, // This y position for laying out rows with variable heights.
 
 // Options
 init_opts: InitOpts = undefined,
@@ -305,46 +303,6 @@ pub fn deinit(self: *GridWidget) void {
 
 pub fn data(self: *GridWidget) *WidgetData {
     return &self.vbox.wd;
-}
-
-/// Returns the width of the requested column
-pub fn colWidth(self: *GridWidget, col_num: usize) f32 {
-    if (col_num >= self.col_widths.len) {
-        dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} using default col_width\n", .{ self.data().id, col_num, self.col_widths.len });
-        return default_col_width;
-    }
-    return self.col_widths[col_num];
-}
-
-/// Sets the column width of the requested column, only if the user didn't
-/// supply their own col_widths slice. Otherwise ignore the change.
-pub fn colWidthSet(self: *GridWidget, col_num: usize, width: f32) void {
-    if (col_num >= self.col_widths.len) {
-        dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} ignoring col_width change\n", .{ self.data().id, col_num, self.col_widths.len });
-        return;
-    }
-    if (self.init_opts.cols == .num) {
-        self.col_widths[col_num] = @max(self.col_widths[col_num], width);
-    }
-}
-
-/// Returns the x position of the requested column
-pub fn posX(self: *GridWidget, col_num: usize) f32 {
-    const end = @min(col_num, self.col_widths.len);
-    var total: f32 = 0;
-    for (self.col_widths[0..end]) |w| {
-        total += w;
-    }
-    return total;
-}
-
-/// Returns the total width of all columns
-pub fn totalWidth(self: *GridWidget) f32 {
-    var total: f32 = 0;
-    for (self.col_widths) |w| {
-        total += w;
-    }
-    return total;
 }
 
 /// Create a header cell for the requested column
@@ -504,6 +462,46 @@ pub fn colSortOrder(self: *const GridWidget, col_num: usize) SortDirection {
     } else {
         return .unsorted;
     }
+}
+
+/// Returns the width of the requested column
+pub fn colWidth(self: *GridWidget, col_num: usize) f32 {
+    if (col_num >= self.col_widths.len) {
+        dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} using default col_width\n", .{ self.data().id, col_num, self.col_widths.len });
+        return default_col_width;
+    }
+    return self.col_widths[col_num];
+}
+
+/// Sets the column width of the requested column, only if the user didn't
+/// supply their own col_widths slice. Otherwise ignore the change.
+pub fn colWidthSet(self: *GridWidget, col_num: usize, width: f32) void {
+    if (col_num >= self.col_widths.len) {
+        dvui.log.debug("GridWidget {x} col_num {d} is greater than number of columns {d} ignoring col_width change\n", .{ self.data().id, col_num, self.col_widths.len });
+        return;
+    }
+    if (self.init_opts.cols == .num) {
+        self.col_widths[col_num] = @max(self.col_widths[col_num], width);
+    }
+}
+
+/// Returns the x position of the requested column
+pub fn posX(self: *GridWidget, col_num: usize) f32 {
+    const end = @min(col_num, self.col_widths.len);
+    var total: f32 = 0;
+    for (self.col_widths[0..end]) |w| {
+        total += w;
+    }
+    return total;
+}
+
+/// Returns the total width of all columns
+pub fn totalWidth(self: *GridWidget) f32 {
+    var total: f32 = 0;
+    for (self.col_widths) |w| {
+        total += w;
+    }
+    return total;
 }
 
 fn headerScrollAreaCreate(self: *GridWidget) void {
