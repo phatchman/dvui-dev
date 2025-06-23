@@ -4104,7 +4104,7 @@ fn gridStyling() void {
 
     {
         var grid = dvui.grid(@src(), .{
-            .cols = .{ .widths = &local.col_widths },
+            .cols = .colWidths(&local.col_widths),
             .resize_rows = local.resize_rows,
             //            .scroll_opts = .{ .vertical_bar = .show },
         }, .{
@@ -4367,7 +4367,7 @@ fn gridLayouts() void {
             null;
 
         var grid = dvui.grid(@src(), .{
-            .cols = .{ .widths = &local.col_widths },
+            .cols = .colWidths(&local.col_widths),
             .scroll_opts = scroll_opts,
             .resize_rows = local.resize_rows,
         }, .{
@@ -4540,7 +4540,7 @@ fn gridVirtualScrolling() void {
     var vbox = dvui.box(@src(), .vertical, .{ .expand = .both });
     defer vbox.deinit();
     var grid = dvui.grid(@src(), .{
-        .cols = .{ .num = 2 },
+        .cols = .numCols(2),
         .scroll_opts = .{ .scroll_info = &local.scroll_info },
         .resize_cols = local.resize_cols,
     }, .{
@@ -4603,7 +4603,7 @@ fn gridVirtualScrolling() void {
 }
 
 fn gridVariableRowHeights() void {
-    var grid = dvui.grid(@src(), .{ .var_row_heights = true, .cols = .{ .num = 1 } }, .{
+    var grid = dvui.grid(@src(), .{ .var_row_heights = true, .cols = .numCols(1) }, .{
         .expand = .both,
         .padding = Rect.all(0),
     });

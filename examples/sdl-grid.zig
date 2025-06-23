@@ -109,21 +109,48 @@ fn gui_frame() void {
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths, .scroll_opts = .{ .vertical_bar = .show, .horizontal_bar = .show } }, .{ .expand = .both });
     //var grid = dvui.grid(@src(), .{ .col_widths = &col_widths }, .{ .expand = .both });
     {
-        var grid = dvui.grid(@src(), .{ .resize_cols = resize_cols, .cols = .{ .num = 2 }, .var_row_heights = true }, .{ .expand = .both });
-        defer grid.deinit();
         resize_cols = false;
         const CellStyle = dvui.GridWidget.CellStyle;
         if (true) {
-            for (0..2) |_col| {
-                for (0..2) |_row| {
-                    const row: usize = _row;
-                    const col: usize = 1 - _col;
-                    var cell = grid.bodyCell(@src(), col, row, .{ .size = if (col == 0) .{ .h = 50 } else .{ .h = 50 }, .border = dvui.Rect.all(1), .background = true });
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
+            defer grid.deinit();
+            {
+                for (0..4) |col| {
+                    var cell = grid.headerCell(@src(), col, .{ .border = dvui.Rect.all(1) });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}", .{col}, .{});
+                }
+                for (0..4) |col| {
+                    for (0..4) |row| {
+                        var cell = grid.bodyCell(@src(), col, row, .{
+                            .border = dvui.Rect.all(1),
+                        });
+                        defer cell.deinit();
+                        dvui.label(@src(), "{}:{}", .{ col, row }, .{
+                            .font_style = switch (row) {
+                                0 => .title_2,
+                                1 => .title_3,
+                                2 => .title_1,
+                                3 => .title_4,
+                                else => unreachable,
+                            },
+                        });
+                    }
+                }
+            }
+        } else if (true) {
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
+            defer grid.deinit();
+            for (0..10) |col| {
+                for (0..10) |row| {
+                    var cell = grid.bodyCell(@src(), col, row, .{ .size = .{ .w = 50 } });
                     defer cell.deinit();
                     dvui.label(@src(), "{}:{}", .{ col, row }, .{});
                 }
             }
         } else {
+            var grid = dvui.grid(@src(), .{ .resize_cols = resize_cols, .cols = .numCols(2), .var_row_heights = false }, .{});
+            defer grid.deinit();
             {
                 dvui.gridHeading(@src(), grid, "Col 2", 1, .fixed, CellStyle{ .cell_opts = .{ .border = dvui.Rect.all(1), .color_border = .blue } });
             }
@@ -165,8 +192,9 @@ fn gui_frame() void {
             }
         }
     }
-    _ = dvui.checkbox(@src(), &stepped, "Stepped?", .{});
-    _ = dvui.checkbox(@src(), &resize_cols, "Resize Cols?", .{});
+    std.debug.print(".", .{});
+    //    _ = dvui.checkbox(@src(), &stepped, "Stepped?", .{});
+    //    _ = dvui.checkbox(@src(), &resize_cols, "Resize Cols?", .{});
 }
 
 var stepped = false;
