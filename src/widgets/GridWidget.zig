@@ -11,7 +11,6 @@
 //!
 
 // TODO: Resizable demo starts out hscrolling rather than fitting to window like previous. What should it be doing???
-// TODO: Why do we need to subtract more scrollbar padding from the fit window layout?
 // TODO: Implement Max width on the resizable headers.
 // TODO: Fix the error when enabling hscrolling in demo. Check all that more thoroughly
 
@@ -635,13 +634,16 @@ pub const VirtualScroller = struct {
     }
 };
 
+// TODO: Implement stealing space from the next col to the right if constrained to a total_size
+
 /// Provides a draggable separator between columns
 /// size must be a pointer into the same col_widths slice
 /// passed to the GridWidget init_option.
 pub const HeaderResizeWidget = struct {
     pub const InitOptions = struct {
         // Input and output width (.vertical) or height (.horizontal)
-        size: *f32,
+        sizes: []f32,
+        num: usize,
         // clicking on these extra pixels before/after (.vertical)
         // or above/below (.horizontal) the handle also counts
         // as clicking on the handle.
@@ -693,6 +695,36 @@ pub const HeaderResizeWidget = struct {
     pub fn install(self: *HeaderResizeWidget) void {
         self.wd.register();
         self.wd.borderAndBackground(.{});
+    }
+
+    pub fn size(self: *HeaderResizeWidget) f32 {
+        if (self.init_opts.num < self.init_opts.sizes.len)
+            return self.init_opts.sizes[self.init_opts.num]
+        else
+            return 0;
+    }
+
+    pub fn sizeOf(self: *HeaderResizeWidget, col_num: usize) f32 {
+        if (col_num < self.init_opts.sizes.len)
+            return self.init_opts.sizes[col_num]
+        else
+            return 0;
+    }
+
+    pub fn sizeSet(self: *HeaderResizeWidget, s: f32) void {
+        if (self.init_opts.num < self.init_opts.sizes.len)
+            self.init_opts.sizes[self.init_opts.num] = s;
+    }
+
+    pub fn sizeTotal(self: *HeaderResizeWidget) f32 {
+        var total: f32 = switch (self.direction) {
+            .vertical => scrollbar_padding_defaults.w,
+            .horizontal => scrollbar_padding_defaults.h,
+        };
+        for (self.init_opts.sizes) |s| {
+            total += s;
+        }
+        return total;
     }
 
     pub fn matchEvent(self: *HeaderResizeWidget, e: *Event) bool {
@@ -753,25 +785,29 @@ pub const HeaderResizeWidget = struct {
                 // move if dragging
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
                     dvui.refresh(null, @src(), self.wd.id);
+                    const unclamped_size =
+                        switch (self.direction) {
+                            .vertical => self.size() + dps.x / rs.s + self.offset.x,
+                            .horizontal => self.size() + dps.y / rs.s + self.offset.y,
+                        };
+                    const clamped_size = std.math.clamp(
+                        unclamped_size,
+                        self.init_opts.min_size orelse 1,
+                        self.init_opts.max_size orelse dvui.max_float_safe,
+                    );
+                    const new_size = blk: {
+                        if (self.init_opts.total_size) |total_size| {
+                            // TODO: Make this less confusing!
+                            const overcommit = @max(self.sizeTotal() - self.size() + clamped_size - total_size, 0);
+                            break :blk @max(clamped_size - overcommit, self.init_opts.min_size orelse 1);
+                        } else {
+                            break :blk clamped_size;
+                        }
+                    };
+                    self.sizeSet(new_size);
                     switch (self.direction) {
-                        .vertical => {
-                            const unclamped_width = self.init_opts.size.* + dps.x / rs.s + self.offset.x;
-                            self.init_opts.size.* = std.math.clamp(
-                                unclamped_width,
-                                self.init_opts.min_size orelse 1,
-                                self.init_opts.max_size orelse dvui.max_float_safe,
-                            );
-                            self.offset.x = unclamped_width - self.init_opts.size.*;
-                        },
-                        .horizontal => {
-                            const unclamped_height = self.init_opts.size.* + dps.y / rs.s + self.offset.y;
-                            self.init_opts.size.* = std.math.clamp(
-                                unclamped_height,
-                                self.init_opts.min_size orelse 1,
-                                self.init_opts.max_size orelse dvui.max_float_safe,
-                            );
-                            self.offset.y = unclamped_height - self.init_opts.size.*;
-                        },
+                        .vertical => self.offset.x = new_size - self.size(),
+                        .horizontal => self.offset.y = new_size - self.size(),
                     }
                 }
             } else if (e.evt.mouse.action == .position) {

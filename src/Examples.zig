@@ -4308,12 +4308,14 @@ fn gridLayouts() void {
 
         const resize_min = 80;
         const resize_max = 500;
-        fn headerResizeOptions(col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
+        fn headerResizeOptions(grid: *GridWidget, col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
             if (layout_style != .user_resizable) return .fixed;
             return .{
-                .size = &col_widths[col_num],
+                .sizes = &col_widths,
+                .num = col_num,
                 .min_size = resize_min,
                 .max_size = resize_max,
+                .total_size = if (!h_scroll) grid.data().contentRect().w else null,
             };
         }
 
@@ -4406,19 +4408,19 @@ fn gridLayouts() void {
                 };
             }
         }
-        if (dvui.gridHeadingSortable(@src(), grid, 1, "Make", &local.sort_dir, local.headerResizeOptions(1), .{})) {
+        if (dvui.gridHeadingSortable(@src(), grid, 1, "Make", &local.sort_dir, local.headerResizeOptions(grid, 1), .{})) {
             local.sort("Make");
         }
-        if (dvui.gridHeadingSortable(@src(), grid, 2, "Model", &local.sort_dir, local.headerResizeOptions(2), .{})) {
+        if (dvui.gridHeadingSortable(@src(), grid, 2, "Model", &local.sort_dir, local.headerResizeOptions(grid, 2), .{})) {
             local.sort("Model");
         }
-        if (dvui.gridHeadingSortable(@src(), grid, 3, "Year", &local.sort_dir, local.headerResizeOptions(3), .{})) {
+        if (dvui.gridHeadingSortable(@src(), grid, 3, "Year", &local.sort_dir, local.headerResizeOptions(grid, 3), .{})) {
             local.sort("Year");
         }
-        if (dvui.gridHeadingSortable(@src(), grid, 4, "Condition", &local.sort_dir, local.headerResizeOptions(4), .{})) {
+        if (dvui.gridHeadingSortable(@src(), grid, 4, "Condition", &local.sort_dir, local.headerResizeOptions(grid, 4), .{})) {
             local.sort("Condition");
         }
-        if (dvui.gridHeadingSortable(@src(), grid, 5, "Description", &local.sort_dir, local.headerResizeOptions(5), .{})) {
+        if (dvui.gridHeadingSortable(@src(), grid, 5, "Description", &local.sort_dir, local.headerResizeOptions(grid, 5), .{})) {
             local.sort("Description");
         }
 
