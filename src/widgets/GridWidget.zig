@@ -7,7 +7,7 @@
 //! - If var_row_heights is false, rows and cols can be laid out in any order, including
 //!   sparse layouts where not all rows or cols are provided.
 //! - If var_row_heights is true, then rows must be laid out sequentially.
-//!   Either sequentially all rows for a column before moving to the next column,
+//!   Either sequentially all rows for a column before moving to a new column,
 //!   or all columns for a row before moving to the next sequential row.
 //!
 //! See related:
