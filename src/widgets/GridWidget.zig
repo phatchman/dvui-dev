@@ -260,7 +260,7 @@ pub fn install(self: *GridWidget) void {
         } else {
             self.bsi = &self.default_scroll_info;
             scroll_opts.scroll_info = self.bsi;
-            // Move an .horizontal and .vertical settings from scroll_opts to scroll_info
+            // Move the .horizontal and .vertical settings from scroll_opts to scroll_info
             self.bsi.horizontal = scroll_opts.horizontal orelse .none;
             self.bsi.vertical = scroll_opts.vertical orelse .auto;
             scroll_opts.horizontal = null;
