@@ -4112,10 +4112,11 @@ fn gridStyling() void {
             .background = true,
             .border = Rect.all(1),
         });
-        // Normally this would just be grid.data().contentRect().w but we want to keep the right-hand panel fixed size.
+        defer grid.deinit();
+
+        // Layout both columns equally, taking up the full width of the grid.
         dvui.columnLayoutProportional(&.{ -1, -1 }, &local.col_widths, grid.data().contentRect().w);
 
-        defer grid.deinit();
         local.resize_rows = false; // Only resize rows when needed.
 
         // Set start, end and interval based on sort direction.

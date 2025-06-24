@@ -120,32 +120,33 @@ fn gui_frame() void {
                     defer cell.deinit();
                     dvui.label(@src(), "{}", .{col}, .{});
                 }
+                for (0..2) |col| {
+                    for (0..4) |row| {
+                        var cell = grid.bodyCell(@src(), col, row, .{
+                            .border = dvui.Rect.all(1),
+                        });
+                        defer cell.deinit();
+                        dvui.label(@src(), "{}:{}", .{ col, row }, .{});
+                    }
+                }
+            }
+        } else if (true) {
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
+            defer grid.deinit();
+            {
+                for (0..2) |col| {
+                    var cell = grid.headerCell(@src(), col, .{ .border = dvui.Rect.all(1) });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}", .{col}, .{});
+                }
                 for (0..4) |col| {
                     for (0..4) |row| {
                         var cell = grid.bodyCell(@src(), col, row, .{
                             .border = dvui.Rect.all(1),
                         });
                         defer cell.deinit();
-                        dvui.label(@src(), "{}:{}", .{ col, row }, .{
-                            .font_style = switch (row) {
-                                0 => .title_2,
-                                1 => .title_3,
-                                2 => .title_1,
-                                3 => .title_4,
-                                else => unreachable,
-                            },
-                        });
+                        dvui.label(@src(), "{}:{}", .{ col, row }, .{});
                     }
-                }
-            }
-        } else if (true) {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
-            defer grid.deinit();
-            for (0..10) |col| {
-                for (0..10) |row| {
-                    var cell = grid.bodyCell(@src(), col, row, .{ .size = .{ .w = 50 } });
-                    defer cell.deinit();
-                    dvui.label(@src(), "{}:{}", .{ col, row }, .{});
                 }
             }
         } else {

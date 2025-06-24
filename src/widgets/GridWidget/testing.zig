@@ -514,3 +514,126 @@ test "GridWidget: vary row height" {
     try dvui.testing.settle(frame);
     try t.saveImage(frame, null, "GridWidget-vary_row_height.png");
 }
+
+test "GridWidget: sparse" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
+            defer box.deinit();
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
+            defer grid.deinit();
+            {
+                for (0..10) |col_row| {
+                    var cell = grid.bodyCell(@src(), col_row, col_row, .{
+                        .border = dvui.Rect.all(1),
+                    });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{[col_row]}:{[col_row]}", .{ .col_row = col_row }, .{});
+                }
+            }
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveImage(frame, null, "GridWidget-sparse.png");
+}
+
+test "GridWidget: sparse reverse" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
+            defer box.deinit();
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
+            defer grid.deinit();
+            {
+                for (0..10) |i| {
+                    const col_row = 9 - i;
+                    var cell = grid.bodyCell(@src(), col_row, col_row, .{
+                        .border = dvui.Rect.all(1),
+                    });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{[col_row]}:{[col_row]}", .{ .col_row = col_row }, .{});
+                }
+            }
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveImage(frame, null, "GridWidget-sparse_reverse.png");
+}
+
+test "GridWidget: more header cells than body cells" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
+            defer box.deinit();
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
+            defer grid.deinit();
+            {
+                for (0..4) |col| {
+                    var cell = grid.headerCell(@src(), col, .{ .border = dvui.Rect.all(1) });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}", .{col}, .{});
+                }
+                for (0..2) |col| {
+                    for (0..4) |row| {
+                        var cell = grid.bodyCell(@src(), col, row, .{
+                            .border = dvui.Rect.all(1),
+                        });
+                        defer cell.deinit();
+                        dvui.label(@src(), "{}:{}", .{ col, row }, .{});
+                    }
+                }
+            }
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveImage(frame, null, "GridWidget-more_headers_than_body.png");
+}
+
+test "GridWidget: more body cells than header cells" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
+            defer box.deinit();
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
+            defer grid.deinit();
+            {
+                for (0..2) |col| {
+                    var cell = grid.headerCell(@src(), col, .{ .border = dvui.Rect.all(1) });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}", .{col}, .{});
+                }
+                for (0..4) |col| {
+                    for (0..4) |row| {
+                        var cell = grid.bodyCell(@src(), col, row, .{
+                            .border = dvui.Rect.all(1),
+                        });
+                        defer cell.deinit();
+                        dvui.label(@src(), "{}:{}", .{ col, row }, .{});
+                    }
+                }
+            }
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveImage(frame, null, "GridWidget-more_body_than_header.png");
+}
