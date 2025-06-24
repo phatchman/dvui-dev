@@ -90,7 +90,7 @@ pub fn main() !void {
     }
 }
 
-var col_widths: [2]f32 = .{ 500, 500 };
+var col_widths: [10]f32 = @splat(50);
 var scroll_info: dvui.ScrollInfo = .{ .horizontal = .auto, .vertical = .auto };
 // both dvui and SDL drawing
 fn gui_frame() void {
@@ -112,14 +112,12 @@ fn gui_frame() void {
         resize_cols = false;
         const CellStyle = dvui.GridWidget.CellStyle;
         if (true) {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{}); // TODO: No .expand
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             for (0..10) |col| {
-                for (0..10) |row| {
-                    var cell = grid.bodyCell(@src(), col, row, .{ .size = .{ .w = 50, .h = 50 } });
-                    defer cell.deinit();
-                    dvui.label(@src(), "{}:{}", .{ col, row }, .{});
-                }
+                var cell = grid.headerCell(@src(), col, .{ .color_fill = .fill_control, .background = true });
+                defer cell.deinit();
+                dvui.label(@src(), "Col {}", .{col}, .{});
             }
         } else if (true) {
             var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});

@@ -10,7 +10,7 @@ test "GridWidget: basic by col" {
         fn frame() !dvui.App.Result {
             var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
             defer box.deinit();
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .both }); // TODO: .expand!
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             {
                 for (0..10) |col| {
@@ -43,7 +43,7 @@ test "GridWidget: basic by row" {
         fn frame() !dvui.App.Result {
             var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
             defer box.deinit();
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .both }); // TODO: .expand!
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             {
                 for (0..10) |col| {
@@ -95,7 +95,7 @@ test "GridWidget: one cell" {
             var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
             defer box.deinit();
 
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(1) }, .{ .expand = .both }); // TODO:
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(1) }, .{});
             defer grid.deinit();
             var cell = grid.bodyCell(@src(), 0, 0, .{});
             defer cell.deinit();
@@ -108,13 +108,13 @@ test "GridWidget: one cell" {
     try t.saveImage(frame, null, "GridWidget-one_cell.png");
 }
 
-test "GridWidget: populate by col" {
+test "GridWidget: populate by col expand" {
     var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
     defer t.deinit();
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{}); // TODO:
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .both });
             defer grid.deinit();
             for (0..10) |col| {
                 for (0..10) |row| {
@@ -128,7 +128,7 @@ test "GridWidget: populate by col" {
     }.frame;
 
     try dvui.testing.settle(frame);
-    try t.saveImage(frame, null, "GridWidget-by_col.png");
+    try t.saveImage(frame, null, "GridWidget-by_col_expand.png");
 }
 
 test "GridWidget: populate by col no expand" {
@@ -137,7 +137,7 @@ test "GridWidget: populate by col no expand" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{}); // TODO:
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             for (0..10) |col| {
                 for (0..10) |row| {
@@ -160,7 +160,7 @@ test "GridWidget: populate by row" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{}); // TODO:
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             for (0..10) |row| {
                 for (0..10) |col| {
@@ -230,7 +230,7 @@ test "GridWidget: col widths" {
     const frame = struct {
         var col_widths: [10]f32 = @splat(50);
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .colWidths(&col_widths) }, .{ .expand = .horizontal }); // TODO: No .expand
+            var grid = dvui.grid(@src(), .{ .cols = .colWidths(&col_widths) }, .{ .expand = .both }); // TODO: No .expand
             defer grid.deinit();
             for (0..10) |col| {
                 for (0..10) |row| {
@@ -252,8 +252,7 @@ test "GridWidget: cell widths" {
     defer t.deinit();
     const frame = struct {
         fn frame() !dvui.App.Result {
-            // TODO: This should work without .expand
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .horizontal });
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             for (0..10) |col| {
                 for (0..10) |row| {
@@ -297,7 +296,7 @@ test "GridWidget: variable cell_heights by col" {
     defer t.deinit();
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10), .var_row_heights = true }, .{ .expand = .both });
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10), .var_row_heights = true }, .{});
             defer grid.deinit();
             for (0..10) |col| {
                 for (0..10) |row| {
@@ -320,7 +319,7 @@ test "GridWidget: variable cell_heights by row" {
     defer t.deinit();
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10), .var_row_heights = true }, .{ .expand = .vertical }); // TODO: no expand
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10), .var_row_heights = true }, .{});
             defer grid.deinit();
             for (0..10) |row| {
                 for (0..10) |col| {
@@ -343,7 +342,7 @@ test "GridWidget: styling" {
     defer t.deinit();
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .both }); // TODO: no expand
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             for (0..10) |row| {
                 for (0..10) |col| {
@@ -369,7 +368,7 @@ test "GridWidget: styling empty" {
     defer t.deinit();
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .both }); // TODO: no expand
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             for (0..10) |row| {
                 for (0..10) |col| {
@@ -394,10 +393,10 @@ test "GridWidget: heading only" {
     defer t.deinit();
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .both }); // TODO: no expand
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             for (0..10) |col| {
-                var cell = grid.headerCell(@src(), col, .{ .color_fill = .fill_control, .background = true });
+                var cell = grid.headerCell(@src(), col, .{ .color_fill = .fill_control, .background = true, .border = dvui.Rect.all(1) });
                 defer cell.deinit();
                 dvui.label(@src(), "Col {}", .{col}, .{});
             }
@@ -414,7 +413,7 @@ test "GridWidget: body then header" {
     defer t.deinit();
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{ .expand = .both }); // TODO: no expand
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             {
                 var cell = grid.bodyCell(@src(), 0, 0, .{});
