@@ -4758,9 +4758,6 @@ pub fn gridColumnLabel(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
     col_num: usize,
-    comptime T: type,
-    data: []const T,
-    comptime field_name: ?[]const u8,
     comptime fmt: []const u8,
     data_adapter: anytype, // GridWidget.DataAdpater
     cell_style: anytype, // GridWidget.CellStyle
@@ -4774,8 +4771,9 @@ pub fn gridColumnLabel(
     for (0..data_adapter.len()) |row_num| {
         var cell = g.bodyCell(
             src,
+            col_num,
             row_num,
-            opts.cellOptions(g.col_num, row_num),
+            opts.cellOptions(col_num, row_num),
         );
         defer cell.deinit();
 
@@ -4783,7 +4781,7 @@ pub fn gridColumnLabel(
             @src(),
             fmt,
             .{data_adapter.value(row_num)},
-            label_defaults.override(opts.options(g.col_num, row_num)),
+            label_defaults.override(opts.options(col_num, row_num)),
         );
     }
 }
@@ -4795,6 +4793,7 @@ pub fn gridColumnLabel(
 pub fn gridColumnTextEntry(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
+    col_num: usize,
     init_opts: TextEntryWidget.InitOptions,
     data_adapter: anytype, // Requires and updateable GridWidget.DataAdapter
     cell_style: anytype, // GridWidget.CellStyle
@@ -4823,7 +4822,7 @@ pub fn gridColumnTextEntry(
             opts.cellOptions(col_num, row_num),
         );
         defer cell.deinit();
-        var text = textEntry(@src(), init_opts, entry_defaults.override(opts.options(g.col_num, row_num)));
+        var text = textEntry(@src(), init_opts, entry_defaults.override(opts.options(col_num, row_num)));
         defer text.deinit();
         if (text.data().id == current_focus_id) {
             current_focus_row = row_num;
@@ -4891,6 +4890,7 @@ pub fn gridColumnTextEntry(
 pub fn gridColumnIcon(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
+    col_num: usize,
     icon_opts: IconRenderOptions,
     data_adapter: anytype, // GridWidget.DataAdapter
     cell_style: anytype, // GridWidget.CellStyle
@@ -4904,8 +4904,9 @@ pub fn gridColumnIcon(
     for (0..data_adapter.len()) |row_num| {
         var cell = g.bodyCell(
             src,
+            col_num,
             row_num,
-            opts.cellOptions(g.col_num, row_num),
+            opts.cellOptions(col_num, row_num),
         );
         defer cell.deinit();
         icon(
@@ -4913,7 +4914,7 @@ pub fn gridColumnIcon(
             "gridColumnIcon_" ++ @typeName(@TypeOf(data_adapter.value(row_num))),
             data_adapter.value(row_num),
             icon_opts,
-            icon_defaults.override(opts.options(g.col_num, row_num)),
+            icon_defaults.override(opts.options(col_num, row_num)),
         );
     }
 }
@@ -4998,9 +4999,8 @@ pub fn gridColumnCheckbox(
     src: std.builtin.SourceLocation,
     g: *dvui.GridWidget,
     col_num: usize,
-    comptime T: type,
-    data: []T,
-    comptime field_name: ?[]const u8,
+    init_opts: ColumnCheckboxInitOpts,
+    data_adapter: anytype, // GridWidget.DataAdapter
     cell_style: anytype, // GridWidget.CellStyle
 ) bool {
     GridWidget.DataAdapter.requiresReadable(data_adapter);
@@ -5034,7 +5034,7 @@ pub fn gridColumnCheckbox(
             @src(),
             &is_selected,
             null,
-            check_defaults.override(opts.options(g.col_num, row_num)),
+            check_defaults.override(opts.options(col_num, row_num)),
         )) {
             data_adapter.setValue(row_num, is_selected);
             selection_changed = true;

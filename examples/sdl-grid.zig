@@ -215,7 +215,7 @@ fn gui_frame() !void {
             var frame_count: usize = 0;
         };
 
-        var grid = dvui.grid(@src(), .{}, .{ .expand = .both });
+        var grid = dvui.grid(@src(), .numCols(8), .{}, .{ .expand = .both });
         defer grid.deinit();
 
         // This is just to make sure nothing regarding data is comptime.
@@ -229,35 +229,25 @@ fn gui_frame() !void {
         //const adapter = DataAdapter.SliceUpdatable(bool){ .slice = &selections };
         //const adapter = DataAdapter.BitSetUpdateable(@TypeOf(select_bitset)){ .bitset = &select_bitset };
         //var single_select: dvui.GridWidget.Actions.SingleSelect = .{ .selection_info = &local.selection_info };
-        var stf: dvui.GridWidget.Actions.ScrollToFocused = .init();
+        //        var stf: dvui.GridWidget.Actions.ScrollToFocused = .init();
         {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
             var selection: dvui.GridColumnSelectAllState = undefined;
-            _ = dvui.gridHeadingCheckbox(@src(), grid, &selection, .{});
-            selection_changed = dvui.gridColumnCheckbox(@src(), grid, .{ .selection_info = &local.selection_info }, adapter, CellStyleTabIndex{});
-        }
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            dvui.gridHeading(@src(), grid, "Value", .fixed, .{});
-            dvui.gridColumnLabel(@src(), grid, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
-            //var tst = DataAdapterStructSlice(Data, "value"){ .slice = data };
-            //tst.setValue(3, 69);
-        }
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            dvui.gridHeading(@src(), grid, "Selected", .fixed, .{});
-            dvui.gridColumnLabel(@src(), grid, "{}", adapter, .{});
-        }
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            dvui.gridHeading(@src(), grid, "YN", .fixed, .{});
+            _ = dvui.gridHeadingCheckbox(@src(), grid, 0, &selection, .{});
+            dvui.gridHeading(@src(), grid, "Value", 1, .fixed, .{});
+            dvui.gridHeading(@src(), grid, "Selected", 2, .fixed, .{});
+            dvui.gridHeading(@src(), grid, "YN", 3, .fixed, .{});
+            dvui.gridHeading(@src(), grid, "Parity", 4, .fixed, .{});
+            dvui.gridHeading(@src(), grid, "Icon", 5, .fixed, .{});
+            dvui.gridHeading(@src(), grid, "Entry", 6, .fixed, .{});
+            dvui.gridHeading(@src(), grid, "Entry2", 7, .fixed, .{});
+
+            selection_changed = dvui.gridColumnCheckbox(@src(), grid, 0, .{ .selection_info = &local.selection_info }, adapter, CellStyleTabIndex{});
+            dvui.gridColumnLabel(@src(), grid, 1, "{d}", DataAdapter.SliceOfStruct(Data, "value"){ .slice = data }, .{});
+            dvui.gridColumnLabel(@src(), grid, 2, "{}", adapter, .{});
             dvui.gridColumnLabel(
                 @src(),
                 grid,
+                3,
                 "{s}",
                 DataAdapter.SliceOfStructConvert(
                     Data,
@@ -266,27 +256,18 @@ fn gui_frame() !void {
                 ){ .slice = data },
                 CellStyle{ .opts = .{ .gravity_x = 0.5 } },
             );
-        }
-
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            dvui.gridHeading(@src(), grid, "Parity", .fixed, .{});
             dvui.gridColumnLabel(
                 @src(),
                 grid,
+                4,
                 "{s}",
                 DataAdapter.SliceOfStructConvert(Data, "parity", DataAdapter.enumToString){ .slice = data },
                 .{},
             );
-        }
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            dvui.gridHeading(@src(), grid, "Icon", .fixed, .{});
             dvui.gridColumnIcon(
                 @src(),
                 grid,
+                5,
                 .{},
                 DataAdapter.SliceOfStructConvert(
                     Data,
@@ -295,14 +276,10 @@ fn gui_frame() !void {
                 ){ .slice = data },
                 CellStyle{ .opts = .{ .gravity_x = 0.5 } },
             );
-        }
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            dvui.gridHeading(@src(), grid, "Entry", .fixed, .{});
             if (dvui.gridColumnTextEntry(
                 @src(),
                 grid,
+                6,
                 .{},
                 DataAdapter.SliceOfStructUpdatable(
                     Data,
@@ -312,13 +289,8 @@ fn gui_frame() !void {
             )) |row_num| {
                 std.debug.print("text changed: {}:{s}\n", .{ row_num, data[row_num].text });
             }
-        }
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            dvui.gridHeading(@src(), grid, "Entry2", .fixed, .{});
             for (data[0..], 0..) |*d, row_num| {
-                var cell = grid.bodyCell(@src(), row_num, .{});
+                var cell = grid.bodyCell(@src(), 7, row_num, .{});
                 defer cell.deinit();
                 var text = dvui.textEntry(@src(), .{}, .{ .expand = .horizontal });
                 defer text.deinit();
@@ -337,7 +309,7 @@ fn gui_frame() !void {
             //single_select.performAction(selection_changed, adapter);
             local.selector.processEvents();
             local.selector.performAction(selection_changed, adapter);
-            stf.performAction(grid);
+            //stf.performAction(grid);
         }
     }
 }
