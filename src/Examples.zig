@@ -462,7 +462,7 @@ pub fn demo() void {
                     .plots => plots(),
                     .reorderable => reorderLists(),
                     .menus => menus(),
-                    .scrolling => scrolling(1),
+                    .scrolling => scrolling(),
                     .scroll_canvas => scrollCanvas(),
                     .dialogs => dialogs(float.data().id),
                     .animations => animations(),
@@ -515,7 +515,7 @@ pub fn demo() void {
             .plots => plots(),
             .reorderable => reorderLists(),
             .menus => menus(),
-            .scrolling => scrolling(2),
+            .scrolling => scrolling(),
             .scroll_canvas => scrollCanvas(),
             .dialogs => dialogs(float.data().id),
             .animations => animations(),
@@ -2647,30 +2647,26 @@ pub fn focus() void {
 }
 
 /// ![image](Examples-scrolling.png)
-pub fn scrolling(comptime data: u8) void {
+pub fn scrolling() void {
     const Data1 = struct {
-        var msg_start: usize = 1_000;
-        var msg_end: usize = 1_100;
-        var scroll_info: ScrollInfo = .{};
+        msg_start: usize = 1_000,
+        msg_end: usize = 1_100,
+        scroll_info: ScrollInfo = .{},
     };
 
-    const Data2 = struct {
-        var msg_start: usize = 1_000;
-        var msg_end: usize = 1_100;
-        var scroll_info: ScrollInfo = .{};
-    };
+    var hbox = dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
 
-    const Data = if (data == 1) Data1 else Data2;
+    const Data = dvui.dataGetPtrDefault(null, hbox.data().id, "data", Data1, .{});
 
     var scroll_to_msg: ?usize = null;
     var scroll_to_bottom_after = false;
     var scroll_lock_visible = false;
 
-    var hbox = dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
-    defer hbox.deinit();
     {
         var vbox = dvui.box(@src(), .vertical, .{ .expand = .vertical });
         defer vbox.deinit();
+
+        dvui.label(@src(), "{d} total widgets", .{2 * (Data.msg_end - Data.msg_start)}, .{});
 
         if (dvui.button(@src(), "Scroll to Top", .{}, .{})) {
             Data.scroll_info.scrollToOffset(.vertical, 0);
@@ -2759,8 +2755,6 @@ pub fn scrolling(comptime data: u8) void {
             tl2.format("Reply {d}", .{i}, .{});
             tl2.deinit();
         }
-
-        //const visibleRect = scroll.si.viewport;
     }
 
     if (scroll_to_bottom_after) {
@@ -2768,8 +2762,99 @@ pub fn scrolling(comptime data: u8) void {
         Data.scroll_info.scrollToOffset(.vertical, std.math.maxInt(usize));
     }
 
-    // todo: add button to show icon browser with note about how that works
+    hbox.deinit();
 
+    _ = dvui.spacer(@src(), .{ .min_size_content = .all(12) });
+    _ = dvui.separator(@src(), .{ .expand = .horizontal });
+    _ = dvui.spacer(@src(), .{ .min_size_content = .all(12) });
+
+    var box2 = dvui.box(@src(), .vertical, .{ .expand = .horizontal });
+    defer box2.deinit();
+
+    const siTop = dvui.dataGetPtrDefault(null, box2.data().id, "siTop", ScrollInfo, .{ .horizontal = .auto });
+    const siLeft = dvui.dataGetPtrDefault(null, box2.data().id, "siLeft", ScrollInfo, .{ .horizontal = .auto });
+    const siMain = dvui.dataGetPtrDefault(null, box2.data().id, "siMain", ScrollInfo, .{ .horizontal = .auto });
+
+    // save the viewport so everything is synced this frame
+    const fv = siMain.viewport.topLeft();
+
+    var main_area = dvui.ScrollAreaWidget.init(@src(), .{ .scroll_info = siMain, .frame_viewport = fv }, .{ .expand = .both, .max_size_content = .height(300), .background = false });
+    main_area.installScrollBars();
+
+    const left_side_width = 80;
+
+    {
+        var hboxTop = dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+        defer hboxTop.deinit();
+
+        var lbox = dvui.box(@src(), .vertical, .{ .min_size_content = .width(left_side_width) });
+        dvui.label(@src(), "Linked\nScrolling", .{}, .{ .gravity_x = 0.5, .gravity_y = 0.5 });
+        lbox.deinit();
+
+        _ = dvui.spacer(@src(), .{ .min_size_content = .all(10) });
+
+        var top_area = dvui.scrollArea(@src(), .{ .scroll_info = siTop, .frame_viewport = .{ .x = fv.x }, .horizontal_bar = .hide }, .{ .expand = .both });
+        {
+            // inside top area
+            var topbox = dvui.box(@src(), .horizontal, .{});
+            defer topbox.deinit();
+
+            for (0..20) |i| {
+                dvui.label(@src(), "label {d}", .{i}, .{ .id_extra = i });
+            }
+        }
+        top_area.deinit();
+    }
+
+    _ = dvui.spacer(@src(), .{ .min_size_content = .all(10) });
+
+    var hbox3 = dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
+
+    var side_area = dvui.scrollArea(@src(), .{ .scroll_info = siLeft, .frame_viewport = .{ .y = fv.y }, .vertical_bar = .hide }, .{ .min_size_content = .{ .w = left_side_width, .h = 200 }, .expand = .vertical });
+    {
+        // inside side area
+        var sidebox = dvui.box(@src(), .vertical, .{});
+        defer sidebox.deinit();
+
+        for (0..20) |i| {
+            dvui.label(@src(), "label {d}", .{i}, .{ .id_extra = i });
+        }
+    }
+    side_area.deinit();
+
+    _ = dvui.spacer(@src(), .{ .min_size_content = .all(10) });
+
+    var scontainer = dvui.ScrollContainerWidget.init(@src(), siMain, .{ .frame_viewport = fv }, .{ .expand = .both });
+    scontainer.install();
+    scontainer.processEvents();
+    scontainer.processVelocity();
+
+    {
+        // inside main area
+        var mainbox = dvui.box(@src(), .vertical, .{});
+        var mainbox2 = dvui.box(@src(), .horizontal, .{});
+        for (0..20) |i| {
+            dvui.label(@src(), "label {d}", .{i}, .{ .id_extra = i });
+        }
+        mainbox2.deinit();
+        for (1..20) |i| {
+            dvui.label(@src(), "label {d}", .{i}, .{ .id_extra = i });
+        }
+        mainbox.deinit();
+    }
+    scontainer.deinit();
+    hbox3.deinit();
+    main_area.deinit();
+
+    // sync siTop and siMain horizontal
+    if (siTop.viewport.x != fv.x) siMain.viewport.x = siTop.viewport.x;
+    if (siMain.viewport.x != fv.x) siTop.viewport.x = siMain.viewport.x;
+
+    // sync siLeft and siMain vertical
+    if (siLeft.viewport.y != fv.y) siMain.viewport.y = siLeft.viewport.y;
+    if (siMain.viewport.y != fv.y) siLeft.viewport.y = siMain.viewport.y;
+
+    // TODO: what happens if sizes are different?
 }
 
 /// ![image](Examples-scroll_canvas.png)
@@ -2796,10 +2881,11 @@ pub fn scrollCanvas() void {
     tl.format("Scale {d}", .{scale}, .{});
     tl.deinit();
 
-    var scroll = dvui.scrollArea(@src(), .{ .scroll_info = scroll_info }, .{ .expand = .both, .min_size_content = .{ .w = 300, .h = 300 } });
+    var scrollArea = dvui.scrollArea(@src(), .{ .scroll_info = scroll_info }, .{ .expand = .both, .min_size_content = .{ .w = 300, .h = 300 } });
+    var scrollContainer = &scrollArea.scroll.?;
 
     // can use this to convert between viewport/virtual_size and screen coords
-    const scrollRectScale = scroll.scroll.screenRectScale(.{});
+    const scrollRectScale = scrollContainer.screenRectScale(.{});
 
     var scaler = dvui.scale(@src(), .{ .scale = scale }, .{ .rect = .{ .x = -origin.x, .y = -origin.y } });
 
@@ -2975,7 +3061,7 @@ pub fn scrollCanvas() void {
                             if (dvui.dragging(me.p)) |_| {
                                 const p = me.p.diff(dvui.dragOffset()); // pixel corner we want
                                 b.* = dataRectScale.pointFromPhysical(p);
-                                dvui.refresh(null, @src(), scroll.scroll.data().id);
+                                dvui.refresh(null, @src(), scrollContainer.data().id);
 
                                 var scrolldrag = dvui.Event{ .evt = .{ .scroll_drag = .{
                                     .mouse_pt = e.evt.mouse.p,
@@ -3000,37 +3086,37 @@ pub fn scrollCanvas() void {
     // process scroll area events after boxes so the boxes get first pick (so
     // the button works)
     for (evts) |*e| {
-        if (!scroll.scroll.matchEvent(e))
+        if (!scrollContainer.matchEvent(e))
             continue;
 
         switch (e.evt) {
             .mouse => |me| {
                 if (me.action == .press and me.button.pointer()) {
-                    e.handle(@src(), scroll.scroll.data());
-                    dvui.captureMouse(scroll.scroll.data());
+                    e.handle(@src(), scrollContainer.data());
+                    dvui.captureMouse(scrollContainer.data());
                     dvui.dragPreStart(me.p, .{});
                 } else if (me.action == .release and me.button.pointer()) {
-                    if (dvui.captured(scroll.scroll.data().id)) {
-                        e.handle(@src(), scroll.scroll.data());
+                    if (dvui.captured(scrollContainer.data().id)) {
+                        e.handle(@src(), scrollContainer.data());
                         dvui.captureMouse(null);
                         dvui.dragEnd();
                     }
                 } else if (me.action == .motion) {
                     if (me.button.touch() and dragging_box) {
                         // eat touch motion events so they don't scroll
-                        e.handle(@src(), scroll.scroll.data());
+                        e.handle(@src(), scrollContainer.data());
                     }
-                    if (dvui.captured(scroll.scroll.data().id)) {
+                    if (dvui.captured(scrollContainer.data().id)) {
                         if (dvui.dragging(me.p)) |dps| {
-                            e.handle(@src(), scroll.scroll.data());
+                            e.handle(@src(), scrollContainer.data());
                             const rs = scrollRectScale;
                             scroll_info.viewport.x -= dps.x / rs.s;
                             scroll_info.viewport.y -= dps.y / rs.s;
-                            dvui.refresh(null, @src(), scroll.scroll.data().id);
+                            dvui.refresh(null, @src(), scrollContainer.data().id);
                         }
                     }
                 } else if (me.action == .wheel_y and me.mod.matchBind("ctrl/cmd")) {
-                    e.handle(@src(), scroll.scroll.data());
+                    e.handle(@src(), scrollContainer.data());
                     const base: f32 = 1.01;
                     const zs = @exp(@log(base) * me.action.wheel_y);
                     if (zs != 1.0) {
@@ -3061,13 +3147,15 @@ pub fn scrollCanvas() void {
         scroll_info.viewport.x += diff.x;
         scroll_info.viewport.y += diff.y;
 
-        dvui.refresh(null, @src(), scroll.scroll.data().id);
+        dvui.refresh(null, @src(), scrollContainer.data().id);
     }
 
     scaler.deinit();
 
+    const scrollContainerId = scrollContainer.data().id;
+
     // deinit is where scroll processes events
-    scroll.deinit();
+    scrollArea.deinit();
 
     // don't mess with scrolling if we aren't being shown (prevents weirdness
     // when starting out)
@@ -3087,7 +3175,7 @@ pub fn scrollCanvas() void {
             scroll_info.virtual_size.h += adj;
             scroll_info.viewport.y += adj;
             origin.y -= adj;
-            dvui.refresh(null, @src(), scroll.scroll.data().id);
+            dvui.refresh(null, @src(), scrollContainerId);
         }
 
         // adjust left if needed
@@ -3096,19 +3184,19 @@ pub fn scrollCanvas() void {
             scroll_info.virtual_size.w += adj;
             scroll_info.viewport.x += adj;
             origin.x -= adj;
-            dvui.refresh(null, @src(), scroll.scroll.data().id);
+            dvui.refresh(null, @src(), scrollContainerId);
         }
 
         // adjust bottom if needed
         if (bbox.h != scroll_info.virtual_size.h) {
             scroll_info.virtual_size.h = bbox.h;
-            dvui.refresh(null, @src(), scroll.scroll.data().id);
+            dvui.refresh(null, @src(), scrollContainerId);
         }
 
         // adjust right if needed
         if (bbox.w != scroll_info.virtual_size.w) {
             scroll_info.virtual_size.w = bbox.w;
-            dvui.refresh(null, @src(), scroll.scroll.data().id);
+            dvui.refresh(null, @src(), scrollContainerId);
         }
     }
 
@@ -3930,109 +4018,20 @@ fn gridStyling() void {
         var banding: Banding = .none;
         var margin: f32 = 0;
         var padding: f32 = 0;
-
+        var col_widths: [2]f32 = @splat(0);
         const Banding = enum { none, rows, cols };
     };
 
     var outer_hbox = dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
     defer outer_hbox.deinit();
-    const row_background = local.banding != .none or local.borders.nonZero();
 
-    {
-        var grid = dvui.grid(@src(), .{ .resize_rows = local.resize_rows }, .{
-            .expand = .both,
-            .background = true,
-            .border = Rect.all(1),
-        });
-        defer grid.deinit();
-        local.resize_rows = false; // Only resize rows when needed.
-
-        // Set start, end and interval based on sort direction.
-        const start_temp: i32, //
-        const end_temp: i32, //
-        const interval: i32 = switch (local.sort_dir) {
-            .ascending, .unsorted => .{ 0, 100, 5 },
-            .descending => .{ 100, 0, -5 },
-        };
-        std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Temperature range must be a multiple of interval
-
-        // Manually control sorting, so that sort direction is always reversed regardless of
-        // which column header is clicked.
-        const current_sort_dir = local.sort_dir;
-
-        const cell_opts: GridWidget.CellStyle.Banded = .{
-            .banding = switch (local.banding) {
-                .none, .rows => .rows,
-                .cols => .cols,
-            },
-
-            .cell_opts = .{
-                .border = local.borders,
-                .background = row_background,
-                .margin = Rect.all(local.margin),
-                .padding = Rect.all(local.padding),
-            },
-            .alt_cell_opts = .{
-                .border = local.borders,
-                .margin = Rect.all(local.margin),
-                .padding = Rect.all(local.padding),
-                .background = row_background,
-                // Only set the alternate fill colour if actually banding.
-                .color_fill = if (local.banding != .none) .fill_press else null,
-            },
-        };
-
-        // First column displays temperature in Celcius.
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            // Set this column as the default sort
-            if (current_sort_dir == .unsorted) {
-                local.sort_dir = .ascending;
-                grid.colSortSet(local.sort_dir);
-            }
-
-            if (dvui.gridHeadingSortable(@src(), grid, "Celcius", &local.sort_dir, .fixed, .{})) {
-                grid.colSortSet(current_sort_dir.reverse());
-            }
-
-            var temp: i32 = start_temp;
-            var row_num: usize = 0;
-            while (temp != end_temp + interval) : ({
-                temp += interval;
-                row_num += 1;
-            }) {
-                var cell = grid.bodyCell(@src(), row_num, cell_opts.cellOptions(grid.col_num, row_num));
-                defer cell.deinit();
-                dvui.label(@src(), "{d}", .{temp}, .{ .gravity_x = 0.5, .expand = .horizontal });
-            }
-        }
-        // Second column displays temperature in Farenheight.
-        {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            if (dvui.gridHeadingSortable(@src(), grid, "Fahrenheit", &local.sort_dir, .fixed, .{})) {
-                grid.colSortSet(current_sort_dir.reverse());
-            }
-
-            var temp: i32 = start_temp;
-            var row_num: usize = 0;
-            while (temp != end_temp + interval) : ({
-                temp += interval;
-                row_num += 1;
-            }) {
-                var cell = grid.bodyCell(@src(), row_num, cell_opts.cellOptions(grid.col_num, row_num));
-                defer cell.deinit();
-                dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{ .gravity_x = 0.5, .expand = .horizontal });
-            }
-        }
-    }
     {
         var outer_vbox = dvui.box(@src(), .vertical, .{
             .min_size_content = grid_panel_size,
             .max_size_content = .size(grid_panel_size),
             .expand = .vertical,
             .border = Rect.all(1),
+            .gravity_x = 1.0,
         });
         defer outer_vbox.deinit();
 
@@ -4100,6 +4099,101 @@ fn gridStyling() void {
             }
         }
     }
+
+    const row_background = local.banding != .none or local.borders.nonZero();
+
+    {
+        var grid = dvui.grid(@src(), .colWidths(&local.col_widths), .{
+            .resize_rows = local.resize_rows,
+        }, .{
+            .expand = .both,
+            .background = true,
+            .border = Rect.all(1),
+        });
+        defer grid.deinit();
+
+        // Layout both columns equally, taking up the full width of the grid.
+        dvui.columnLayoutProportional(&.{ -1, -1 }, &local.col_widths, grid.data().contentRect().w);
+
+        local.resize_rows = false; // Only resize rows when needed.
+
+        // Set start, end and interval based on sort direction.
+        const start_temp: i32, //
+        const end_temp: i32, //
+        const interval: i32 = switch (local.sort_dir) {
+            .ascending, .unsorted => .{ 0, 100, 5 },
+            .descending => .{ 100, 0, -5 },
+        };
+
+        std.debug.assert(@mod(end_temp - start_temp, interval) == 0); // Temperature range must be a multiple of interval
+
+        // Manually control sorting, so that sort direction is always reversed regardless of
+        // which column header is clicked.
+        const current_sort_dir = local.sort_dir;
+
+        const cell_opts: GridWidget.CellStyle.Banded = .{
+            .banding = switch (local.banding) {
+                .none, .rows => .rows,
+                .cols => .cols,
+            },
+
+            .cell_opts = .{
+                .border = local.borders,
+                .background = row_background,
+                .margin = Rect.all(local.margin),
+                .padding = Rect.all(local.padding),
+            },
+            .alt_cell_opts = .{
+                .border = local.borders,
+                .margin = Rect.all(local.margin),
+                .padding = Rect.all(local.padding),
+                .background = row_background,
+                // Only set the alternate fill colour if actually banding.
+                .color_fill = if (local.banding != .none) .fill_press else null,
+            },
+        };
+
+        if (dvui.gridHeadingSortable(@src(), grid, 0, "Celcius", &local.sort_dir, .fixed, .{})) {
+            grid.colSortSet(0, current_sort_dir.reverse());
+        }
+
+        if (dvui.gridHeadingSortable(@src(), grid, 1, "Fahrenheit", &local.sort_dir, .fixed, .{})) {
+            grid.colSortSet(1, current_sort_dir.reverse());
+        }
+
+        // First column displays temperature in Celcius.
+        {
+            // Set this column as the default sort
+            if (current_sort_dir == .unsorted) {
+                local.sort_dir = .ascending;
+                grid.colSortSet(0, local.sort_dir);
+            }
+
+            var temp: i32 = start_temp;
+            var row_num: usize = 0;
+            while (temp != end_temp + interval) : ({
+                temp += interval;
+                row_num += 1;
+            }) {
+                var cell = grid.bodyCell(@src(), 0, row_num, cell_opts.cellOptions(0, row_num));
+                defer cell.deinit();
+                dvui.label(@src(), "{d}", .{temp}, .{ .gravity_x = 0.5, .expand = .horizontal });
+            }
+        }
+        // Second column displays temperature in Farenheight.
+        {
+            var temp: i32 = start_temp;
+            var row_num: usize = 0;
+            while (temp != end_temp + interval) : ({
+                temp += interval;
+                row_num += 1;
+            }) {
+                var cell = grid.bodyCell(@src(), 1, row_num, cell_opts.cellOptions(1, row_num));
+                defer cell.deinit();
+                dvui.label(@src(), "{d}", .{@divFloor(temp * 9, 5) + 32}, .{ .gravity_x = 0.5, .expand = .horizontal });
+            }
+        }
+    }
 }
 
 fn gridLayouts() void {
@@ -4131,6 +4225,7 @@ fn gridLayouts() void {
         const column_ratios = [num_cols]f32{ checkbox_w, -10, -10, -7, -15, -30 };
         const fixed_widths = [num_cols]f32{ checkbox_w, 80, 120, 80, 100, 300 };
         const equal_spacing = [num_cols]f32{ checkbox_w, -1, -1, -1, -1, -1 };
+        const fit_window = [num_cols]f32{ checkbox_w, 0, 0, 0, 0, 0 };
         var selection_state: dvui.GridColumnSelectAllState = .select_none;
         var sort_dir: GridWidget.SortDirection = .unsorted;
         var layout_style: Layout = .proportional;
@@ -4138,13 +4233,13 @@ fn gridLayouts() void {
         var resize_rows: bool = false;
 
         /// Create a textArea for the description so that the text can wrap.
-        fn customDescriptionColumn(src: std.builtin.SourceLocation, grid: *GridWidget, data: []Car, opts: *const GridWidget.CellStyle.Banded) void {
+        fn customDescriptionColumn(src: std.builtin.SourceLocation, grid: *GridWidget, col_num: usize, data: []Car, opts: *const GridWidget.CellStyle.Banded) void {
             for (data, 0..) |*car, row_num| {
-                var col = grid.bodyCell(src, row_num, opts.cellOptions(grid.col_num, row_num));
+                var col = grid.bodyCell(src, col_num, row_num, opts.cellOptions(col_num, row_num));
                 defer col.deinit();
                 var text = dvui.textLayout(@src(), .{ .break_lines = true }, .{ .expand = .both, .background = false });
                 defer text.deinit();
-                text.addText(car.description, opts.options(grid.col_num, row_num));
+                text.addText(car.description, opts.options(col_num, row_num));
             }
         }
 
@@ -4212,10 +4307,12 @@ fn gridLayouts() void {
 
         const resize_min = 80;
         const resize_max = 500;
-        fn headerResizeOptions(col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
+        fn headerResizeOptions(grid: *GridWidget, col_num: usize) ?GridWidget.HeaderResizeWidget.InitOptions {
+            _ = grid;
             if (layout_style != .user_resizable) return .fixed;
             return .{
-                .size = &col_widths[col_num],
+                .sizes = &col_widths,
+                .num = col_num,
                 .min_size = resize_min,
                 .max_size = resize_max,
             };
@@ -4268,13 +4365,7 @@ fn gridLayouts() void {
         else
             null;
 
-        const col_widths: ?[]f32 = switch (local.layout_style) {
-            .fit_window => null,
-            else => &local.col_widths,
-        };
-
-        var grid = dvui.grid(@src(), .{
-            .col_widths = col_widths,
+        var grid = dvui.grid(@src(), .colWidths(&local.col_widths), .{
             .scroll_opts = scroll_opts,
             .resize_rows = local.resize_rows,
         }, .{
@@ -4285,80 +4376,76 @@ fn gridLayouts() void {
             .max_size_content = .height(content_h),
         });
         defer grid.deinit();
+        local.resize_rows = false;
 
-        // Fit columns to the grid visible area, or to the virtual scroll area if horizontal scorlling is enabled.
-        const maybe_ratio = switch (local.layout_style) {
+        const col_widths_src: ?[]const f32 = switch (local.layout_style) {
             .equal_spacing => &local.equal_spacing,
             .fixed_width => &local.fixed_widths,
             .proportional => &local.column_ratios,
-            .fit_window => null,
+            .fit_window => &local.equal_spacing,
             .user_resizable => null,
         };
-        if (maybe_ratio) |ratio| {
-            dvui.columnLayoutProportional(ratio, &local.col_widths, if (local.h_scroll) 1024 else grid.data().contentRect().w);
+        if (col_widths_src) |col_widths| {
+            switch (local.layout_style) {
+                .fit_window => {
+                    dvui.columnLayoutProportional(col_widths, &local.col_widths, grid.data().contentRect().w);
+                },
+                else => {
+                    // Fit columns to the grid visible area, or to the virtual scroll area if horizontal scorlling is enabled.
+                    dvui.columnLayoutProportional(col_widths, &local.col_widths, if (local.h_scroll) 1024 else grid.data().contentRect().w);
+                },
+            }
         }
-        local.resize_rows = false;
+
+        if (dvui.gridHeadingCheckbox(@src(), grid, 0, &local.selection_state, .{})) {
+            for (all_cars) |*car| {
+                car.selected = switch (local.selection_state) {
+                    .select_all => true,
+                    .select_none => false,
+                    .unchanged => break,
+                };
+            }
+        }
+        if (dvui.gridHeadingSortable(@src(), grid, 1, "Make", &local.sort_dir, local.headerResizeOptions(grid, 1), .{})) {
+            local.sort("Make");
+        }
+        if (dvui.gridHeadingSortable(@src(), grid, 2, "Model", &local.sort_dir, local.headerResizeOptions(grid, 2), .{})) {
+            local.sort("Model");
+        }
+        if (dvui.gridHeadingSortable(@src(), grid, 3, "Year", &local.sort_dir, local.headerResizeOptions(grid, 3), .{})) {
+            local.sort("Year");
+        }
+        if (dvui.gridHeadingSortable(@src(), grid, 4, "Condition", &local.sort_dir, local.headerResizeOptions(grid, 4), .{})) {
+            local.sort("Condition");
+        }
+        if (dvui.gridHeadingSortable(@src(), grid, 5, "Description", &local.sort_dir, local.headerResizeOptions(grid, 5), .{})) {
+            local.sort("Description");
+        }
 
         // Selection
         {
             // Make the checkbox column fixed width. (This width is used if init_opts.col_widths is null)
-            var col = grid.column(@src(), .{ .width = local.checkbox_w });
-            defer col.deinit();
-            if (dvui.gridHeadingCheckbox(@src(), grid, &local.selection_state, .{})) {
-                for (all_cars) |*car| {
-                    car.selected = switch (local.selection_state) {
-                        .select_all => true,
-                        .select_none => false,
-                        .unchanged => break,
-                    };
-                }
-            }
-            _ = dvui.gridColumnCheckbox(@src(), grid, Car, all_cars[0..], "selected", banded.optionsOverride(.{ .gravity_y = 0 }));
+            _ = dvui.gridColumnCheckbox(@src(), grid, 0, Car, all_cars[0..], "selected", banded.optionsOverride(.{ .gravity_y = 0 }));
         }
         // Make
         {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            if (dvui.gridHeadingSortable(@src(), grid, "Make", &local.sort_dir, local.headerResizeOptions(1), .{})) {
-                local.sort("Make");
-            }
-            dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "make", "{s}", banded);
+            dvui.gridColumnFromSlice(@src(), grid, 1, Car, all_cars[0..], "make", "{s}", banded);
         }
         // Model
         {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            if (dvui.gridHeadingSortable(@src(), grid, "Model", &local.sort_dir, local.headerResizeOptions(2), .{})) {
-                local.sort("Model");
-            }
-            dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "model", "{s}", banded);
+            dvui.gridColumnFromSlice(@src(), grid, 2, Car, all_cars[0..], "model", "{s}", banded);
         }
         // Year
         {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            if (dvui.gridHeadingSortable(@src(), grid, "Year", &local.sort_dir, local.headerResizeOptions(3), .{})) {
-                local.sort("Year");
-            }
-            dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "year", "{d}", banded);
+            dvui.gridColumnFromSlice(@src(), grid, 3, Car, all_cars[0..], "year", "{d}", banded);
         }
         // Condition
         {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            if (dvui.gridHeadingSortable(@src(), grid, "Condition", &local.sort_dir, local.headerResizeOptions(4), .{})) {
-                local.sort("Condition");
-            }
-            dvui.gridColumnFromSlice(@src(), grid, Car, all_cars[0..], "condition", "{s}", local.ConditionTextColor.init(&banded_centered));
+            dvui.gridColumnFromSlice(@src(), grid, 4, Car, all_cars[0..], "condition", "{s}", local.ConditionTextColor.init(&banded_centered));
         }
         // Description
         {
-            var col = grid.column(@src(), .{});
-            defer col.deinit();
-            if (dvui.gridHeadingSortable(@src(), grid, "Description", &local.sort_dir, local.headerResizeOptions(5), .{})) {
-                local.sort("Description");
-            }
-            local.customDescriptionColumn(@src(), grid, all_cars[0..], &banded);
+            local.customDescriptionColumn(@src(), grid, 5, all_cars[0..], &banded);
         }
     }
     {
@@ -4418,6 +4505,8 @@ fn gridVirtualScrolling() void {
         var primes: std.StaticBitSet(num_rows) = .initFull();
         var generated_primes: bool = false;
         var highlighted_row: ?usize = null;
+        var last_col_width: f32 = 0;
+        var resize_cols: bool = false;
 
         // Generate prime numbers using The Sieve of Eratosthenes.
         fn generatePrimes() void {
@@ -4448,12 +4537,25 @@ fn gridVirtualScrolling() void {
 
     var vbox = dvui.box(@src(), .vertical, .{ .expand = .both });
     defer vbox.deinit();
-    var grid = dvui.grid(@src(), .{ .scroll_opts = .{ .scroll_info = &local.scroll_info } }, .{
+    var grid = dvui.grid(@src(), .numCols(2), .{
+        .scroll_opts = .{ .scroll_info = &local.scroll_info },
+        .resize_cols = local.resize_cols,
+    }, .{
         .expand = .both,
         .background = true,
         .border = Rect.all(1),
     });
     defer grid.deinit();
+    local.resize_cols = false;
+
+    // dvui.columnLayoutProportional is normally used to calculate column sizes. This example is highlighting
+    // passing column widths though the cell options rather than using the col_widths slice.
+    // Note that if column widths change size, the resize_cols init option must be used.
+    const col_width = (grid.data().contentRect().w - GridWidget.scrollbar_padding_defaults.w) / 2.0;
+    if (col_width < local.last_col_width) {
+        local.resize_cols = true;
+    }
+    local.last_col_width = col_width;
 
     // Highlight hovered row.
     // Each column has slightly different border requirements, so create separate options for each.
@@ -4463,37 +4565,32 @@ fn gridVirtualScrolling() void {
             .border = .{ .x = 1, .w = 1, .h = 1 },
             .background = true,
             .color_fill_hover = .fill_hover,
+            .size = .{ .w = col_width },
         },
     };
     highlight_hovered_1.processEvents(grid, &local.scroll_info);
-    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{ .border = .{ .w = 1, .h = 1 } });
+    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{
+        .border = .{ .w = 1, .h = 1 },
+    });
 
     // Virtual scrolling
     const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
     const last = scroller.endRow(); // Note that endRow is exclusive, meaning it can be used as a slice end index.
+    const CellStyle = GridWidget.CellStyle;
+    dvui.gridHeading(@src(), grid, "Number", 0, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
+    dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
 
-    // Number column
-    {
-        var col = grid.column(@src(), .{});
-        defer col.deinit();
-        dvui.gridHeading(@src(), grid, "Number", .fixed, .{});
-
-        for (first..last) |num| {
-            var cell = grid.bodyCell(@src(), num, highlight_hovered_1.cellOptions(0, num));
+    for (first..last) |num| {
+        {
+            var cell = grid.bodyCell(@src(), 0, num, highlight_hovered_1.cellOptions(0, num));
             defer cell.deinit();
             dvui.label(@src(), "{d}", .{num}, .{});
         }
-    }
-    // Prime column
-    {
-        const check_img = @embedFile("icons/entypo/check.tvg");
-        var col = grid.column(@src(), .{});
-        defer col.deinit();
-        dvui.gridHeading(@src(), grid, "Is prime?", .fixed, .{});
+        {
+            const check_img = @embedFile("icons/entypo/check.tvg");
 
-        for (first..last) |num| {
-            var cell = grid.bodyCell(@src(), num, highlight_hovered_2.cellOptions(1, num));
+            var cell = grid.bodyCell(@src(), 1, num, highlight_hovered_2.cellOptions(1, num));
             defer cell.deinit();
             if (local.isPrime(num)) {
                 dvui.icon(@src(), "Check", check_img, .{}, .{ .gravity_x = 0.5, .gravity_y = 0.5, .background = false });
@@ -4503,7 +4600,7 @@ fn gridVirtualScrolling() void {
 }
 
 fn gridVariableRowHeights() void {
-    var grid = dvui.grid(@src(), .{}, .{
+    var grid = dvui.grid(@src(), .numCols(1), .{ .var_row_heights = true }, .{
         .expand = .both,
         .padding = Rect.all(0),
     });
@@ -4515,15 +4612,14 @@ fn gridVariableRowHeights() void {
         .cell_opts = .{ .border = Rect.all(1) },
         .opts = .{ .gravity_x = 0.5, .gravity_y = 0.5, .expand = .both },
     };
-    var col = grid.column(@src(), .{});
-    defer col.deinit();
     for (1..10) |row_num| {
         const row_num_i: i32 = @intCast(row_num);
         const row_height = 70 - (@abs(row_num_i - 5) * 10);
         var cell = grid.bodyCell(
             @src(),
+            0,
             row_num,
-            cell_style.cellOptions(0, row_num).override(.{ .height = @floatFromInt(row_height) }),
+            cell_style.cellOptions(0, row_num).override(.{ .size = .{ .h = @floatFromInt(row_height), .w = 500 } }),
         );
         defer cell.deinit();
         dvui.label(@src(), "h = {d}", .{row_height}, cell_style.options(0, row_num));
@@ -4930,7 +5026,7 @@ test "DOCIMG scrolling" {
         fn frame() !dvui.App.Result {
             var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
             defer box.deinit();
-            scrolling(1);
+            scrolling();
             return .ok;
         }
     }.frame;

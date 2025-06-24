@@ -1263,6 +1263,8 @@ pub const IconRenderOptions = struct {
     stroke_width: ?f32 = null,
     /// if null uses original stroke colors
     stroke_color: ?Color = .white,
+
+    // note: IconWidget tests against default values
 };
 
 /// Represents a deferred call to one of the render functions.  This is how
@@ -1370,6 +1372,7 @@ pub fn raiseSubwindow(subwindow_id: WidgetId) void {
 /// Only valid between `Window.begin`and `Window.end`.
 pub fn focusWidget(id: ?WidgetId, subwindow_id: ?WidgetId, event_num: ?u16) void {
     const cw = currentWindow();
+    cw.scroll_to_focused = false;
     const swid = subwindow_id orelse subwindowCurrentId();
     for (cw.subwindows.items) |*sw| {
         if (swid == sw.id) {
@@ -1382,6 +1385,8 @@ pub fn focusWidget(id: ?WidgetId, subwindow_id: ?WidgetId, event_num: ?u16) void
                 refresh(null, @src(), null);
 
                 if (id) |wid| {
+                    cw.scroll_to_focused = true;
+
                     if (cw.last_registered_id_this_frame == wid) {
                         cw.last_focused_id_this_frame = wid;
                     } else {
@@ -4655,9 +4660,9 @@ pub fn scrollArea(src: std.builtin.SourceLocation, init_opts: ScrollAreaWidget.I
     return ret;
 }
 
-pub fn grid(src: std.builtin.SourceLocation, init_opts: GridWidget.InitOpts, opts: Options) *GridWidget {
+pub fn grid(src: std.builtin.SourceLocation, cols: GridWidget.WidthsOrNum, init_opts: GridWidget.InitOpts, opts: Options) *GridWidget {
     const ret = widgetAlloc(GridWidget);
-    ret.* = GridWidget.init(src, init_opts, opts);
+    ret.* = GridWidget.init(src, cols, init_opts, opts);
     ret.install();
     return ret;
 }
@@ -4685,6 +4690,7 @@ pub fn gridHeading(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
     heading: []const u8,
+    col_num: usize,
     resize_opts: ?GridWidget.HeaderResizeWidget.InitOptions,
     cell_style: anytype, // GridWidget.CellStyle
 ) void {
@@ -4698,8 +4704,8 @@ pub fn gridHeading(
     };
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
 
-    const label_options = label_defaults.override(opts.options(g.col_num, 0));
-    var cell = g.headerCell(src, opts.cellOptions(g.col_num, 0));
+    const label_options = label_defaults.override(opts.options(col_num, 0));
+    var cell = g.headerCell(src, col_num, opts.cellOptions(col_num, 0));
     defer cell.deinit();
 
     labelNoFmt(@src(), heading, .{}, label_options);
@@ -4713,6 +4719,7 @@ pub fn gridHeading(
 pub fn gridHeadingSortable(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
+    col_num: usize,
     heading: []const u8,
     dir: *GridWidget.SortDirection,
     resize_opts: ?GridWidget.HeaderResizeWidget.InitOptions,
@@ -4727,21 +4734,21 @@ pub fn gridHeadingSortable(
         .corner_radius = Rect.all(0),
     };
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
-    const heading_opts = heading_defaults.override(opts.options(g.col_num, 0));
+    const heading_opts = heading_defaults.override(opts.options(col_num, 0));
 
-    var cell = g.headerCell(src, opts.cellOptions(g.col_num, 0));
+    var cell = g.headerCell(src, col_num, opts.cellOptions(col_num, 0));
     defer cell.deinit();
 
     gridHeadingSeparator(resize_opts);
 
-    const sort_changed = switch (g.colSortOrder()) {
+    const sort_changed = switch (g.colSortOrder(col_num)) {
         .unsorted => button(@src(), heading, .{ .draw_focus = false }, heading_opts),
         .ascending => buttonLabelAndIcon(@src(), heading, icon_ascending, .{ .draw_focus = false }, heading_opts),
         .descending => buttonLabelAndIcon(@src(), heading, icon_descending, .{ .draw_focus = false }, heading_opts),
     };
 
     if (sort_changed) {
-        g.sortChanged();
+        g.sortChanged(col_num);
     }
     dir.* = g.sort_direction;
     return sort_changed;
@@ -4750,6 +4757,10 @@ pub fn gridHeadingSortable(
 pub fn gridColumnLabel(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
+    col_num: usize,
+    comptime T: type,
+    data: []const T,
+    comptime field_name: ?[]const u8,
     comptime fmt: []const u8,
     data_adapter: anytype, // GridWidget.DataAdpater
     cell_style: anytype, // GridWidget.CellStyle
@@ -4807,8 +4818,9 @@ pub fn gridColumnTextEntry(
     for (0..data_adapter.len()) |row_num| {
         var cell = g.bodyCell(
             src,
+            col_num,
             row_num,
-            opts.cellOptions(g.col_num, row_num),
+            opts.cellOptions(col_num, row_num),
         );
         defer cell.deinit();
         var text = textEntry(@src(), init_opts, entry_defaults.override(opts.options(g.col_num, row_num)));
@@ -4919,6 +4931,7 @@ pub const GridColumnSelectAllState = enum {
 pub fn gridHeadingCheckbox(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
+    col_num: usize,
     selection: *GridColumnSelectAllState,
     cell_style: anytype, // GridWidget.CellStyle
 ) bool {
@@ -4933,13 +4946,13 @@ pub fn gridHeadingCheckbox(
 
     const opts = if (@TypeOf(cell_style) == @TypeOf(.{})) GridWidget.CellStyle.none else cell_style;
 
-    const header_options = header_defaults.override(opts.options(g.col_num, 0));
+    const header_options = header_defaults.override(opts.options(col_num, 0));
     var checkbox_opts: Options = header_options.strip();
     checkbox_opts.padding = ButtonWidget.defaults.paddingGet();
     checkbox_opts.gravity_x = header_options.gravity_x;
     checkbox_opts.gravity_y = header_options.gravity_y;
 
-    var cell = g.headerCell(src, opts.cellOptions(g.col_num, 0));
+    var cell = g.headerCell(src, col_num, opts.cellOptions(col_num, 0));
     defer cell.deinit();
 
     var clicked = false;
@@ -4984,8 +4997,10 @@ pub const ColumnCheckboxInitOpts = struct {
 pub fn gridColumnCheckbox(
     src: std.builtin.SourceLocation,
     g: *dvui.GridWidget,
-    init_opts: ColumnCheckboxInitOpts,
-    data_adapter: anytype, // GridWidget.DataAdapter.Selection
+    col_num: usize,
+    comptime T: type,
+    data: []T,
+    comptime field_name: ?[]const u8,
     cell_style: anytype, // GridWidget.CellStyle
 ) bool {
     GridWidget.DataAdapter.requiresReadable(data_adapter);
@@ -5009,8 +5024,9 @@ pub fn gridColumnCheckbox(
     for (0..data_adapter.len()) |row_num| {
         var cell = g.bodyCell(
             src,
+            col_num,
             row_num,
-            opts.cellOptions(g.col_num, row_num),
+            opts.cellOptions(col_num, row_num),
         );
         defer cell.deinit();
         var is_selected: bool = data_adapter.value(row_num);
@@ -5198,7 +5214,7 @@ pub fn menuItemIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes
 
     // pass min_size_content through to the icon so that it will figure out the
     // min width based on the height
-    var iconopts = opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio });
+    var iconopts = opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio, .color_text = opts.color_text });
 
     var ret: ?Rect.Natural = null;
     if (mi.activeRect()) |r| {
@@ -5235,10 +5251,7 @@ pub fn labelClick(src: std.builtin.SourceLocation, comptime fmt: []const u8, arg
 
     const lwid = lw.data().id;
 
-    // if lw is visible, we want to be able to keyboard navigate to it
-    if (lw.data().visible()) {
-        dvui.tabIndexSet(lwid, lw.data().options.tab_index);
-    }
+    dvui.tabIndexSet(lwid, lw.data().options.tab_index);
 
     // draw border and background
     lw.install();
@@ -5369,6 +5382,15 @@ pub fn labelNoFmt(src: std.builtin.SourceLocation, str: []const u8, init_opts: L
     lw.deinit();
 }
 
+/// Display an icon rasterized lazily from tvg_bytes.
+///
+/// See `buttonIcon` and `buttonLabelAndIcon`.
+///
+/// icon_opts controls the rasterization, and opts.color_text is multiplied in
+/// the shader.  If icon_opts is the default, then the text color is multiplied
+/// in the shader even if not passed in opts.
+///
+/// Only valid between `Window.begin`and `Window.end`.
 pub fn icon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: []const u8, icon_opts: IconRenderOptions, opts: Options) void {
     var iw = IconWidget.init(src, name, tvg_bytes, icon_opts, opts);
     iw.install();
@@ -5600,7 +5622,7 @@ pub fn buttonIcon(src: std.builtin.SourceLocation, name: []const u8, tvg_bytes: 
         name,
         tvg_bytes,
         icon_opts,
-        opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio }),
+        opts.strip().override(.{ .gravity_x = 0.5, .gravity_y = 0.5, .min_size_content = opts.min_size_content, .expand = .ratio, .color_text = opts.color_text }),
     );
 
     const click = bw.clicked();
@@ -5626,7 +5648,7 @@ pub fn buttonLabelAndIcon(src: std.builtin.SourceLocation, label_str: []const u8
     {
         var outer_hbox = box(src, .horizontal, .{ .expand = .horizontal });
         defer outer_hbox.deinit();
-        icon(@src(), label_str, tvg_bytes, .{}, opts.strip().override(.{ .gravity_x = 1.0 }));
+        icon(@src(), label_str, tvg_bytes, .{}, opts.strip().override(.{ .gravity_x = 1.0, .color_text = opts.color_text }));
         labelEx(@src(), "{s}", .{label_str}, .{ .align_x = 0.5 }, opts.strip().override(.{ .expand = .both }));
     }
 
@@ -5655,9 +5677,7 @@ pub fn slider(src: std.builtin.SourceLocation, dir: enums.Direction, fraction: *
     var b = box(src, dir, options);
     defer b.deinit();
 
-    if (b.data().visible()) {
-        tabIndexSet(b.data().id, options.tab_index);
-    }
+    tabIndexSet(b.data().id, options.tab_index);
 
     var hovered: bool = false;
     var ret = false;
@@ -5843,9 +5863,7 @@ pub fn sliderEntry(src: std.builtin.SourceLocation, comptime label_fmt: ?[]const
     b.install();
     defer b.deinit();
 
-    if (b.data().visible()) {
-        tabIndexSet(b.data().id, options.tab_index);
-    }
+    tabIndexSet(b.data().id, options.tab_index);
 
     const br = b.data().contentRect();
     const knobsize = @min(br.w, br.h);

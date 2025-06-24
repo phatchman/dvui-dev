@@ -82,6 +82,15 @@ pub fn register(self: *WidgetData) void {
     const focused_widget_id = dvui.focusedWidgetId();
     if (self.id == focused_widget_id) {
         cw.last_focused_id_this_frame = self.id;
+
+        if (cw.scroll_to_focused) {
+            cw.scroll_to_focused = false;
+
+            var scrollto = dvui.Event{ .evt = .{ .scroll_to = .{
+                .screen_rect = self.rectScale().r,
+            } } };
+            self.parent.processEvent(&scrollto, true);
+        }
     }
 
     if (dvui.testing.widget_hasher) |*hasher| {
@@ -179,7 +188,7 @@ pub fn borderAndBackground(self: *const WidgetData, opts: struct { fill_color: ?
 
         const prect = rs.r.insetAll(rs.s * bs.shrink).offsetPoint(bs.offset.scale(rs.s, dvui.Point.Physical));
 
-        prect.fill(radius.scale(rs.s, Rect.Physical), .{ .color = bs.colorGet().opacity(bs.alpha), .blur = rs.s * bs.blur });
+        prect.fill(radius.scale(rs.s, Rect.Physical), .{ .color = bs.color.resolve().opacity(bs.alpha), .blur = rs.s * bs.blur });
     }
 
     var bg = self.options.backgroundGet();
