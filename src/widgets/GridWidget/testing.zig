@@ -8,8 +8,6 @@ test "GridWidget: basic by col" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             {
@@ -41,8 +39,6 @@ test "GridWidget: basic by row" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             {
@@ -74,8 +70,6 @@ test "GridWidget: empty grid" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(0) }, .{});
             defer grid.deinit();
             return .ok;
@@ -92,9 +86,6 @@ test "GridWidget: one cell" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
-
             var grid = dvui.grid(@src(), .{ .cols = .numCols(1) }, .{});
             defer grid.deinit();
             var cell = grid.bodyCell(@src(), 0, 0, .{});
@@ -439,8 +430,6 @@ test "GridWidget: vary header height" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
             defer grid.deinit();
             {
@@ -478,8 +467,6 @@ test "GridWidget: vary row height" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
             defer grid.deinit();
             {
@@ -520,8 +507,6 @@ test "GridWidget: sparse" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             {
@@ -547,8 +532,6 @@ test "GridWidget: sparse reverse" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{});
             defer grid.deinit();
             {
@@ -575,8 +558,6 @@ test "GridWidget: more header cells than body cells" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
             defer grid.deinit();
             {
@@ -609,8 +590,6 @@ test "GridWidget: more body cells than header cells" {
 
     const frame = struct {
         fn frame() !dvui.App.Result {
-            var box = dvui.box(@src(), .vertical, .{ .expand = .both, .background = true, .color_fill = .fill_window });
-            defer box.deinit();
             var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
             defer grid.deinit();
             {
