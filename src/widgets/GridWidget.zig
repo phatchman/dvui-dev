@@ -154,7 +154,7 @@ header_height: f32 = 0,
 last_row_height: f32 = 0, // row height last frame
 sort_direction: SortDirection = .unsorted,
 sort_col_number: usize = 0,
-default_scroll_info: ScrollInfo = .{ .horizontal = .auto, .vertical = .auto },
+default_scroll_info: ScrollInfo = .{},
 
 // Non-persistent state
 row_height: f32 = 0,
@@ -260,6 +260,11 @@ pub fn install(self: *GridWidget) void {
         } else {
             self.bsi = &self.default_scroll_info;
             scroll_opts.scroll_info = self.bsi;
+            // Move an .horizontal and .vertical settings from scroll_opts to scroll_info
+            self.bsi.horizontal = scroll_opts.horizontal orelse .none;
+            self.bsi.vertical = scroll_opts.vertical orelse .auto;
+            scroll_opts.horizontal = null;
+            scroll_opts.vertical = null;
         }
     } else {
         self.bsi = &self.default_scroll_info;
@@ -271,7 +276,6 @@ pub fn install(self: *GridWidget) void {
     self.vbox.drawBackground();
 
     const scroll_opts: ScrollAreaWidget.InitOpts = self.init_opts.scroll_opts orelse .{ .frame_viewport = self.frame_viewport, .scroll_info = self.bsi };
-
     self.scroll = ScrollAreaWidget.init(
         @src(),
         scroll_opts,
