@@ -99,12 +99,15 @@ pub fn installScrollBars(self: *ScrollAreaWidget) void {
     var do_vbar = false;
     var do_hbar = false;
     if (self.si.vertical != .none) {
+        std.debug.print("vertical1: {}, {}, {}, {}\n", .{ self.init_opts.vertical_bar, self.init_opts.vertical_bar.autoAny(), self.si.virtual_size.h, self.si.viewport.h });
         if (self.init_opts.vertical_bar == .show or (self.init_opts.vertical_bar.autoAny() and (self.si.virtual_size.h > (self.si.viewport.h + 0.001)))) {
             do_vbar = true;
         }
     }
 
     if (self.si.horizontal != .none) {
+        std.debug.print("horizontal1 : {}, {}, {}, {}\n", .{ self.init_opts.horizontal_bar, self.init_opts.vertical_bar.autoAny(), self.si.virtual_size.w, self.si.viewport.w });
+
         if (self.init_opts.horizontal_bar == .show or (self.init_opts.horizontal_bar.autoAny() and (self.si.virtual_size.w > (self.si.viewport.w + 0.001)))) {
             do_hbar = true;
         }
@@ -113,6 +116,8 @@ pub fn installScrollBars(self: *ScrollAreaWidget) void {
     // test for vbar again because hbar might have removed some of our room
     if (!do_vbar) {
         if (self.si.vertical != .none) {
+            std.debug.print("vertical2: {}, {}, {}, {}\n", .{ self.init_opts.vertical_bar, self.init_opts.vertical_bar.autoAny(), self.si.virtual_size.h, self.si.viewport.h });
+
             if (self.init_opts.vertical_bar == .show or (self.init_opts.vertical_bar.autoAny() and (self.si.virtual_size.h > (self.si.viewport.h + 0.001)))) {
                 do_vbar = true;
             }

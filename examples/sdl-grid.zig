@@ -112,22 +112,13 @@ fn gui_frame() void {
         resize_cols = false;
         const CellStyle = dvui.GridWidget.CellStyle;
         if (true) {
-            var grid = dvui.grid(@src(), .{ .cols = .numCols(4) }, .{});
+            var grid = dvui.grid(@src(), .{ .cols = .numCols(10) }, .{}); // TODO: No .expand
             defer grid.deinit();
-            {
-                for (0..4) |col| {
-                    var cell = grid.headerCell(@src(), col, .{ .border = dvui.Rect.all(1) });
+            for (0..10) |col| {
+                for (0..10) |row| {
+                    var cell = grid.bodyCell(@src(), col, row, .{ .size = .{ .w = 50, .h = 50 } });
                     defer cell.deinit();
-                    dvui.label(@src(), "{}", .{col}, .{});
-                }
-                for (0..2) |col| {
-                    for (0..4) |row| {
-                        var cell = grid.bodyCell(@src(), col, row, .{
-                            .border = dvui.Rect.all(1),
-                        });
-                        defer cell.deinit();
-                        dvui.label(@src(), "{}:{}", .{ col, row }, .{});
-                    }
+                    dvui.label(@src(), "{}:{}", .{ col, row }, .{});
                 }
             }
         } else if (true) {
