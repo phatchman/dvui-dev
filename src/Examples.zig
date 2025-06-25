@@ -1955,6 +1955,8 @@ pub fn layoutText() void {
         const col = dvui.Color.average(dvui.themeGet().color_text, dvui.themeGet().color_fill);
         tl.addTextTooltip(@src(), "Hover this for a tooltip.\n\n", "This is some tooltip", .{ .color_text = .{ .color = col }, .font = dvui.themeGet().font_body.lineHeightFactor(line_height_factor) });
 
+        tl.format("This line uses zig format strings: {d}\n\n", .{12345}, .{});
+
         tl.addText("Title ", .{ .font_style = .title });
         tl.addText("Title-1 ", .{ .font_style = .title_1 });
         tl.addText("Title-2 ", .{ .font_style = .title_2 });
@@ -2793,7 +2795,7 @@ pub fn scrolling() void {
 
         _ = dvui.spacer(@src(), .{ .min_size_content = .all(10) });
 
-        var top_area = dvui.scrollArea(@src(), .{ .scroll_info = siTop, .frame_viewport = .{ .x = fv.x }, .horizontal_bar = .hide }, .{ .expand = .both });
+        var top_area = dvui.scrollArea(@src(), .{ .scroll_info = siTop, .frame_viewport = .{ .x = fv.x }, .horizontal_bar = .hide, .process_events_after = false }, .{ .expand = .both });
         {
             // inside top area
             var topbox = dvui.box(@src(), .horizontal, .{});
@@ -2810,7 +2812,7 @@ pub fn scrolling() void {
 
     var hbox3 = dvui.box(@src(), .horizontal, .{ .expand = .horizontal });
 
-    var side_area = dvui.scrollArea(@src(), .{ .scroll_info = siLeft, .frame_viewport = .{ .y = fv.y }, .vertical_bar = .hide }, .{ .min_size_content = .{ .w = left_side_width, .h = 200 }, .expand = .vertical });
+    var side_area = dvui.scrollArea(@src(), .{ .scroll_info = siLeft, .frame_viewport = .{ .y = fv.y }, .vertical_bar = .hide, .process_events_after = false }, .{ .min_size_content = .{ .w = left_side_width, .h = 200 }, .expand = .vertical });
     {
         // inside side area
         var sidebox = dvui.box(@src(), .vertical, .{});
@@ -2824,7 +2826,7 @@ pub fn scrolling() void {
 
     _ = dvui.spacer(@src(), .{ .min_size_content = .all(10) });
 
-    var scontainer = dvui.ScrollContainerWidget.init(@src(), siMain, .{ .frame_viewport = fv }, .{ .expand = .both });
+    var scontainer = dvui.ScrollContainerWidget.init(@src(), siMain, .{ .frame_viewport = fv, .event_rect = main_area.data().borderRectScale().r }, .{ .expand = .both });
     scontainer.install();
     scontainer.processEvents();
     scontainer.processVelocity();
@@ -4243,6 +4245,8 @@ fn gridLayouts() void {
             }
         }
 
+        // Create out own CellStyle to colour the text in the conditions column.
+        // Shows an alternative to using CellStyle.Join where BandedCellStyle is used as a base for this text color style.
         const ConditionTextColor = struct {
             base_opts: *const GridWidget.CellStyle.Banded,
 
@@ -4562,35 +4566,39 @@ fn gridVirtualScrolling() void {
     // Calls cellOptionsOverride after processEvents() so that the hovered row only needs to be calculated once.
     var highlight_hovered_1: GridWidget.CellStyle.HoveredRow = .{
         .cell_opts = .{
-            .border = .{ .x = 1, .w = 1, .h = 1 },
             .background = true,
             .color_fill_hover = .fill_hover,
             .size = .{ .w = col_width },
         },
     };
-    highlight_hovered_1.processEvents(grid, &local.scroll_info);
-    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{
-        .border = .{ .w = 1, .h = 1 },
-    });
+    const borders: Borders = .{
+        .external = .{ .x = 1, .h = 1, .w = 1 },
+        .internal = .{ .h = 1, .w = 1 },
+        .num_cols = 2,
+        .num_rows = num_rows,
+    };
+    // Join the two cell styles.
+    const body_cell_style: Join(HoveredRow, GridWidget.CellStyle.Borders) = .init(highlight_hovered, borders);
+    // Find any rows to highlight.
+    highlight_hovered.processEvents(grid, &local.scroll_info);
 
     // Virtual scrolling
     const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
     const last = scroller.endRow(); // Note that endRow is exclusive, meaning it can be used as a slice end index.
-    const CellStyle = GridWidget.CellStyle;
     dvui.gridHeading(@src(), grid, "Number", 0, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
     dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
 
     for (first..last) |num| {
         {
-            var cell = grid.bodyCell(@src(), 0, num, highlight_hovered_1.cellOptions(0, num));
+            var cell = grid.bodyCell(@src(), 0, num, body_cell_style.cellOptions(0, num));
             defer cell.deinit();
             dvui.label(@src(), "{d}", .{num}, .{});
         }
         {
             const check_img = @embedFile("icons/entypo/check.tvg");
 
-            var cell = grid.bodyCell(@src(), 1, num, highlight_hovered_2.cellOptions(1, num));
+            var cell = grid.bodyCell(@src(), 1, num, body_cell_style.cellOptions(1, num));
             defer cell.deinit();
             if (local.isPrime(num)) {
                 dvui.icon(@src(), "Check", check_img, .{}, .{ .gravity_x = 0.5, .gravity_y = 0.5, .background = false });
