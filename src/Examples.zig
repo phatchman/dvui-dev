@@ -4559,34 +4559,36 @@ fn gridVirtualScrolling() void {
     }
     local.last_col_width = col_width;
 
-    // Highlight hovered row.
-    // Each column has slightly different border requirements, so create separate options for each.
-    // Calls cellOptionsOverride after processEvents() so that the hovered row only needs to be calculated once.
-    var highlight_hovered: GridWidget.CellStyle.HoveredRow = .{
+    // An example of how to combine two different cells styles.
+    // Hovered row to highlight the row hovered by the mouse and
+    // Borders, which draws different borders depending on if the
+    // cell is in the middle of the grid or at the edge of the grid.
+    const CellStyle = GridWidget.CellStyle;
+    const HoveredRow = CellStyle.HoveredRow;
+    const Borders = CellStyle.Borders;
+    const Join = CellStyle.Join;
+    var highlight_hovered: HoveredRow = .{
         .cell_opts = .{
-            .border = .{ .x = 1, .w = 1, .h = 1 },
             .background = true,
             .color_fill_hover = .fill_hover,
             .size = .{ .w = col_width },
         },
     };
-    highlight_hovered.processEvents(grid, &local.scroll_info);
-    const borders: GridWidget.CellStyle.Borders = .{
-        .external = Rect.all(1),
+    const borders: Borders = .{
+        .external = .{ .x = 1, .h = 1, .w = 1 },
         .internal = .{ .h = 1, .w = 1 },
         .num_cols = 2,
         .num_rows = num_rows,
     };
-    //    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{
-    //        .border = .{ .w = 1, .h = 1 },
-    //    });
-    var body_cell_style: GridWidget.CellStyle.Join(GridWidget.CellStyle.HoveredRow, GridWidget.CellStyle.Borders) = .init(highlight_hovered, borders);
+    // Join the two cell styles.
+    const body_cell_style: Join(HoveredRow, GridWidget.CellStyle.Borders) = .init(highlight_hovered, borders);
+    // Find any rows to highlight.
+    highlight_hovered.processEvents(grid, &local.scroll_info);
 
     // Virtual scrolling
     const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
     const last = scroller.endRow(); // Note that endRow is exclusive, meaning it can be used as a slice end index.
-    const CellStyle = GridWidget.CellStyle;
     dvui.gridHeading(@src(), grid, "Number", 0, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
     dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
 
