@@ -4245,6 +4245,8 @@ fn gridLayouts() void {
             }
         }
 
+        // Create out own CellStyle to colour the text in the conditions column.
+        // Shows an alternative to using CellStyle.Join where BandedCellStyle is used as a base for this text color style.
         const ConditionTextColor = struct {
             base_opts: *const GridWidget.CellStyle.Banded,
 

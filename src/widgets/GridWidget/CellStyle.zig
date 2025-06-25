@@ -55,6 +55,8 @@ pub fn optionsOverride(self: *const CellStyle, opts: Options) CellStyle {
     };
 }
 
+/// Allow two CellStyle to be used together.
+/// Returns the result of style1.override(style2) for cellOptions() and options()
 pub fn Join(T1: type, T2: type) type {
     return struct {
         const Self = @This();
@@ -137,6 +139,9 @@ pub const Banded = struct {
     }
 };
 
+/// Draw borders around cells.
+/// - external is used for any border touching the edge of the grid
+/// - internal is used for all other borders
 pub const Borders = struct {
     external: Rect,
     internal: Rect,
@@ -190,7 +195,7 @@ pub const Borders = struct {
 };
 
 /// Applies the fill_hover colour to all cells on the hovered row.
-/// - requires that all rows are the same heights
+/// - requires that all rows are the same height
 pub const HoveredRow = struct {
     cell_opts: CellOptions = .{},
     opts: Options = .{},
