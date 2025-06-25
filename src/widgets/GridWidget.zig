@@ -382,9 +382,8 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
     cell.install();
     cell.drawBackground();
-    const first_frame = dvui.firstFrame(cell.data().id);
     // Determine heights for next frame.
-    if (!first_frame) {
+    if (!dvui.firstFrame(cell.data().id)) {
         const cell_size = cell.data().rect.size();
         self.header_height = @max(self.header_height, cell_size.h);
         self.colWidthSet(col_num, cell_size.w);
@@ -839,6 +838,6 @@ pub const HeaderResizeWidget = struct {
 };
 test {
     // TODO: Don't include grid tests yet.
-    //_ = @import("GridWidget/testing.zig");
+    _ = @import("GridWidget/testing.zig");
     @import("std").testing.refAllDecls(@This());
 }

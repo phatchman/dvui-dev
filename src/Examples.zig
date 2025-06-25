@@ -4562,7 +4562,7 @@ fn gridVirtualScrolling() void {
     // Highlight hovered row.
     // Each column has slightly different border requirements, so create separate options for each.
     // Calls cellOptionsOverride after processEvents() so that the hovered row only needs to be calculated once.
-    var highlight_hovered_1: GridWidget.CellStyle.HoveredRow = .{
+    var highlight_hovered: GridWidget.CellStyle.HoveredRow = .{
         .cell_opts = .{
             .border = .{ .x = 1, .w = 1, .h = 1 },
             .background = true,
@@ -4570,10 +4570,17 @@ fn gridVirtualScrolling() void {
             .size = .{ .w = col_width },
         },
     };
-    highlight_hovered_1.processEvents(grid, &local.scroll_info);
-    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{
-        .border = .{ .w = 1, .h = 1 },
-    });
+    highlight_hovered.processEvents(grid, &local.scroll_info);
+    const borders: GridWidget.CellStyle.Borders = .{
+        .external = Rect.all(1),
+        .internal = .{ .h = 1, .w = 1 },
+        .num_cols = 2,
+        .num_rows = num_rows,
+    };
+    //    const highlight_hovered_2 = highlight_hovered_1.cellOptionsOverride(.{
+    //        .border = .{ .w = 1, .h = 1 },
+    //    });
+    var body_cell_style: GridWidget.CellStyle.Join(GridWidget.CellStyle.HoveredRow, GridWidget.CellStyle.Borders) = .init(highlight_hovered, borders);
 
     // Virtual scrolling
     const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
@@ -4585,14 +4592,14 @@ fn gridVirtualScrolling() void {
 
     for (first..last) |num| {
         {
-            var cell = grid.bodyCell(@src(), 0, num, highlight_hovered_1.cellOptions(0, num));
+            var cell = grid.bodyCell(@src(), 0, num, body_cell_style.cellOptions(0, num));
             defer cell.deinit();
             dvui.label(@src(), "{d}", .{num}, .{});
         }
         {
             const check_img = @embedFile("icons/entypo/check.tvg");
 
-            var cell = grid.bodyCell(@src(), 1, num, highlight_hovered_2.cellOptions(1, num));
+            var cell = grid.bodyCell(@src(), 1, num, body_cell_style.cellOptions(1, num));
             defer cell.deinit();
             if (local.isPrime(num)) {
                 dvui.icon(@src(), "Check", check_img, .{}, .{ .gravity_x = 0.5, .gravity_y = 0.5, .background = false });

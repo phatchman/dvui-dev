@@ -697,6 +697,47 @@ test "resize rows" {
     try t.saveImage(frame.frame, null, "GridWidget-resize_rows_short.png");
 }
 
+test "resize rows manual height" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+
+    const frame = struct {
+        var action: enum { tall, resize, short } = .tall;
+        var frame_count: usize = 0;
+        fn frame() !dvui.App.Result {
+            var grid = dvui.grid(@src(), .numCols(4), .{ .var_row_heights = true, .resize_rows = action == .resize }, .{});
+            defer grid.deinit();
+            {
+                for (0..4) |col| {
+                    var cell = grid.headerCell(@src(), col, .{
+                        .border = dvui.Rect.all(1),
+                    });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}", .{col}, .{});
+                }
+                for (0..4) |col| {
+                    for (0..4) |row| {
+                        var cell = grid.bodyCell(@src(), col, row, .{
+                            .border = dvui.Rect.all(1),
+                            .size = .{ .h = if (action == .tall) 100 else 50 },
+                        });
+                        defer cell.deinit();
+                        dvui.label(@src(), "{}:{}", .{ col, row }, .{});
+                    }
+                }
+            }
+            if (action == .resize) action = .short;
+            return .ok;
+        }
+    };
+    frame.action = .tall;
+    try dvui.testing.settle(frame.frame);
+    try t.saveImage(frame.frame, null, "GridWidget-resize_rows_man_tall.png");
+    frame.action = .resize;
+    try dvui.testing.settle(frame.frame);
+    try t.saveImage(frame.frame, null, "GridWidget-resize_rows_man_short.png");
+}
+
 test "add rows" {
     var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
     defer t.deinit();
