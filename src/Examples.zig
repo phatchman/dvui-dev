@@ -4347,6 +4347,7 @@ fn gridLayouts() void {
             .{ .model = "Mustang with a really long name", .make = "Ford", .year = 2020, .mileage = 24000, .condition = .Good, .description = "Makes you feel 20% cooler just sitting in it." },
         };
     };
+    const DataAdapter = dvui.GridWidget.DataAdapter;
     const all_cars = local.all_cars[0..];
 
     const panel_height = 250;
@@ -4429,23 +4430,29 @@ fn gridLayouts() void {
         // Selection
         {
             // Make the checkbox column fixed width. (This width is used if init_opts.col_widths is null)
-            _ = dvui.gridColumnCheckbox(@src(), grid, 0, Car, all_cars[0..], "selected", banded.optionsOverride(.{ .gravity_y = 0 }));
+            _ = dvui.gridColumnCheckbox(@src(), grid, 0, .{}, DataAdapter.SliceOfStructUpdatable(Car, "selected"){ .slice = all_cars[0..] }, banded.optionsOverride(.{ .gravity_y = 0 }));
         }
         // Make
         {
-            dvui.gridColumnFromSlice(@src(), grid, 1, Car, all_cars[0..], "make", "{s}", banded);
+            dvui.gridColumnLabel(@src(), grid, 1, "{s}", DataAdapter.SliceOfStruct(Car, "make"){ .slice = all_cars[0..] }, banded);
         }
         // Model
         {
-            dvui.gridColumnFromSlice(@src(), grid, 2, Car, all_cars[0..], "model", "{s}", banded);
+            dvui.gridColumnLabel(@src(), grid, 2, "{s}", DataAdapter.SliceOfStruct(Car, "model"){ .slice = all_cars[0..] }, banded);
         }
         // Year
         {
-            dvui.gridColumnFromSlice(@src(), grid, 3, Car, all_cars[0..], "year", "{d}", banded);
+            dvui.gridColumnLabel(@src(), grid, 3, "{d}", DataAdapter.SliceOfStruct(Car, "year"){ .slice = all_cars[0..] }, banded);
         }
         // Condition
         {
-            dvui.gridColumnFromSlice(@src(), grid, 4, Car, all_cars[0..], "condition", "{s}", local.ConditionTextColor.init(&banded_centered));
+            dvui.gridColumnLabel(@src(), grid, 4, "{s}", DataAdapter.SliceOfStructConvert(
+                Car,
+                "condition",
+                DataAdapter.enumToString,
+            ){
+                .slice = all_cars[0..],
+            }, local.ConditionTextColor.init(&banded_centered));
         }
         // Description
         {
@@ -4561,31 +4568,31 @@ fn gridVirtualScrolling() void {
     }
     local.last_col_width = col_width;
 
-    // Highlight hovered row.
-    // Each column has slightly different border requirements, so create separate options for each.
-    // Calls cellOptionsOverride after processEvents() so that the hovered row only needs to be calculated once.
-    var highlight_hovered_1: GridWidget.CellStyle.HoveredRow = .{
+    const CellStyle = GridWidget.CellStyle;
+    // Highlight hovered row using cell style.
+    var highlight_hovered: CellStyle.HoveredRow = .{
         .cell_opts = .{
             .background = true,
             .color_fill_hover = .fill_hover,
             .size = .{ .w = col_width },
         },
     };
-    const borders: Borders = .{
+    // Create border around all cells.
+    const borders: CellStyle.Borders = .{
         .external = .{ .x = 1, .h = 1, .w = 1 },
         .internal = .{ .h = 1, .w = 1 },
         .num_cols = 2,
         .num_rows = num_rows,
     };
-    // Join the two cell styles.
-    const body_cell_style: Join(HoveredRow, GridWidget.CellStyle.Borders) = .init(highlight_hovered, borders);
+    // Join the two cell style so the resulting style is a combination.
+    const body_cell_style: CellStyle.Join(CellStyle.HoveredRow, CellStyle.Borders) = .init(highlight_hovered, borders);
     // Find any rows to highlight.
     highlight_hovered.processEvents(grid, &local.scroll_info);
 
     // Virtual scrolling
-    const scroller: dvui.GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
+    const scroller: GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
-    const last = scroller.endRow(); // Note that endRow is exclusive, meaning it can be used as a slice end index.
+    const last = scroller.endRow(); // Note that endRow is exclusive, so can be used as a slice end index.
     dvui.gridHeading(@src(), grid, "Number", 0, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
     dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
 
@@ -4608,6 +4615,7 @@ fn gridVirtualScrolling() void {
 }
 
 fn gridVariableRowHeights() void {
+    // Note: var_row_heights must be true for the CellOptions size.h to be used.
     var grid = dvui.grid(@src(), .numCols(1), .{ .var_row_heights = true }, .{
         .expand = .both,
         .padding = Rect.all(0),

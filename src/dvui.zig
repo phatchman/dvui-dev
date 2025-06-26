@@ -1378,7 +1378,6 @@ pub fn focusWidget(id: ?WidgetId, subwindow_id: ?WidgetId, event_num: ?u16) void
         if (swid == sw.id) {
             if (sw.focused_widgetId != id) {
                 sw.focused_widgetId = id;
-                sw.focused_widgetRect = .{};
                 if (event_num) |en| {
                     focusRemainingEvents(en, sw.id, sw.focused_widgetId);
                 }
@@ -1396,8 +1395,6 @@ pub fn focusWidget(id: ?WidgetId, subwindow_id: ?WidgetId, event_num: ?u16) void
                         while (true) : (wd = wd.parent.data()) {
                             if (wd.id == wid) {
                                 cw.last_focused_id_this_frame = wid;
-                                sw.focused_widgetRect = wd.rectScale().r;
-                                std.debug.print("focused rect = {}\n", .{wd.rectScale()});
                                 break;
                             }
 
@@ -4836,29 +4833,8 @@ pub fn gridColumnTextEntry(
         }
         if (text.enter_pressed) {
             new_focus_row = if (row_num < data_adapter.len() - 1) row_num + 1 else 0;
-            std.debug.print("fr = {?}\n", .{new_focus_row});
         } else if (new_focus_row == row_num) {
             dvui.focusWidget(text.data().id, null, null);
-            //var rs = text.data().rectScale();
-            var rs: RectScale = .{ .r = dvui.currentWindow().subwindowFocused().focused_widgetRect, .s = 2 };
-            std.debug.print("rs = {}\n", .{rs.r});
-            std.debug.print("rs2 = {}\n", .{rs});
-            const scrollto = Event{
-                .evt = .{
-                    .scroll_to = .{
-                        // This is to take into account that the header takes up the top part of the screen scroll_area
-                        .screen_rect = if (new_focus_row.? < (current_focus_row orelse std.math.maxInt(usize)))
-                            rs.r.offsetPoint(.{ .x = 0, .y = -g.header_height * rs.s })
-                        else
-                            rs.r,
-                        .over_scroll = false,
-                    },
-                },
-            };
-            //cell.data().parent.processEvent(&scrollto, true);
-            //g.scroll.scroll.processEvent(&scrollto, true);
-            _ = scrollto;
-            new_focus_row = null;
         }
     }
     if (current_focus_row) |current_focus| {
@@ -4882,7 +4858,6 @@ pub fn gridColumnTextEntry(
             }
         }
     }
-
     dvui.dataSet(null, parent_id, "focus_row", new_focus_row);
     return changed;
 }
