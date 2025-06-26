@@ -327,7 +327,7 @@ test "variable cell_heights by col" {
     }.frame;
 
     try dvui.testing.settle(frame);
-    try t.saveImage(frame, null, "GridWidget-cell_height_var.png");
+    try t.saveImage(frame, null, "GridWidget-cvariable_cell_height_col.png");
 }
 
 test "variable cell_heights by row" {
@@ -948,7 +948,7 @@ test "header size and shrink" {
         }
     };
     try dvui.testing.settle(frame.frame);
-    try t.saveImage(frame.frame, null, "GridWidget-reheader_pre_resize.png");
+    try t.saveImage(frame.frame, null, "GridWidget-header_pre_resize.png");
     frame.action = .resize;
     try dvui.testing.settle(frame.frame);
     try t.saveImage(frame.frame, null, "GridWidget-header_post_resize.png");
