@@ -53,7 +53,6 @@ pub var scrollbar_padding_defaults: Size = .{ .h = 10, .w = 10 };
 
 pub const CellOptions = struct {
     // Set the height or width of a cell.
-    // height is ignored unless var_row_heights = true.
     // width is ignored when col_widths is supplied to init_opts.
     size: ?Size = null,
     margin: ?Rect = null,
@@ -168,6 +167,7 @@ cur_row: usize = std.math.maxInt(usize), // current row being rendered
 rows_y_offset: f32 = 0, // y value to offset rendering of the first body cell
 next_row_y: f32 = 0, // Next y position for laying out rows with variable heights
 this_row_y: f32 = 0, // This y position for laying out rows with variable heights
+last_header_height: f32 = 0, // Height of header last frame
 
 // Options
 init_opts: InitOpts = undefined,
@@ -210,8 +210,11 @@ pub fn init(src: std.builtin.SourceLocation, cols: WidthsOrNum, init_opts: InitO
     if (dvui.firstFrame(self.data().id)) {
         self.resizing = true;
     }
+
+    self.last_header_height = self.header_height;
     if (init_opts.resize_rows or self.resizing) {
         self.row_height = 0;
+        self.header_height = 0;
         dvui.refresh(null, @src(), self.data().id);
     }
 
@@ -368,7 +371,7 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     };
     const header_height: f32 = height: {
         if (opts.height() > 0) {
-            break :height opts.height();
+            break :height if (self.resizing) opts.height() else @max(opts.height(), self.header_height);
         } else {
             break :height if (self.resizing) 0 else self.header_height;
         }
@@ -397,10 +400,19 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
 /// - deinit() must be called on this hbox before any new body cells are created.
 ///
 /// If var_row_heights is false:
-///   - body cells can be created using any order or col_num row_num
+///   - body cells can be created using any order of col_num and row_num
 /// if var_row_heights is true then either:
 ///   - All rows for a column must be created in ascending row order.
 ///   - All columns for a row must be created before creating moving to the next row.
+///
+/// - Widths
+/// If col_widths is passed to cols during init, then size.w is ignored.
+/// If a different size.w is specified for any cells in the same column,
+/// the max size.w is used for that column.
+/// - Heights
+/// If var_row_heights is true, size.h is always used as the row height,
+/// otherwise the height for all body cells in the grid is set to the max size.h
+///
 pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usize, row_num: usize, opts: CellOptions) *BoxWidget {
     if (row_num < self.cur_row) {
         self.this_row_y = self.rows_y_offset;
@@ -422,8 +434,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
         }
     };
     const cell_height: f32 = height: {
-        if (self.init_opts.var_row_heights and opts.height() > 0) {
-            break :height opts.height();
+        if (opts.height() > 0) {
+            // If the user specifies a height, use that if it is bigger than the current height.
+            // If using var_row_heights or resizing then always use the height the user supplied.
+            break :height if (self.resizing or self.init_opts.var_row_heights) opts.height() else @max(opts.height(), self.row_height);
         } else {
             break :height if (self.resizing) 0 else self.row_height;
         }
@@ -561,7 +575,7 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
         }, .{
             .name = "GridWidgetHeaderScroll",
             .expand = .horizontal,
-            .min_size_content = .{ .h = self.header_height, .w = self.last_size.w },
+            .min_size_content = .{ .h = if (self.header_height > 0) self.header_height else self.last_header_height, .w = self.last_size.w },
         });
         self.hscroll.?.install();
     }

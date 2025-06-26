@@ -260,7 +260,7 @@ test "cell widths" {
     try t.saveImage(frame, null, "GridWidget-cell_widths.png");
 }
 
-test "ignore cell_heights" {
+test "cell heights non variable" {
     var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
     defer t.deinit();
     const frame = struct {
@@ -269,7 +269,8 @@ test "ignore cell_heights" {
             defer grid.deinit();
             for (0..10) |col| {
                 for (0..10) |row| {
-                    var cell = grid.bodyCell(@src(), col, row, .{ .size = .{ .h = 200 }, .border = dvui.Rect.all(1) });
+                    const row_f: f32 = @floatFromInt(row);
+                    var cell = grid.bodyCell(@src(), col, row, .{ .size = .{ .h = 20 * row_f }, .border = dvui.Rect.all(1) });
                     defer cell.deinit();
                     dvui.label(@src(), "{}:{}", .{ col, row }, .{});
                 }
@@ -279,7 +280,31 @@ test "ignore cell_heights" {
     }.frame;
 
     try dvui.testing.settle(frame);
-    try t.saveImage(frame, null, "GridWidget-ignore_cell_height.png");
+    try t.saveImage(frame, null, "GridWidget-cell_height_nonvar.png");
+}
+
+test "cell heights non variable reverse" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+    const frame = struct {
+        fn frame() !dvui.App.Result {
+            var grid = dvui.grid(@src(), .numCols(10), .{}, .{});
+            defer grid.deinit();
+            for (0..10) |col| {
+                for (0..10) |i| {
+                    const i_f: f32 = @floatFromInt(i);
+                    const row = 9 - i;
+                    var cell = grid.bodyCell(@src(), col, row, .{ .size = .{ .h = 20 * i_f }, .border = dvui.Rect.all(1) });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}:{}", .{ col, row }, .{});
+                }
+            }
+            return .ok;
+        }
+    }.frame;
+
+    try dvui.testing.settle(frame);
+    try t.saveImage(frame, null, "GridWidget-cell_height_nonvar_rev.png");
 }
 
 test "variable cell_heights by col" {
@@ -302,7 +327,7 @@ test "variable cell_heights by col" {
     }.frame;
 
     try dvui.testing.settle(frame);
-    try t.saveImage(frame, null, "GridWidget-variable_cell_height_col.png");
+    try t.saveImage(frame, null, "GridWidget-cvariable_cell_height_col.png");
 }
 
 test "variable cell_heights by row" {
@@ -898,4 +923,88 @@ test "remove cols and shrink" {
     frame.frame_number += 1;
     try dvui.testing.settle(frame.frame);
     try t.saveImage(frame.frame, null, "GridWidget-remove_cols_shrink.png");
+}
+
+test "header size and shrink" {
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+    const frame = struct {
+        var action: enum { tall, resize, short } = .tall;
+        fn frame() !dvui.App.Result {
+            var grid = dvui.grid(@src(), .numCols(10), .{ .resize_rows = action == .resize }, .{});
+            defer grid.deinit();
+            {
+                for (0..10) |col| {
+                    var cell = grid.headerCell(@src(), col, .{
+                        .size = .{ .h = if (action == .tall) 100 else 50 },
+                        .border = dvui.Rect.all(1),
+                    });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}", .{col}, .{});
+                }
+            }
+            if (action == .resize) action = .short;
+            return .ok;
+        }
+    };
+    try dvui.testing.settle(frame.frame);
+    try t.saveImage(frame.frame, null, "GridWidget-header_pre_resize.png");
+    frame.action = .resize;
+    try dvui.testing.settle(frame.frame);
+    try t.saveImage(frame.frame, null, "GridWidget-header_post_resize.png");
+}
+
+// Don't run in default tests.
+// Performs frame-by-frame debugging of row resizing.
+test "header body resize" {
+    if (true)
+        return error.SkipZigTest;
+
+    var t = try dvui.testing.init(.{ .window_size = .{ .w = 800, .h = 600 } });
+    defer t.deinit();
+    const frame = struct {
+        var action: enum { tall, resize, short } = .tall;
+        var frame_number: usize = 0;
+        fn frame() !dvui.App.Result {
+            defer frame_number += 1;
+            var grid = dvui.grid(@src(), .numCols(10), .{ .resize_rows = action == .resize }, .{});
+            defer grid.deinit();
+            {
+                for (0..10) |col| {
+                    var cell = grid.headerCell(@src(), col, .{
+                        .border = dvui.Rect.all(1),
+                    });
+                    std.debug.print("{}:{}\n", .{ frame_number, cell.data().rect });
+                    defer cell.deinit();
+                    dvui.label(@src(), "{}", .{col}, .{});
+                }
+                for (0..10) |col| {
+                    for (0..10) |row| {
+                        var cell = grid.bodyCell(@src(), col, row, .{});
+                        defer cell.deinit();
+                        dvui.label(@src(), "{}:{}", .{ col, row }, .{ .font_style = .heading });
+                    }
+                }
+            }
+            if (action == .resize) action = .short;
+            return .ok;
+        }
+    };
+    try dvui.testing.settle(frame.frame);
+    try t.saveImage(frame.frame, null, "GridWidget-hb-start.png");
+    frame.action = .resize;
+
+    for (0..100) |i| {
+        const wait_time = dvui.testing.step(frame.frame) catch null;
+        var fn_buf: [4096]u8 = undefined;
+        const filename = try std.fmt.bufPrint(&fn_buf, "GridWidget-hb-{d}.png", .{i});
+        try t.saveImage(frame.frame, null, filename);
+
+        if (wait_time == 0) {
+            // need another frame, someone called refresh()
+            continue;
+        }
+        break;
+    }
+    try t.saveImage(frame.frame, null, "GridWidget-hb-end.png");
 }
