@@ -137,11 +137,11 @@ pub const WidthsOrNum = union(enum) {
 
 pub const default_col_width: f32 = 100;
 
+//Widgets
 vbox: BoxWidget = undefined,
 scroll: ScrollAreaWidget = undefined, // main scroll area
 hscroll: ?ScrollAreaWidget = null, // header scroll area
 bscroll: ?ScrollContainerWidget = null, // body scroll container
-bbox: BoxWidget = undefined, // has the same lifetime as bscroll.
 
 // Not valid until after install()
 hsi: ScrollInfo = undefined, // Header scroll info
@@ -152,7 +152,6 @@ starting_col_widths: ?[]f32 = null, // If grid is storing col widths, keep a cop
 
 // Persistent state
 resizing: bool = false, // true when row height is being recalculated
-last_size: Size = .zero, // virtual height of the grid body for the previous frame
 header_height: f32 = 0,
 last_row_height: f32 = 0, // row height last frame
 sort_direction: SortDirection = .unsorted,
@@ -178,9 +177,6 @@ pub fn init(src: std.builtin.SourceLocation, cols: WidthsOrNum, init_opts: InitO
     self.cols = cols;
     const options = defaults.override(opts);
     self.vbox = BoxWidget.init(src, .{ .dir = .vertical }, options);
-    if (dvui.dataGet(null, self.data().id, "_last_size", Size)) |last_size| {
-        self.last_size = last_size;
-    }
     if (dvui.dataGet(null, self.data().id, "_resizing", bool)) |resizing| {
         self.resizing = resizing;
     }
@@ -215,7 +211,6 @@ pub fn init(src: std.builtin.SourceLocation, cols: WidthsOrNum, init_opts: InitO
     if (init_opts.resize_rows or self.resizing) {
         self.row_height = 0;
         self.header_height = 0;
-        dvui.refresh(null, @src(), self.data().id);
     }
 
     return self;
@@ -303,31 +298,29 @@ pub fn deinit(self: *GridWidget) void {
     if (self.hsi.viewport.x != self.frame_viewport.x) self.hsi.viewport.x = self.bsi.viewport.x;
 
     // resizing if row heights changed or a resize was requested via init options.
-    self.resizing =
-        self.init_opts.resize_rows or
-        !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01);
-
-    const max_row_f: f32 = @floatFromInt(self.max_row);
-    const this_height: f32 = if (self.init_opts.var_row_heights) self.next_row_y else (max_row_f + 1) * self.row_height;
-    const this_size: Size = .{ .h = this_height, .w = self.totalWidth() };
-
-    if (self.resizing or
-        self.init_opts.resize_cols or
-        !this_size.eq(self.last_size))
-    {
+    if (self.resizing) {
         dvui.refresh(null, @src(), self.data().id);
     }
+    self.resizing =
+        self.init_opts.resize_rows or
+        self.init_opts.resize_cols or
+        !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01) or
+        !std.math.approxEqAbs(f32, self.header_height, self.last_header_height, 0.01);
 
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
     }
 
+    // Create a spacer widget to report body virtual size to scroll area
+    const max_row_f: f32 = @floatFromInt(self.max_row);
+    const this_height: f32 = if (self.init_opts.var_row_heights) self.next_row_y else (max_row_f + 1) * self.row_height;
+    const this_size: Size = .{ .h = this_height, .w = self.totalWidth() };
+    _ = dvui.spacer(@src(), .{ .min_size_content = this_size, .background = false });
+
     if (self.bscroll) |*bscroll| {
-        self.bbox.deinit();
         bscroll.deinit();
     }
     self.scroll.deinit();
-    dvui.dataSet(null, self.data().id, "_last_size", this_size);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
     dvui.dataSet(null, self.data().id, "_resizing", self.resizing);
     dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
@@ -575,9 +568,12 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
         }, .{
             .name = "GridWidgetHeaderScroll",
             .expand = .horizontal,
-            .min_size_content = .{ .h = if (self.header_height > 0) self.header_height else self.last_header_height, .w = self.last_size.w },
+            .min_size_content = .{ .h = if (self.header_height > 0) self.header_height else self.last_header_height, .w = self.totalWidth() },
         });
         self.hscroll.?.install();
+        if (!std.math.approxEqAbs(f32, self.header_height, self.last_header_height, 0.01)) {
+            self.resizing = true;
+        }
     }
 }
 
@@ -599,12 +595,6 @@ fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation)
         self.bscroll.?.install();
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
-
-        // This box is used to set the size of the scrollable area in the scroll container.
-        self.bbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
-            .min_size_content = self.last_size,
-        });
-        self.bbox.install();
     }
 }
 
