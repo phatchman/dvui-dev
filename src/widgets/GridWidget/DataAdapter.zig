@@ -240,6 +240,9 @@ pub fn BitSetImpl(T: type, writeable: bool) type {
 
 // TODO: What if conversion invloves looking up other rows.
 // You we need an context? (icky) or is that just "out of scope"
+// Conversion functions could take a row and col number?
+// Or actually maybe more like jsut a row number so that is the same as the
+// data adapter. You should already know what column you are adapting.
 
 // Note: This can't use anytype because it can't be resolved at comptime.
 pub fn noConversion(T: type) fn (val: T) T {
