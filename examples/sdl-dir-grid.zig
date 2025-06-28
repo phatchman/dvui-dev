@@ -133,7 +133,7 @@ fn gui_frame() !void {
         if (dvui.gridHeadingCheckbox(@src(), grid, 0, &select_all_state, .{})) {
             switch (select_all_state) {
                 .select_all => {
-                    selections.setAll(); // Set selections for non-cahced (in bitset)
+                    selections.setAll(); // Set selections for non-cached (in bitset)
                     for (dir_cache.items) |*entry| {
                         entry.selected = true; // Set selections for cached (dir_cache[row].selected)
                     }
