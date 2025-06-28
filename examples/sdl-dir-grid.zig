@@ -96,7 +96,7 @@ pub fn main() !void {
 var mode: enum { raw, cached } = .raw;
 // both dvui and SDL drawing
 fn gui_frame() !void {
-    std.debug.print(" --- FRAME --- \n", .{});
+    //std.debug.print(" --- FRAME --- \n", .{});
     {
         var m = dvui.menu(@src(), .horizontal, .{ .background = true, .expand = .horizontal });
         defer m.deinit();
@@ -131,12 +131,11 @@ fn gui_frame() !void {
         defer grid.deinit();
         var select_all_state: dvui.GridColumnSelectAllState = undefined;
         if (dvui.gridHeadingCheckbox(@src(), grid, 0, &select_all_state, .{})) {
-            std.debug.print("State = {}\n", .{select_all_state});
             switch (select_all_state) {
                 .select_all => {
-                    selections.setAll();
+                    selections.setAll(); // Set selections for non-cahced (in bitset)
                     for (dir_cache.items) |*entry| {
-                        entry.selected = true;
+                        entry.selected = true; // Set selections for cached (dir_cache[row].selected)
                     }
                 },
                 .select_none => {
@@ -153,7 +152,6 @@ fn gui_frame() !void {
         dvui.gridHeading(@src(), grid, 3, "Size", .fixed, .{});
         dvui.gridHeading(@src(), grid, 4, "Mode", .fixed, .{});
         dvui.gridHeading(@src(), grid, 5, "MTime", .fixed, .{});
-        // TODO: Look into issue where having an empty column changing the widget id's.
         switch (mode) {
             .raw => directoryDisplay(grid) catch return,
             .cached => directoryDisplayCached(grid),
@@ -163,6 +161,7 @@ fn gui_frame() !void {
 
 var selections: std.DynamicBitSetUnmanaged = undefined;
 var selection_info: dvui.SelectionInfo = .{};
+var selection: dvui.GridWidget.Actions.MultiSelectMouse = .{ .selection_info = &selection_info };
 
 // Optional: windows os only
 const winapi = if (builtin.os.tag == .windows) struct {
@@ -177,12 +176,15 @@ pub fn directoryDisplay(grid: *dvui.GridWidget) !void {
     var dir = directoryOpen() catch return;
     var itr = dir.iterate();
     var row_num: usize = 0;
-    _ = dvui.gridColumnCheckbox(
+
+    selection.processEvents();
+    const selection_adapter = DataAdapter.BitSetUpdatable(std.DynamicBitSetUnmanaged){ .bitset = &selections };
+    const selection_changed = dvui.gridColumnCheckbox(
         @src(),
         grid,
         0,
         .{ .selection_info = &selection_info },
-        DataAdapter.BitSetUpdatable(std.DynamicBitSetUnmanaged){ .bitset = &selections },
+        selection_adapter,
         .{},
     );
     while (itr.next() catch null) |entry| : (row_num += 1) {
@@ -220,6 +222,8 @@ pub fn directoryDisplay(grid: *dvui.GridWidget) !void {
     }
     if (selections.count() != row_num)
         try selections.resize(gpa, row_num, false);
+    //std.debug.print("changed = {}\n", .{selection_changed});
+    selection.performAction(selection_changed, selection_adapter);
 }
 
 const CacheEntry = struct {
@@ -261,12 +265,15 @@ pub fn directoryDisplayCached(grid: *dvui.GridWidget) void {
         }
         cache_valid = true;
     }
-    _ = dvui.gridColumnCheckbox(
+
+    selection.processEvents();
+    const selection_adapter: DataAdapter.SliceOfStructUpdatable(CacheEntry, "selected") = .{ .slice = dir_cache.items };
+    const selection_changed = dvui.gridColumnCheckbox(
         @src(),
         grid,
         0,
         .{ .selection_info = &selection_info },
-        DataAdapter.SliceOfStructUpdatable(CacheEntry, "selected"){ .slice = dir_cache.items },
+        selection_adapter,
         .{},
     );
     for (dir_cache.items, 0..) |*entry, row_num| {
@@ -298,27 +305,31 @@ pub fn directoryDisplayCached(grid: *dvui.GridWidget) void {
             }
         }
     }
+    selection.performAction(selection_changed, selection_adapter);
 }
 
 pub fn fromNsTimestamp(timestamp_ns: i128) struct { year: u16, month: u8, day: u8, hour: u8, minute: u8, second: u8 } {
     // Split into days and nanoseconds of the day
     const days_since_epoch: i128 = @divTrunc(timestamp_ns, std.time.ns_per_day);
     const nanos_of_day: i128 = @rem(timestamp_ns, std.time.ns_per_day);
+    const days_per_400_years = 146_097;
+    const days_per_100_years = 36_524;
+    const days_per_4_years = 1_460;
 
     // Convert nanoseconds of the day to hours, minutes, seconds
     const hour: u8 = @intCast(@divTrunc(nanos_of_day, (std.time.ns_per_s * 3_600)));
     const minute: u8 = @intCast(@divTrunc((@mod(nanos_of_day, (std.time.ns_per_s * 3_600))), (std.time.ns_per_s * 60)));
     const second: u8 = @intCast(@divTrunc((@mod(nanos_of_day, (std.time.ns_per_s * 60))), std.time.ns_per_s));
 
-    // Shift to Gregorian day count
-    const z: i128 = days_since_epoch + 719_468;
+    // Shift to Gregorian calendar
+    const days_since_gregorian_epoch: i128 = days_since_epoch + 719_468; // Difference between unix epoch and gregorian epoch
 
     // 400-year eras
-    const era: i128 = @divTrunc(z, 146_097);
-    const day_of_era: i128 = z - era * 146_097;
+    const era: i128 = @divTrunc(days_since_gregorian_epoch, days_per_400_years);
+    const day_of_era: i128 = days_since_gregorian_epoch - era * days_per_400_years;
 
     const year_of_era: i128 = @divTrunc(
-        day_of_era - @divTrunc(day_of_era, 1_460) + @divTrunc(day_of_era, 36_524) - @divTrunc(day_of_era, 146_096),
+        day_of_era - @divTrunc(day_of_era, days_per_4_years) + @divTrunc(day_of_era, days_per_100_years) - @divTrunc(day_of_era, days_per_400_years - 1),
         365,
     );
     const day_of_year: i128 = day_of_era - (365 * year_of_era + @divTrunc(year_of_era, 4) - @divTrunc(year_of_era, 100));

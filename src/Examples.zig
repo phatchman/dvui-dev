@@ -4593,8 +4593,8 @@ fn gridVirtualScrolling() void {
     const scroller: GridWidget.VirtualScroller = .init(grid, .{ .total_rows = num_rows, .scroll_info = &local.scroll_info });
     const first = scroller.startRow();
     const last = scroller.endRow(); // Note that endRow is exclusive, so can be used as a slice end index.
-    dvui.gridHeading(@src(), grid, "Number", 0, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
-    dvui.gridHeading(@src(), grid, "Is prime?", 1, .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
+    dvui.gridHeading(@src(), grid, 0, "Number", .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
+    dvui.gridHeading(@src(), grid, 1, "Is prime?", .fixed, CellStyle{ .cell_opts = .{ .size = .{ .w = col_width } } });
 
     for (first..last) |num| {
         {

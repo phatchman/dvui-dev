@@ -481,7 +481,6 @@ test "vary header height" {
             return .ok;
         }
     }.frame;
-
     try dvui.testing.settle(frame);
     try t.saveImage(frame, null, "GridWidget-vary_header_height.png");
 }
@@ -1008,4 +1007,19 @@ test "header body resize" {
         break;
     }
     try t.saveImage(frame.frame, null, "GridWidget-hb-end.png");
+}
+
+fn stepAndSave(t: *dvui.testing, frame: dvui.App.frameFunction, file_prefix: []const u8) !void {
+    for (0..100) |i| {
+        const wait_time = dvui.testing.step(frame) catch null;
+        var fn_buf: [4096]u8 = undefined;
+        const filename = try std.fmt.bufPrint(&fn_buf, "{s}-{d}.png", .{ file_prefix, i });
+        try t.saveImage(frame, null, filename);
+
+        if (wait_time == 0) {
+            // need another frame, someone called refresh()
+            continue;
+        }
+        break;
+    }
 }
