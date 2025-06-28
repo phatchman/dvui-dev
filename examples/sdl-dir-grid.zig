@@ -173,10 +173,6 @@ pub fn directoryOpen() !std.fs.Dir {
 }
 
 pub fn directoryDisplay(grid: *dvui.GridWidget) !void {
-    var dir = directoryOpen() catch return;
-    var itr = dir.iterate();
-    var row_num: usize = 0;
-
     selection.processEvents();
     const selection_adapter = DataAdapter.BitSetUpdatable(std.DynamicBitSetUnmanaged){ .bitset = &selections };
     const selection_changed = dvui.gridColumnCheckbox(
@@ -187,6 +183,11 @@ pub fn directoryDisplay(grid: *dvui.GridWidget) !void {
         selection_adapter,
         .{},
     );
+
+    var dir = directoryOpen() catch return;
+    defer dir.close();
+    var itr = dir.iterate();
+    var row_num: usize = 0;
     while (itr.next() catch null) |entry| : (row_num += 1) {
         {
             var cell = grid.bodyCell(@src(), 1, row_num, .{ .size = .{ .w = 300 } });
@@ -249,6 +250,7 @@ var cache_valid = false;
 pub fn directoryDisplayCached(grid: *dvui.GridWidget) void {
     if (!cache_valid) {
         var dir = directoryOpen() catch return;
+        defer dir.close();
         var itr = dir.iterate();
         while (itr.next() catch null) |entry| {
             const name = gpa.dupe(u8, entry.name) catch continue;
