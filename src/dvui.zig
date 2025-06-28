@@ -4686,8 +4686,8 @@ pub fn gridHeadingSeparator(resize_options: ?GridWidget.HeaderResizeWidget.InitO
 pub fn gridHeading(
     src: std.builtin.SourceLocation,
     g: *GridWidget,
-    heading: []const u8,
     col_num: usize,
+    heading: []const u8,
     resize_opts: ?GridWidget.HeaderResizeWidget.InitOptions,
     cell_style: anytype, // GridWidget.CellStyle
 ) void {

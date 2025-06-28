@@ -417,7 +417,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     }
     self.max_row = @max(self.max_row, row_num);
     if (self.bscroll == null) {
-        self.bodyScrollContainerCreate(src);
+        self.bodyScrollContainerCreate();
     }
     const cell_width = width: {
         if (opts.width() > 0) {
@@ -450,6 +450,10 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
     cell.install();
     cell.drawBackground();
+    if (row_num == 0 and col_num < 2) {
+        std.debug.print("wid = {x} pwid = {x}\n", .{ cell.data().id, cell.data().parent.data().id });
+        dvui.currentWindow().debug_widget_id = cell.data().parent.data().id;
+    }
     const first_frame = dvui.firstFrame(cell.data().id);
     // Determine heights for next frame.
     if (!first_frame) {
@@ -577,7 +581,7 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
     }
 }
 
-fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation) void {
+fn bodyScrollContainerCreate(self: *GridWidget) void {
     // Finished with headers.
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
@@ -585,7 +589,7 @@ fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation)
     }
 
     if (self.bscroll == null) {
-        self.bscroll = ScrollContainerWidget.init(src, self.bsi, .{
+        self.bscroll = ScrollContainerWidget.init(@src(), self.bsi, .{
             .frame_viewport = self.frame_viewport,
             .event_rect = self.scroll.data().borderRectScale().r,
         }, .{
@@ -595,6 +599,11 @@ fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation)
         self.bscroll.?.install();
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
+        var wd = self.bscroll.?.data();
+        const wid = wd.id;
+        while (wd.parent.data().id != wid) : (wd = wd.parent.data()) {
+            std.debug.print("{s} = {x} pid = {x}\n", .{ wd.options.name orelse "none", wd.id, wd.parent.data().id });
+        }
     }
 }
 
