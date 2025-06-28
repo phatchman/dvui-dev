@@ -450,10 +450,6 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
     cell.install();
     cell.drawBackground();
-    if (row_num == 0 and col_num < 2) {
-        std.debug.print("wid = {x} pwid = {x}\n", .{ cell.data().id, cell.data().parent.data().id });
-        dvui.currentWindow().debug_widget_id = cell.data().parent.data().id;
-    }
     const first_frame = dvui.firstFrame(cell.data().id);
     // Determine heights for next frame.
     if (!first_frame) {
@@ -599,11 +595,6 @@ fn bodyScrollContainerCreate(self: *GridWidget) void {
         self.bscroll.?.install();
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
-        var wd = self.bscroll.?.data();
-        const wid = wd.id;
-        while (wd.parent.data().id != wid) : (wd = wd.parent.data()) {
-            std.debug.print("{s} = {x} pid = {x}\n", .{ wd.options.name orelse "none", wd.id, wd.parent.data().id });
-        }
     }
 }
 

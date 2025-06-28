@@ -133,8 +133,18 @@ fn gui_frame() !void {
         if (dvui.gridHeadingCheckbox(@src(), grid, 0, &select_all_state, .{})) {
             std.debug.print("State = {}\n", .{select_all_state});
             switch (select_all_state) {
-                .select_all => selections.setAll(),
-                .select_none => selections.unsetAll(),
+                .select_all => {
+                    selections.setAll();
+                    for (dir_cache.items) |*entry| {
+                        entry.selected = true;
+                    }
+                },
+                .select_none => {
+                    selections.unsetAll();
+                    for (dir_cache.items) |*entry| {
+                        entry.selected = false;
+                    }
+                },
                 .unchanged => {},
             }
         }
@@ -148,14 +158,6 @@ fn gui_frame() !void {
             .raw => directoryDisplay(grid) catch return,
             .cached => directoryDisplayCached(grid),
         }
-        _ = dvui.gridColumnCheckbox(
-            @src(),
-            grid,
-            0,
-            .{ .selection_info = &selection_info },
-            DataAdapter.BitSetUpdatable(std.DynamicBitSetUnmanaged){ .bitset = &selections },
-            .{},
-        );
     }
 }
 
@@ -172,10 +174,17 @@ pub fn directoryOpen() !std.fs.Dir {
 }
 
 pub fn directoryDisplay(grid: *dvui.GridWidget) !void {
-    std.debug.print("DDS\n", .{});
     var dir = directoryOpen() catch return;
     var itr = dir.iterate();
     var row_num: usize = 0;
+    _ = dvui.gridColumnCheckbox(
+        @src(),
+        grid,
+        0,
+        .{ .selection_info = &selection_info },
+        DataAdapter.BitSetUpdatable(std.DynamicBitSetUnmanaged){ .bitset = &selections },
+        .{},
+    );
     while (itr.next() catch null) |entry| : (row_num += 1) {
         {
             var cell = grid.bodyCell(@src(), 1, row_num, .{ .size = .{ .w = 300 } });
@@ -211,10 +220,10 @@ pub fn directoryDisplay(grid: *dvui.GridWidget) !void {
     }
     if (selections.count() != row_num)
         try selections.resize(gpa, row_num, false);
-    std.debug.print("DDE\n", .{});
 }
 
 const CacheEntry = struct {
+    selected: bool,
     name: []const u8,
     kind: std.fs.Dir.Entry.Kind,
     size: u65,
@@ -242,6 +251,7 @@ pub fn directoryDisplayCached(grid: *dvui.GridWidget) void {
             const stat: std.fs.Dir.Stat = if (entry.kind == .file) dir.statFile(entry.name) catch no_stat else no_stat;
 
             dir_cache.append(gpa, .{
+                .selected = false,
                 .name = name,
                 .kind = entry.kind,
                 .size = stat.size,
@@ -251,30 +261,38 @@ pub fn directoryDisplayCached(grid: *dvui.GridWidget) void {
         }
         cache_valid = true;
     }
+    _ = dvui.gridColumnCheckbox(
+        @src(),
+        grid,
+        0,
+        .{ .selection_info = &selection_info },
+        DataAdapter.SliceOfStructUpdatable(CacheEntry, "selected"){ .slice = dir_cache.items },
+        .{},
+    );
     for (dir_cache.items, 0..) |*entry, row_num| {
         {
-            var cell = grid.bodyCell(@src(), 0, row_num, .{});
+            var cell = grid.bodyCell(@src(), 1, row_num, .{});
             defer cell.deinit();
             dvui.labelNoFmt(@src(), entry.name, .{}, .{});
         }
         {
-            var cell = grid.bodyCell(@src(), 1, row_num, .{});
+            var cell = grid.bodyCell(@src(), 2, row_num, .{});
             defer cell.deinit();
             dvui.labelNoFmt(@src(), @tagName(entry.kind), .{}, .{});
         }
         if (entry.kind == .file) {
             {
-                var cell = grid.bodyCell(@src(), 2, row_num, .{});
+                var cell = grid.bodyCell(@src(), 3, row_num, .{});
                 defer cell.deinit();
                 dvui.label(@src(), "{d}", .{entry.size}, .{});
             }
             {
-                var cell = grid.bodyCell(@src(), 3, row_num, .{});
+                var cell = grid.bodyCell(@src(), 4, row_num, .{});
                 defer cell.deinit();
                 dvui.label(@src(), "{d}", .{entry.mode}, .{});
             }
             {
-                var cell = grid.bodyCell(@src(), 4, row_num, .{});
+                var cell = grid.bodyCell(@src(), 5, row_num, .{});
                 defer cell.deinit();
                 dvui.label(@src(), "{[year]:0>4}-{[month]:0>2}-{[day]:0>2} {[hour]:0>2}:{[minute]:0>2}:{[second]:0>2}", fromNsTimestamp(entry.mtime), .{});
             }
