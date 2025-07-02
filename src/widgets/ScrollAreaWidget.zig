@@ -25,6 +25,7 @@ pub var defaults: Options = .{
 };
 
 pub const InitOpts = struct {
+    // TODO: Make scroll info and vertical/horizontal mutually exclusive with a union
     scroll_info: ?*ScrollInfo = null,
     vertical: ?ScrollInfo.ScrollMode = null, // .auto is default
     vertical_bar: ScrollInfo.ScrollBarMode = .auto,
@@ -36,25 +37,24 @@ pub const InitOpts = struct {
     process_events_after: bool = true,
 };
 
-hbox: BoxWidget = undefined,
+hbox: BoxWidget,
 vbar: ?ScrollBarWidget = null,
 vbar_grab: ?ScrollBarWidget.Grab = null,
+/// SAFETY: Set by `installScrollBars`
 vbox: BoxWidget = undefined,
 hbar: ?ScrollBarWidget = null,
 hbar_grab: ?ScrollBarWidget.Grab = null,
-init_opts: InitOpts = undefined,
+init_opts: InitOpts,
+/// SAFETY: Set by `installScrollBars`, might point to `si_store`
 si: *ScrollInfo = undefined,
 si_store: ScrollInfo = .{},
 scroll: ?ScrollContainerWidget = null,
 
 pub fn init(src: std.builtin.SourceLocation, init_opts: InitOpts, opts: Options) ScrollAreaWidget {
-    var self = ScrollAreaWidget{};
-    self.init_opts = init_opts;
-    const options = defaults.override(opts);
-
-    self.hbox = BoxWidget.init(src, .{ .dir = .horizontal }, options);
-
-    return self;
+    return .{
+        .hbox = BoxWidget.init(src, .{ .dir = .horizontal }, defaults.override(opts)),
+        .init_opts = init_opts,
+    };
 }
 
 pub fn install(self: *ScrollAreaWidget) void {
@@ -72,10 +72,10 @@ pub fn installScrollBars(self: *ScrollAreaWidget) void {
     if (self.init_opts.scroll_info) |si| {
         self.si = si;
         if (self.init_opts.vertical != null) {
-            dvui.log.debug("ScrollAreaWidget {x} init_opts.vertical .{s} overridden by init_opts.scroll_info.vertical .{s}\n", .{ self.hbox.wd.id, @tagName(self.init_opts.vertical.?), @tagName(si.vertical) });
+            dvui.log.debug("ScrollAreaWidget {x} init_opts.vertical .{s} overridden by init_opts.scroll_info.vertical .{s}\n", .{ self.hbox.data().id, @tagName(self.init_opts.vertical.?), @tagName(si.vertical) });
         }
         if (self.init_opts.horizontal != null) {
-            dvui.log.debug("ScrollAreaWidget {x} init_opts.horizontal .{s} overridden by init_opts.scroll_info.horizontal .{s}\n", .{ self.hbox.wd.id, @tagName(self.init_opts.horizontal.?), @tagName(si.horizontal) });
+            dvui.log.debug("ScrollAreaWidget {x} init_opts.horizontal .{s} overridden by init_opts.scroll_info.horizontal .{s}\n", .{ self.hbox.data().id, @tagName(self.init_opts.horizontal.?), @tagName(si.horizontal) });
         }
     } else if (dvui.dataGet(null, self.hbox.data().id, "_scroll_info", ScrollInfo)) |si| {
         self.si_store = si;
@@ -95,6 +95,18 @@ pub fn installScrollBars(self: *ScrollAreaWidget) void {
 
     const focus_target = self.init_opts.focus_id orelse dvui.dataGet(null, self.hbox.data().id, "_scroll_id", dvui.WidgetId);
 
+    // If the viewport from last frame is zero, then likely we are on the first
+    // or second frame and ScrollContainer doesn't know how big it is yet.
+    // Assume ScrollContainer gets all our space.  Otherwise you always get a
+    // scrollbar on the second frame.
+    var do_viewport = false;
+    if (self.si.viewport.w == 0 and self.si.viewport.h == 0) {
+        do_viewport = true;
+        const crect = self.hbox.data().contentRect();
+        self.si.viewport.w = crect.w;
+        self.si.viewport.h = crect.h;
+    }
+
     // due to floating point inaccuracies, give ourselves a tiny bit of extra wiggle room
 
     var do_vbar = false;
@@ -102,12 +114,18 @@ pub fn installScrollBars(self: *ScrollAreaWidget) void {
     if (self.si.vertical != .none) {
         if (self.init_opts.vertical_bar == .show or (self.init_opts.vertical_bar.autoAny() and (self.si.virtual_size.h > (self.si.viewport.h + 0.001)))) {
             do_vbar = true;
+            if (do_viewport) {
+                self.si.viewport.w -= ScrollBarWidget.defaults.min_sizeGet().w;
+            }
         }
     }
 
     if (self.si.horizontal != .none) {
         if (self.init_opts.horizontal_bar == .show or (self.init_opts.horizontal_bar.autoAny() and (self.si.virtual_size.w > (self.si.viewport.w + 0.001)))) {
             do_hbar = true;
+            if (do_viewport) {
+                self.si.viewport.h -= ScrollBarWidget.defaults.min_sizeGet().h;
+            }
         }
     }
 
@@ -116,6 +134,9 @@ pub fn installScrollBars(self: *ScrollAreaWidget) void {
         if (self.si.vertical != .none) {
             if (self.init_opts.vertical_bar == .show or (self.init_opts.vertical_bar.autoAny() and (self.si.virtual_size.h > (self.si.viewport.h + 0.001)))) {
                 do_vbar = true;
+                if (do_viewport) {
+                    self.si.viewport.w -= ScrollBarWidget.defaults.min_sizeGet().w;
+                }
             }
         }
     }
@@ -154,7 +175,7 @@ pub fn installScrollBars(self: *ScrollAreaWidget) void {
 }
 
 pub fn data(self: *ScrollAreaWidget) *WidgetData {
-    return &self.hbox.wd;
+    return self.hbox.data();
 }
 
 pub fn deinit(self: *ScrollAreaWidget) void {

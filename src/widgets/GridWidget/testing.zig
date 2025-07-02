@@ -327,7 +327,7 @@ test "variable cell_heights by col" {
     }.frame;
 
     try dvui.testing.settle(frame);
-    try t.saveImage(frame, null, "GridWidget-cvariable_cell_height_col.png");
+    try t.saveImage(frame, null, "GridWidget-cell_height_var.png");
 }
 
 test "variable cell_heights by row" {
@@ -973,8 +973,8 @@ test "header body resize" {
                 for (0..10) |col| {
                     var cell = grid.headerCell(@src(), col, .{
                         .border = dvui.Rect.all(1),
+                        .size = if (action == .tall) .{ .h = 100 } else null,
                     });
-                    std.debug.print("{}:{}\n", .{ frame_number, cell.data().rect });
                     defer cell.deinit();
                     dvui.label(@src(), "{}", .{col}, .{});
                 }

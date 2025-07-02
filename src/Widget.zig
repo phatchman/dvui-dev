@@ -19,7 +19,6 @@ const VTable = struct {
     rectFor: *const fn (ptr: *anyopaque, id: WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect,
     screenRectScale: *const fn (ptr: *anyopaque, r: Rect) RectScale,
     minSizeForChild: *const fn (ptr: *anyopaque, s: Size) void,
-    processEvent: *const fn (ptr: *anyopaque, e: *Event, bubbling: bool) void,
 };
 
 pub fn init(
@@ -28,7 +27,6 @@ pub fn init(
     comptime rectForFn: fn (ptr: @TypeOf(pointer), id: WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect,
     comptime screenRectScaleFn: fn (ptr: @TypeOf(pointer), r: Rect) RectScale,
     comptime minSizeForChildFn: fn (ptr: @TypeOf(pointer), s: Size) void,
-    comptime processEventFn: fn (ptr: @TypeOf(pointer), e: *Event, bubbling: bool) void,
 ) Widget {
     const Ptr = @TypeOf(pointer);
     const ptr_info = @typeInfo(Ptr);
@@ -56,17 +54,11 @@ pub fn init(
             return @call(.always_inline, minSizeForChildFn, .{ self, s });
         }
 
-        fn processEventImpl(ptr: *anyopaque, e: *Event, bubbling: bool) void {
-            const self = @as(Ptr, @ptrCast(@alignCast(ptr)));
-            return @call(.always_inline, processEventFn, .{ self, e, bubbling });
-        }
-
         const vtable = VTable{
             .data = dataImpl,
             .rectFor = rectForImpl,
             .screenRectScale = screenRectScaleImpl,
             .minSizeForChild = minSizeForChildImpl,
-            .processEvent = processEventImpl,
         };
     };
 
@@ -77,7 +69,7 @@ pub fn init(
 }
 
 pub fn data(self: Widget) *WidgetData {
-    return self.vtable.data(self.ptr);
+    return self.vtable.data(self.ptr).validate();
 }
 
 pub fn extendId(self: Widget, src: std.builtin.SourceLocation, id_extra: usize) dvui.WidgetId {
@@ -94,10 +86,6 @@ pub fn screenRectScale(self: Widget, r: Rect) RectScale {
 
 pub fn minSizeForChild(self: Widget, s: Size) void {
     self.vtable.minSizeForChild(self.ptr, s);
-}
-
-pub fn processEvent(self: Widget, e: *Event, bubbling: bool) void {
-    self.vtable.processEvent(self.ptr, e, bubbling);
 }
 
 test {

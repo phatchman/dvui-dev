@@ -13,7 +13,7 @@ const WidgetData = dvui.WidgetData;
 
 const VirtualParentWidget = @This();
 
-wd: WidgetData = undefined,
+wd: WidgetData,
 child_rect_union: ?Rect = null,
 
 pub fn init(src: std.builtin.SourceLocation, opts: Options) VirtualParentWidget {
@@ -25,19 +25,19 @@ pub fn init(src: std.builtin.SourceLocation, opts: Options) VirtualParentWidget 
 
 pub fn install(self: *VirtualParentWidget) void {
     dvui.parentSet(self.widget());
-    self.wd.register();
+    self.data().register();
 }
 
 pub fn widget(self: *VirtualParentWidget) Widget {
-    return Widget.init(self, data, rectFor, screenRectScale, minSizeForChild, processEvent);
+    return Widget.init(self, data, rectFor, screenRectScale, minSizeForChild);
 }
 
 pub fn data(self: *VirtualParentWidget) *WidgetData {
-    return &self.wd;
+    return self.wd.validate();
 }
 
 pub fn rectFor(self: *VirtualParentWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
-    const ret = self.wd.parent.rectFor(id, min_size, e, g);
+    const ret = self.data().parent.rectFor(id, min_size, e, g);
     if (self.child_rect_union) |u| {
         self.child_rect_union = u.unionWith(ret);
     } else {
@@ -47,26 +47,19 @@ pub fn rectFor(self: *VirtualParentWidget, id: dvui.WidgetId, min_size: Size, e:
 }
 
 pub fn screenRectScale(self: *VirtualParentWidget, rect: Rect) RectScale {
-    return self.wd.parent.screenRectScale(rect);
+    return self.data().parent.screenRectScale(rect);
 }
 
 pub fn minSizeForChild(self: *VirtualParentWidget, s: Size) void {
-    self.wd.parent.minSizeForChild(s);
-}
-
-pub fn processEvent(self: *VirtualParentWidget, e: *Event, bubbling: bool) void {
-    _ = bubbling;
-    if (e.bubbleable()) {
-        self.wd.parent.processEvent(e, true);
-    }
+    self.data().parent.minSizeForChild(s);
 }
 
 pub fn deinit(self: *VirtualParentWidget) void {
     defer dvui.widgetFree(self);
     if (self.child_rect_union) |u| {
-        dvui.dataSet(null, self.wd.id, "_rect", u);
+        dvui.dataSet(null, self.data().id, "_rect", u);
     }
-    dvui.parentReset(self.wd.id, self.wd.parent);
+    dvui.parentReset(self.data().id, self.data().parent);
     self.* = undefined;
 }
 

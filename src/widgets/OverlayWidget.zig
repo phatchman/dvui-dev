@@ -11,7 +11,7 @@ const WidgetData = dvui.WidgetData;
 
 const OverlayWidget = @This();
 
-wd: WidgetData = undefined,
+wd: WidgetData,
 
 pub fn init(src: std.builtin.SourceLocation, opts: Options) OverlayWidget {
     const defaults = Options{ .name = "Overlay" };
@@ -20,46 +20,39 @@ pub fn init(src: std.builtin.SourceLocation, opts: Options) OverlayWidget {
 
 pub fn install(self: *OverlayWidget) void {
     dvui.parentSet(self.widget());
-    self.wd.register();
+    self.data().register();
 }
 
 pub fn drawBackground(self: *OverlayWidget) void {
-    self.wd.borderAndBackground(.{});
+    self.data().borderAndBackground(.{});
 }
 
 pub fn widget(self: *OverlayWidget) Widget {
-    return Widget.init(self, data, rectFor, screenRectScale, minSizeForChild, processEvent);
+    return Widget.init(self, data, rectFor, screenRectScale, minSizeForChild);
 }
 
 pub fn data(self: *OverlayWidget) *WidgetData {
-    return &self.wd;
+    return self.wd.validate();
 }
 
 pub fn rectFor(self: *OverlayWidget, id: dvui.WidgetId, min_size: Size, e: Options.Expand, g: Options.Gravity) Rect {
     _ = id;
-    return dvui.placeIn(self.wd.contentRect().justSize(), min_size, e, g);
+    return dvui.placeIn(self.data().contentRect().justSize(), min_size, e, g);
 }
 
 pub fn screenRectScale(self: *OverlayWidget, rect: Rect) RectScale {
-    return self.wd.contentRectScale().rectToRectScale(rect);
+    return self.data().contentRectScale().rectToRectScale(rect);
 }
 
 pub fn minSizeForChild(self: *OverlayWidget, s: Size) void {
-    self.wd.minSizeMax(self.wd.options.padSize(s));
-}
-
-pub fn processEvent(self: *OverlayWidget, e: *Event, bubbling: bool) void {
-    _ = bubbling;
-    if (e.bubbleable()) {
-        self.wd.parent.processEvent(e, true);
-    }
+    self.data().minSizeMax(self.data().options.padSize(s));
 }
 
 pub fn deinit(self: *OverlayWidget) void {
     defer dvui.widgetFree(self);
-    self.wd.minSizeSetAndRefresh();
-    self.wd.minSizeReportToParent();
-    dvui.parentReset(self.wd.id, self.wd.parent);
+    self.data().minSizeSetAndRefresh();
+    self.data().minSizeReportToParent();
+    dvui.parentReset(self.data().id, self.data().parent);
     self.* = undefined;
 }
 

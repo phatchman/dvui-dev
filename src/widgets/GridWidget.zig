@@ -136,22 +136,22 @@ pub const WidthsOrNum = union(enum) {
 pub const default_col_width: f32 = 100;
 
 //Widgets
-vbox: BoxWidget = undefined,
+vbox: BoxWidget,
+/// SAFETY: Set in `install`
 scroll: ScrollAreaWidget = undefined, // main scroll area
 hscroll: ?ScrollAreaWidget = null, // header scroll area
 bscroll: ?ScrollContainerWidget = null, // body scroll container
-bbox: BoxWidget = undefined, // has the same lifetime as bscroll.
 
-// Not valid until after install()
-hsi: ScrollInfo = undefined, // Header scroll info
+hsi: ScrollInfo = .{ .horizontal = .auto, .vertical = .none }, // Header scroll info
+/// SAFETY: Set in `install`, might point to `default_scroll_info`
 bsi: *ScrollInfo = undefined, // Body scroll info
+/// SAFETY: Set in `install`
 frame_viewport: Point = undefined, // Fixed scroll viewport for this frame
-col_widths: []f32 = undefined, // Internal or user-supplied column widths
+col_widths: []f32, // Internal or user-supplied column widths
 starting_col_widths: ?[]f32 = null, // If grid is storing col widths, keep a copy of the starting widths.
 
 // Persistent state
 resizing: bool = false, // true when row height is being recalculated
-last_size: Size = .zero, // virtual height of the grid body for the previous frame
 header_height: f32 = 0,
 last_row_height: f32 = 0, // row height last frame
 sort_direction: SortDirection = .unsorted,
@@ -159,7 +159,7 @@ sort_col_number: usize = 0,
 default_scroll_info: ScrollInfo = .{},
 
 // Non-persistent state
-cols: WidthsOrNum = undefined,
+cols: WidthsOrNum,
 row_height: f32 = 0,
 max_row: usize = 0,
 cur_row: usize = std.math.maxInt(usize), // current row being rendered
@@ -169,17 +169,17 @@ this_row_y: f32 = 0, // This y position for laying out rows with variable height
 last_header_height: f32 = 0, // Height of header last frame
 
 // Options
-init_opts: InitOpts = undefined,
+init_opts: InitOpts,
 
 pub fn init(src: std.builtin.SourceLocation, cols: WidthsOrNum, init_opts: InitOpts, opts: Options) GridWidget {
-    var self = GridWidget{};
-    self.init_opts = init_opts;
-    self.cols = cols;
     const options = defaults.override(opts);
-    self.vbox = BoxWidget.init(src, .{ .dir = .vertical }, options);
-    if (dvui.dataGet(null, self.data().id, "_last_size", Size)) |last_size| {
-        self.last_size = last_size;
-    }
+    var self = GridWidget{
+        .init_opts = init_opts,
+        .cols = cols,
+        .vbox = BoxWidget.init(src, .{ .dir = .vertical }, options),
+        // SAFETY: Set bellow
+        .col_widths = undefined,
+    };
     if (dvui.dataGet(null, self.data().id, "_resizing", bool)) |resizing| {
         self.resizing = resizing;
     }
@@ -198,8 +198,6 @@ pub fn init(src: std.builtin.SourceLocation, cols: WidthsOrNum, init_opts: InitO
     }
     if (dvui.dataGet(null, self.data().id, "_hsi", ScrollInfo)) |hsi| {
         self.hsi = hsi;
-    } else {
-        self.hsi = .{ .horizontal = .auto, .vertical = .none };
     }
     if (dvui.dataGet(null, self.data().id, "_default_si", ScrollInfo)) |default_si| {
         self.default_scroll_info = default_si;
@@ -214,54 +212,52 @@ pub fn init(src: std.builtin.SourceLocation, cols: WidthsOrNum, init_opts: InitO
     if (init_opts.resize_rows or self.resizing) {
         self.row_height = 0;
         self.header_height = 0;
-        dvui.refresh(null, @src(), self.data().id);
+    }
+    // Set the self.col_widths slice to point to the user-supplied col_widths or the
+    // internally stored col_widths.
+    switch (self.cols) {
+        .num_cols => |num_cols| {
+            self.col_widths = blk: {
+                if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []f32)) |col_widths| {
+                    if (col_widths.len == num_cols) {
+                        break :blk col_widths;
+                    }
+                }
+                dvui.dataSetSliceCopies(null, self.data().id, "_col_widths", &[1]f32{0}, num_cols);
+                if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []f32)) |col_widths| {
+                    break :blk col_widths;
+                } else {
+                    dvui.log.debug("GridWidget: {x} could not allocate column widths", .{self.data().id});
+                    break :blk &default_col_widths;
+                }
+            };
+
+            if (self.init_opts.resize_cols) {
+                @memset(self.col_widths, 0);
+            }
+
+            // If the grid is keep track of col widths then keep a copy of the starting col widths.
+            self.starting_col_widths = dvui.currentWindow().arena().alloc(f32, self.col_widths.len) catch |err| default: {
+                dvui.logError(@src(), err, "GridWidget {x} could not allocate column widths", .{self.data().id});
+                dvui.currentWindow().debug_widget_id = self.data().id;
+                break :default null;
+            };
+            if (self.starting_col_widths) |starting| {
+                @memcpy(starting, self.col_widths);
+            }
+        },
+        .col_widths => |col_widths| {
+            self.col_widths = col_widths;
+        },
     }
 
     return self;
 }
 
-// Default col_widths slice to use if allocation fails this frame.
-var oom_col_width: [1]f32 = .{0};
+// Default col_widths slice to use if allocation etc fails this frame.
+var default_col_widths: [1]f32 = .{0};
 
 pub fn install(self: *GridWidget) void {
-    // Set the self.col_widths slice to point to the user-supplied col_widths or the
-    // internally stored col_widths.
-    blk: {
-        switch (self.cols) {
-            .num_cols => |num_cols| {
-                if (dvui.dataGetSlice(null, self.data().id, "_col_widths", []f32)) |col_widths| {
-                    if (col_widths.len == num_cols) {
-                        self.col_widths = col_widths;
-                        if (self.init_opts.resize_cols) {
-                            @memset(self.col_widths, 0);
-                        }
-                        break :blk;
-                    }
-                }
-                // If there are no saved col_widths or the number of columns has changed.
-                self.col_widths = dvui.currentWindow().arena().alloc(f32, num_cols) catch |err| default: {
-                    dvui.logError(@src(), err, "GridWidget {x} could not allocate column widths", .{self.data().id});
-                    dvui.currentWindow().debug_widget_id = self.data().id;
-                    break :default &oom_col_width;
-                };
-                @memset(self.col_widths, 0);
-            },
-            .col_widths => |col_widths| {
-                self.col_widths = col_widths;
-            },
-        }
-    }
-    // If the grid is keep track of col widths then keep a copy of the starting col widths.
-    if (self.cols == .num_cols) {
-        self.starting_col_widths = dvui.currentWindow().arena().alloc(f32, self.col_widths.len) catch |err| default: {
-            dvui.logError(@src(), err, "GridWidget {x} could not allocate column widths", .{self.data().id});
-            dvui.currentWindow().debug_widget_id = self.data().id;
-            break :default null;
-        };
-        if (self.starting_col_widths) |starting| {
-            @memcpy(starting, self.col_widths);
-        }
-    }
     if (self.init_opts.scroll_opts) |*scroll_opts| {
         if (scroll_opts.scroll_info) |scroll_info| {
             self.bsi = scroll_info;
@@ -269,8 +265,8 @@ pub fn install(self: *GridWidget) void {
             self.bsi = &self.default_scroll_info;
             scroll_opts.scroll_info = self.bsi;
             // Move the .horizontal and .vertical settings from scroll_opts to scroll_info
-            self.bsi.horizontal = scroll_opts.horizontal orelse .none;
-            self.bsi.vertical = scroll_opts.vertical orelse .auto;
+            if (scroll_opts.horizontal) |mode| self.bsi.horizontal = mode;
+            if (scroll_opts.vertical) |mode| self.bsi.vertical = mode;
             scroll_opts.horizontal = null;
             scroll_opts.vertical = null;
         }
@@ -302,31 +298,29 @@ pub fn deinit(self: *GridWidget) void {
     if (self.hsi.viewport.x != self.frame_viewport.x) self.hsi.viewport.x = self.bsi.viewport.x;
 
     // resizing if row heights changed or a resize was requested via init options.
-    self.resizing =
-        self.init_opts.resize_rows or
-        !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01);
-
-    const max_row_f: f32 = @floatFromInt(self.max_row);
-    const this_height: f32 = if (self.init_opts.var_row_heights) self.next_row_y else (max_row_f + 1) * self.row_height;
-    const this_size: Size = .{ .h = this_height, .w = self.totalWidth() };
-
-    if (self.resizing or
-        self.init_opts.resize_cols or
-        !this_size.eq(self.last_size))
-    {
+    if (self.resizing) {
         dvui.refresh(null, @src(), self.data().id);
     }
+    self.resizing =
+        self.init_opts.resize_rows or
+        self.init_opts.resize_cols or
+        !std.math.approxEqAbs(f32, self.row_height, self.last_row_height, 0.01) or
+        !std.math.approxEqAbs(f32, self.header_height, self.last_header_height, 0.01);
 
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
     }
 
+    // Create a spacer widget to report body virtual size to scroll area
+    const max_row_f: f32 = @floatFromInt(self.max_row);
+    const this_height: f32 = if (self.init_opts.var_row_heights) self.next_row_y else (max_row_f + 1) * self.row_height;
+    const this_size: Size = .{ .h = this_height, .w = self.totalWidth() };
+    _ = dvui.spacer(@src(), .{ .min_size_content = this_size, .background = false });
+
     if (self.bscroll) |*bscroll| {
-        self.bbox.deinit();
         bscroll.deinit();
     }
     self.scroll.deinit();
-    dvui.dataSet(null, self.data().id, "_last_size", this_size);
     dvui.dataSet(null, self.data().id, "_header_height", self.header_height);
     dvui.dataSet(null, self.data().id, "_resizing", self.resizing);
     dvui.dataSet(null, self.data().id, "_row_height", self.row_height);
@@ -336,15 +330,12 @@ pub fn deinit(self: *GridWidget) void {
     if (self.bsi == &self.default_scroll_info) {
         dvui.dataSet(null, self.data().id, "_default_si", self.default_scroll_info);
     }
-    if (self.cols == .num_cols) {
-        dvui.dataSetSlice(null, self.data().id, "_col_widths", self.col_widths);
-    }
 
     self.vbox.deinit();
 }
 
 pub fn data(self: *GridWidget) *WidgetData {
-    return &self.vbox.wd;
+    return self.vbox.data();
 }
 
 /// Create a header cell for the requested column
@@ -385,8 +376,9 @@ pub fn headerCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: u
     cell.* = BoxWidget.init(src, .{ .dir = .horizontal }, cell_opts);
     cell.install();
     cell.drawBackground();
+    const first_frame = dvui.firstFrame(cell.data().id);
     // Determine heights for next frame.
-    if (!dvui.firstFrame(cell.data().id)) {
+    if (!first_frame) {
         const cell_size = cell.data().rect.size();
         self.header_height = @max(self.header_height, cell_size.h);
         self.colWidthSet(col_num, cell_size.w);
@@ -423,7 +415,7 @@ pub fn bodyCell(self: *GridWidget, src: std.builtin.SourceLocation, col_num: usi
     }
     self.max_row = @max(self.max_row, row_num);
     if (self.bscroll == null) {
-        self.bodyScrollContainerCreate(src);
+        self.bodyScrollContainerCreate();
     }
     const cell_width = width: {
         if (opts.width() > 0) {
@@ -574,13 +566,16 @@ fn headerScrollAreaCreate(self: *GridWidget) void {
         }, .{
             .name = "GridWidgetHeaderScroll",
             .expand = .horizontal,
-            .min_size_content = .{ .h = if (self.header_height > 0) self.header_height else self.last_header_height, .w = self.last_size.w },
+            .min_size_content = .{ .h = if (self.header_height > 0) self.header_height else self.last_header_height, .w = self.totalWidth() },
         });
         self.hscroll.?.install();
+        if (!std.math.approxEqAbs(f32, self.header_height, self.last_header_height, 0.01)) {
+            self.resizing = true;
+        }
     }
 }
 
-fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation) void {
+fn bodyScrollContainerCreate(self: *GridWidget) void {
     // Finished with headers.
     if (self.hscroll) |*hscroll| {
         hscroll.deinit();
@@ -588,7 +583,7 @@ fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation)
     }
 
     if (self.bscroll == null) {
-        self.bscroll = ScrollContainerWidget.init(src, self.bsi, .{
+        self.bscroll = ScrollContainerWidget.init(@src(), self.bsi, .{
             .frame_viewport = self.frame_viewport,
             .event_rect = self.scroll.data().borderRectScale().r,
         }, .{
@@ -598,12 +593,6 @@ fn bodyScrollContainerCreate(self: *GridWidget, src: std.builtin.SourceLocation)
         self.bscroll.?.install();
         self.bscroll.?.processEvents();
         self.bscroll.?.processVelocity();
-
-        // This box is used to set the size of the scrollable area in the scroll container.
-        self.bbox = BoxWidget.init(@src(), .{ .dir = .horizontal }, .{
-            .min_size_content = self.last_size,
-        });
-        self.bbox.install();
     }
 }
 
@@ -688,27 +677,28 @@ pub const HeaderResizeWidget = struct {
         .min_size_content = .{ .w = 1, .h = 1 },
     };
 
-    wd: WidgetData = undefined,
-    direction: Direction = undefined,
-    init_opts: InitOptions = undefined,
+    wd: WidgetData,
+    direction: Direction,
+    init_opts: InitOptions,
     // When user drags less than min_size or more than max_size
     // this offset is used to make them return the mouse back
     // to the min/max size before resizing can start again.
     offset: Point = .{},
 
     pub fn init(src: std.builtin.SourceLocation, dir: Direction, init_options: InitOptions, opts: Options) HeaderResizeWidget {
-        var self = HeaderResizeWidget{};
-
         var widget_opts = HeaderResizeWidget.defaults.override(opts);
         widget_opts.expand = switch (dir) {
             .horizontal => .horizontal,
             .vertical => .vertical,
         };
-        self.direction = dir;
-        self.init_opts = init_options;
-        self.wd = WidgetData.init(src, .{}, widget_opts);
 
-        if (dvui.dataGet(null, self.wd.id, "_offset", Point)) |offset| {
+        var self = HeaderResizeWidget{
+            .wd = WidgetData.init(src, .{}, widget_opts),
+            .direction = dir,
+            .init_opts = init_options,
+        };
+
+        if (dvui.dataGet(null, self.data().id, "_offset", Point)) |offset| {
             self.offset = offset;
         }
 
@@ -716,8 +706,8 @@ pub const HeaderResizeWidget = struct {
     }
 
     pub fn install(self: *HeaderResizeWidget) void {
-        self.wd.register();
-        self.wd.borderAndBackground(.{});
+        self.data().register();
+        self.data().borderAndBackground(.{});
     }
 
     pub fn size(self: *HeaderResizeWidget) f32 {
@@ -751,7 +741,7 @@ pub const HeaderResizeWidget = struct {
     }
 
     pub fn matchEvent(self: *HeaderResizeWidget, e: *Event) bool {
-        var rs = self.wd.rectScale();
+        var rs = self.data().rectScale();
 
         // Clicking near the handle counts as clicking on the handle.
         const grab_extra = self.init_opts.grab_tolerance * rs.s;
@@ -765,7 +755,7 @@ pub const HeaderResizeWidget = struct {
                 rs.r.h += grab_extra;
             },
         }
-        return dvui.eventMatch(e, .{ .id = self.wd.id, .r = rs.r });
+        return dvui.eventMatch(e, .{ .id = self.data().id, .r = rs.r });
     }
 
     pub fn processEvents(self: *HeaderResizeWidget) void {
@@ -774,18 +764,17 @@ pub const HeaderResizeWidget = struct {
             if (!self.matchEvent(e))
                 continue;
 
-            self.processEvent(e, false);
+            self.processEvent(e);
         }
     }
 
     pub fn data(self: *HeaderResizeWidget) *WidgetData {
-        return &self.wd;
+        return self.wd.validate();
     }
 
-    pub fn processEvent(self: *HeaderResizeWidget, e: *Event, bubbling: bool) void {
-        _ = bubbling;
+    pub fn processEvent(self: *HeaderResizeWidget, e: *Event) void {
         if (e.evt == .mouse) {
-            const rs = self.wd.rectScale();
+            const rs = self.data().rectScale();
             const cursor: Cursor = switch (self.direction) {
                 .vertical => .arrow_w_e,
                 .horizontal => .arrow_n_s,
@@ -803,11 +792,11 @@ pub const HeaderResizeWidget = struct {
                 dvui.captureMouse(null);
                 dvui.dragEnd();
                 self.offset = .{};
-            } else if (e.evt.mouse.action == .motion and dvui.captured(self.wd.id)) {
+            } else if (e.evt.mouse.action == .motion and dvui.captured(self.data().id)) {
                 e.handle(@src(), self.data());
                 // move if dragging
                 if (dvui.dragging(e.evt.mouse.p)) |dps| {
-                    dvui.refresh(null, @src(), self.wd.id);
+                    dvui.refresh(null, @src(), self.data().id);
                     const unclamped_size =
                         switch (self.direction) {
                             .vertical => self.size() + dps.x / rs.s + self.offset.x,
@@ -837,21 +826,17 @@ pub const HeaderResizeWidget = struct {
                 dvui.cursorSet(cursor);
             }
         }
-
-        if (e.bubbleable()) {
-            self.wd.parent.processEvent(e, true);
-        }
     }
 
     pub fn deinit(self: *HeaderResizeWidget) void {
-        dvui.dataSet(null, self.wd.id, "_offset", self.offset);
-        self.wd.minSizeSetAndRefresh();
-        self.wd.minSizeReportToParent();
+        dvui.dataSet(null, self.data().id, "_offset", self.offset);
+        self.data().minSizeSetAndRefresh();
+        self.data().minSizeReportToParent();
         self.* = undefined;
     }
 };
 test {
     // TODO: Don't include grid tests yet.
-    _ = @import("GridWidget/testing.zig");
+    // _ = @import("GridWidget/testing.zig");
     @import("std").testing.refAllDecls(@This());
 }
