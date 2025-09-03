@@ -142,7 +142,9 @@ fn gui_frame() bool {
         while (token.tag != .eof) : (token = tokenizer.next()) {
             highlighting.append(gpa, .{ .tok = token, .color = colours.get(token.tag) }) catch |err| @panic(@errorName(err));
         }
+        highlighting.append(gpa, .{ .tok = token, .color = colours.get(token.tag) }) catch |err| @panic(@errorName(err));
         tokenzied = true;
+        std.debug.print("We got {d} tokens.\n", .{highlighting.items.len});
     }
 
     var text = dvui.textLayout(@src(), .{}, .{ .expand = .both });
@@ -306,3 +308,4 @@ const colours: std.EnumArray(Token.Tag, dvui.Color) = .init(.{
 const Tokenizer = std.zig.Tokenizer;
 const Token = std.zig.Token;
 const src_code = @embedFile("sdl-editor.zig");
+// this is a end of file comment. This should now get picked up
