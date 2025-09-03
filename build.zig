@@ -267,6 +267,7 @@ pub fn buildBackend(backend: enums_backend.Backend, test_dvui_and_app: bool, dvu
                 .backend_name = "sdl-backend",
                 .backend_mod = sdl_mod,
             };
+            addExample("sdl2-editor", b.path("examples/sdl-editor.zig"), true, example_opts, dvui_opts);
             addExample("sdl2-standalone", b.path("examples/sdl-standalone.zig"), true, example_opts, dvui_opts);
             addExample("sdl2-ontop", b.path("examples/sdl-ontop.zig"), true, example_opts, dvui_opts);
             addExample("sdl2-app", b.path("examples/app.zig"), test_dvui_and_app, example_opts, dvui_opts);
