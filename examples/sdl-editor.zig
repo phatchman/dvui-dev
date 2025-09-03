@@ -156,6 +156,7 @@ fn gui_frame() bool {
             }
             text.addText(src_code[src_pos..highlight.tok.loc.start], .{ .color_text = non_tok_color });
         }
+        //std.debug.print("{} : {s}\n", .{ highlight, src_code[highlight.tok.loc.start..highlight.tok.loc.end] });
         text.addText(src_code[highlight.tok.loc.start..highlight.tok.loc.end], .{ .color_text = highlight.color });
         src_pos = highlight.tok.loc.end;
     }
@@ -180,7 +181,7 @@ const colours: std.EnumArray(Token.Tag, dvui.Color) = .init(.{
     .invalid_periodasterisks = .red,
     .identifier = color_identifier,
     .string_literal = color_string,
-    .multiline_string_literal_line = color_comment,
+    .multiline_string_literal_line = color_string,
     .char_literal = color_string,
     .eof = .white,
     .builtin = color_builtin,
@@ -201,7 +202,7 @@ const colours: std.EnumArray(Token.Tag, dvui.Color) = .init(.{
     .r_brace = color_braces,
     .l_bracket = color_braces,
     .r_bracket = color_braces,
-    .period = color_punctuation,
+    .period = color_operator,
     .period_asterisk = color_operator,
     .ellipsis2 = color_braces,
     .ellipsis3 = color_braces,
