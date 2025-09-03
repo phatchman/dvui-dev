@@ -91,6 +91,7 @@ pub fn main() !void {
         const wait_event_micros = win.waitTime(end_micros);
         interrupted = try backend.waitEventTimeout(wait_event_micros);
     }
+    highlighting.deinit(gpa);
 }
 
 var highlighting: std.ArrayList(TokenHighlight) = .empty;
@@ -134,29 +135,33 @@ fn gui_frame() bool {
 
     var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both });
     defer scroll.deinit();
-    if (!displayed) {
+    if (!tokenzied) {
+        // Tokenize the code only once
         var tokenizer: Tokenizer = .init(src_code);
         var token: Token = tokenizer.next();
         while (token.tag != .eof) : (token = tokenizer.next()) {
             highlighting.append(gpa, .{ .tok = token, .color = colours.get(token.tag) }) catch |err| @panic(@errorName(err));
         }
-        displayed = true;
+        tokenzied = true;
     }
 
     var text = dvui.textLayout(@src(), .{}, .{ .expand = .both });
     defer text.deinit();
     var src_pos: usize = 0;
     for (highlighting.items) |highlight| {
+        // Check if there is text that is not tokenized (comments / whitespace etc)
         if (src_pos < highlight.tok.loc.start) {
+            // If it is a '//' comment, color it appropriately.
             const non_tok_color = if (std.mem.indexOf(u8, src_code[src_pos..highlight.tok.loc.start], "//") != null) color_comment else dvui.Color.white;
 
+            // Skip any '\r' chars and display the non-tokenized text.
             while (std.mem.indexOf(u8, src_code[src_pos..highlight.tok.loc.start], "\r")) |index| {
                 text.addText(src_code[src_pos .. src_pos + index], .{ .color_text = non_tok_color });
                 src_pos += index + 1;
             }
             text.addText(src_code[src_pos..highlight.tok.loc.start], .{ .color_text = non_tok_color });
         }
-        //std.debug.print("{} : {s}\n", .{ highlight, src_code[highlight.tok.loc.start..highlight.tok.loc.end] });
+        // Display the tokenized text in the token color.
         text.addText(src_code[highlight.tok.loc.start..highlight.tok.loc.end], .{ .color_text = highlight.color });
         src_pos = highlight.tok.loc.end;
     }
@@ -164,7 +169,7 @@ fn gui_frame() bool {
     return true;
 }
 
-var displayed: bool = false;
+var tokenzied: bool = false;
 
 const color_keyword: dvui.Color = .fromHex("#569CD6");
 const color_identifier: dvui.Color = .fromHex("#4EC9B0");
