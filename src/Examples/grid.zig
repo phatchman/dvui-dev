@@ -462,7 +462,7 @@ pub fn gridSelection() void {
         grid.ensureBodyScroll();
         const evts = dvui.events();
         for (evts) |*e| {
-            if (!dvui.eventMatchSimple(e, grid.data())) continue;
+            if (!dvui.eventMatchSimple(e, grid.bscroll.?.data())) continue;
 
             switch (e.evt) {
                 .mouse => |me| {
@@ -471,8 +471,8 @@ pub fn gridSelection() void {
                         continue;
                     }
                     if (me.action == .press and me.button.pointer()) {
-                        e.handle(@src(), grid.data());
-                        dvui.captureMouse(grid.data(), e.num);
+                        e.handle(@src(), grid.bscroll.?.data());
+                        dvui.captureMouse(grid.bscroll.?.data(), e.num);
                         dvui.dragPreStart(me.button, me.p, .{});
                         if (grid.cellFromPoint(me.p)) |cell| {
                             // move to the checkbox
@@ -481,7 +481,7 @@ pub fn gridSelection() void {
                         continue;
                     }
                     if (me.action == .motion and me.button.touch()) {
-                        if (dvui.captured(grid.data().id)) {
+                        if (dvui.captured(grid.bscroll.?.data().id)) {
                             if (dvui.dragging(me.p, null)) |_| {
                                 // touch: overcame drag threshold, user wanted to scroll
                                 dvui.captureMouse(null, e.num);
@@ -491,9 +491,10 @@ pub fn gridSelection() void {
                         continue;
                     }
                     if (me.action == .release and me.button.pointer()) {
-                        if (dvui.captured(grid.data().id)) {
+                        if (dvui.captured(grid.bscroll.?.data().id)) {
                             if (grid.cellFromPoint(me.p)) |cell| {
-                                e.handle(@src(), grid.data());
+                                e.handle(@src(), grid.bscroll.?.data());
+                                dvui.captureMouse(null, e.num);
 
                                 if (dvui.dragging(me.p, null)) |_| {
                                     dvui.dragEnd();
