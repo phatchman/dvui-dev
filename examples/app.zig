@@ -11,9 +11,9 @@ const window_icon_png = @embedFile("zig-favicon.png");
 pub const dvui_app: dvui.App = .{
     .config = .{
         .options = .{
-            .size = .{ .w = 800.0, .h = 600.0 },
-            .min_size = .{ .w = 250.0, .h = 350.0 },
-            .title = "DVUI App Example",
+            .size = .{ .w = 400.0, .h = 300.0 },
+            .min_size = .{ .w = 250.0, .h = 300.0 },
+            .title = "DVUI Scroll Example",
             .icon = window_icon_png,
             .window_init_options = .{
                 // Could set a default theme here
@@ -62,24 +62,30 @@ pub fn appDeinit(win: *dvui.Window) void {
 }
 
 // Run each frame to do normal UI
+var scroll_info: dvui.ScrollInfo = .{};
+var scroll_to_bottom: bool = true;
+var delay_scroll: bool = false;
 pub fn appFrame() !dvui.App.Result {
-    {
-        // Here's the dvui example content, replace/modify with your stuff
+    var scroll = dvui.scrollArea(@src(), .{ .scroll_info = &scroll_info }, .{ .expand = .both, .background = true });
+    defer scroll.deinit();
 
-        var scaler = dvui.scale(@src(), .{ .scale = &dvui.currentWindow().content_scale, .pinch_zoom = .global }, .{ .rect = .cast(dvui.windowRect()) });
-        scaler.deinit();
-
-        if (menu()) |res| return res;
-
-        var scroll = dvui.scrollArea(@src(), .{}, .{ .expand = .both, .style = .window });
-        defer scroll.deinit();
-
-        if (content()) |res| return res;
+    for (0..20) |i| {
+        dvui.label(@src(), "line: {}", .{i}, .{ .id_extra = i });
     }
+    var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{});
+    defer hbox.deinit();
+    _ = dvui.button(@src(), "test", .{}, .{});
+    _ = dvui.button(@src(), "test2", .{}, .{});
 
-    // only shows the demo if dvui.Examples.show_demo_window is true
-    // .full -> .lite or comment out to speed up compile times
-    dvui.Examples.demo(.full);
+    if (scroll_to_bottom) {
+        scroll_info.scrollToOffset(.vertical, std.math.floatMax(f32));
+        if (delay_scroll) {
+            delay_scroll = false;
+            dvui.refresh(null, @src(), null);
+        } else {
+            scroll_to_bottom = false;
+        }
+    }
 
     return .ok;
 }
