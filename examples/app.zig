@@ -64,27 +64,24 @@ pub fn appDeinit(win: *dvui.Window) void {
 // Run each frame to do normal UI
 var scroll_info: dvui.ScrollInfo = .{};
 var scroll_to_bottom: bool = true;
-var delay_scroll: bool = false;
+var frame_count: usize = 0;
 pub fn appFrame() !dvui.App.Result {
-    var scroll = dvui.scrollArea(@src(), .{ .scroll_info = &scroll_info }, .{ .expand = .both, .background = true });
-    defer scroll.deinit();
+    defer frame_count += 1;
+    {
+        var scroll = dvui.scrollArea(@src(), .{ .scroll_info = &scroll_info }, .{ .expand = .both, .background = true });
+        defer scroll.deinit();
 
-    for (0..20) |i| {
-        dvui.label(@src(), "line: {}", .{i}, .{ .id_extra = i });
+        for (0..20) |i| {
+            dvui.label(@src(), "line: {}", .{i}, .{ .id_extra = i });
+        }
+        var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{});
+        defer hbox.deinit();
+        _ = dvui.button(@src(), "test", .{}, .{});
+        _ = dvui.button(@src(), "test2", .{}, .{});
     }
-    var hbox = dvui.box(@src(), .{ .dir = .horizontal }, .{});
-    defer hbox.deinit();
-    _ = dvui.button(@src(), "test", .{}, .{});
-    _ = dvui.button(@src(), "test2", .{}, .{});
-
     if (scroll_to_bottom) {
         scroll_info.scrollToOffset(.vertical, std.math.floatMax(f32));
-        if (delay_scroll) {
-            delay_scroll = false;
-            dvui.refresh(null, @src(), null);
-        } else {
-            scroll_to_bottom = false;
-        }
+        scroll_to_bottom = false;
     }
 
     return .ok;
